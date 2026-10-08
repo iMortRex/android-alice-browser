@@ -196,4 +196,13 @@ if [ -d "$SCRIPT_DIR/patches" ]; then
     done
 fi
 
+# Alice sed patch
+if [ -d "$SCRIPT_DIR/patches/mods" ]; then
+    for m in "$SCRIPT_DIR"/patches/mods/*.sh; do
+        [ -f "$m" ] || continue
+        echo "Applying mod: $(basename "$m")"
+        bash "$m" || exit 1
+    done
+fi
+
 export PATCHED=1
