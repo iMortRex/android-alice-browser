@@ -24,9 +24,9 @@ rm -rf $SCRIPT_DIR/vanadium/patches/*javascript-optimizer-{site-setting,settings
 rm -rf $SCRIPT_DIR/vanadium/patches/*component-updates.patch
 rm -rf $SCRIPT_DIR/vanadium/patches/*{pdf,PDF,for-content-public,toolbar-button,configs-from-config-app,config-app-parsing,new-tab-card,predictive-back}*.patch
 # rm -rf $SCRIPT_DIR/vanadium/patches/*crashpad*.patch
-replace "$SCRIPT_DIR/vanadium/patches" "VANADIUM" "TITANIUM"
-replace "$SCRIPT_DIR/vanadium/patches" "Vanadium" "Titanium"
-replace "$SCRIPT_DIR/vanadium/patches" "vanadium" "titanium"
+replace "$SCRIPT_DIR/vanadium/patches" "VANADIUM" "ALICE"
+replace "$SCRIPT_DIR/vanadium/patches" "Vanadium" "Alice"
+replace "$SCRIPT_DIR/vanadium/patches" "vanadium" "alice"
 git am --whitespace=nowarn --keep-non-patch $SCRIPT_DIR/vanadium/patches/*.patch
 
 gclient sync -D --no-history --nohooks
@@ -43,11 +43,11 @@ mv $(find out/Default/apks -name 'Chrome*.apk') out/tmp/$VERSION-armeabi-v7a.apk
 sed -i 's/target_cpu = "arm"/target_cpu = "arm64"/' out/Default/args.gn
 autoninja -C out/Default chrome_public_apk chrome_public_bundle
 mv $(find out/Default/apks -name 'Chrome*.apk') out/tmp/$VERSION-arm64-v8a.apk
-mv $(find out/Default/apks -name 'Chrome*.aab') out/tmp/$VERSION-arm64-v8a.aab
+# mv $(find out/Default/apks -name 'Chrome*.aab') out/tmp/$VERSION-arm64-v8a.aab
 
 export PATH=$PWD/third_party/jdk/current/bin/:$PATH
 export ANDROID_HOME=$PWD/third_party/android_sdk/public
 sign_apk out/tmp/$VERSION-armeabi-v7a.apk out/release/$VERSION-armeabi-v7a.apk
 sign_apk out/tmp/$VERSION-arm64-v8a.apk out/release/$VERSION-arm64-v8a.apk
-sign_aab out/tmp/$VERSION-arm64-v8a.aab out/release/$VERSION-arm64-v8a.aab
+# sign_aab out/tmp/$VERSION-arm64-v8a.aab out/release/$VERSION-arm64-v8a.aab
 rm -rf $SCRIPT_DIR/keys
