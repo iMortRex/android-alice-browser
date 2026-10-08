@@ -19,7 +19,7 @@ hooks = [
     'action': ['python3',
               '../vanadium/tools/filter_lists/filter_list_download.py',
               '--output',
-              'src/titanium/android_config/filter_lists/filter_lists_easylist.txt',
+              'src/alice/android_config/filter_lists/filter_lists_easylist.txt',
               '--urls',
               'https://easylist-downloads.adblockplus.org/antiadblockfilters.txt',
               'https://easylist.to/easylist/easylist.txt',
@@ -36,13 +36,13 @@ hooks = [
               'src']
   },
   {
-    'name': 'fetch_titanium_extension',
+    'name': 'fetch_alice_extension',
     'condition': 'checkout_android',
     'action': ['python3',
               '../extensions/bundle.py',
               '../extensions/dist',
-              'titanium',
-              'https://github.com/jqssun/android-titanium-extension/releases/latest/download/titanium.crx']
+              'alice',
+              'https://github.com/jqssun/android-alice-extension/releases/latest/download/alice.crx']
   },
 ]
 target_os = ['android']
