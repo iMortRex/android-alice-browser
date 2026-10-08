@@ -8,13 +8,13 @@ sed -i 's|<data android:mimeType="message/rfc822"/>|<data android:mimeType="mess
 sed -i '/com.google.ar.core.min_apk_version/d' third_party/arcore-android-sdk-client/AndroidManifest_basesplit.xml
 # sed -i 's|Google LLC|jqssun, Google LLC|' chrome/browser/ui/android/strings/android_chrome_strings.grd
 
-# cp -r $SCRIPT_DIR/extensions/dist alice/
-# cp $SCRIPT_DIR/extensions/stage_bundled_extensions.inc alice/dist/
-# sed -i 's|"//components/privacy_sandbox/privacy_sandbox_attestations/preload:privacy_sandbox_attestations_assets",|&"//alice/dist:extension_assets",|' chrome/android/BUILD.gn
-# sed -i 's|if (!base::PathService::Get(base::DIR_MODULE, \&cur)) {|if (!base::PathService::Get(chrome::DIR_USER_DATA, \&cur)) {|' chrome/common/chrome_paths.cc
-# sed -i 's|#include "extensions/buildflags/buildflags.h"|&\n#include "alice/dist/stage_bundled_extensions.inc"|' chrome/browser/extensions/external_pref_loader.cc
-# sed -i 's|ReadStandaloneExtensionPrefFiles(prefs);|&StageBundledExtensions(base_path_id_, base_path_, prefs);|' chrome/browser/extensions/external_pref_loader.cc
-# sed -i 's|if (extension.location() == mojom::ManifestLocation::kCommandLine) {|if (extension.location() == mojom::ManifestLocation::kExternalPref) return false;\n&|' chrome/browser/extensions/extension_safety_check_utils.cc
+cp -r $SCRIPT_DIR/extensions/dist alice/
+cp $SCRIPT_DIR/extensions/stage_bundled_extensions.inc alice/dist/
+sed -i 's|"//components/privacy_sandbox/privacy_sandbox_attestations/preload:privacy_sandbox_attestations_assets",|&"//alice/dist:extension_assets",|' chrome/android/BUILD.gn
+sed -i 's|if (!base::PathService::Get(base::DIR_MODULE, \&cur)) {|if (!base::PathService::Get(chrome::DIR_USER_DATA, \&cur)) {|' chrome/common/chrome_paths.cc
+sed -i 's|#include "extensions/buildflags/buildflags.h"|&\n#include "alice/dist/stage_bundled_extensions.inc"|' chrome/browser/extensions/external_pref_loader.cc
+sed -i 's|ReadStandaloneExtensionPrefFiles(prefs);|&StageBundledExtensions(base_path_id_, base_path_, prefs);|' chrome/browser/extensions/external_pref_loader.cc
+sed -i 's|if (extension.location() == mojom::ManifestLocation::kCommandLine) {|if (extension.location() == mojom::ManifestLocation::kExternalPref) return false;\n&|' chrome/browser/extensions/extension_safety_check_utils.cc
 
 sed -i 's|if (!_omit_dex) {|if (_is_base_module \&\& !_omit_dex) {|' build/config/android/rules.gni
 sed -i '/safelyRemovePreference(prefFragment/d' alice/chromium_src/chrome/browser/language/android/java/src/org/chromium/chrome/browser/language/settings/LanguageSettingsExt.java # language
