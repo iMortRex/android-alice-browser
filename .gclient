@@ -36,13 +36,13 @@ hooks = [
               'src']
   },
   {
-    'name': 'fetch_alice_extension',
+    'name': 'fetch_titanium_extension',
     'condition': 'checkout_android',
     'action': ['python3',
               '../extensions/bundle.py',
               '../extensions/dist',
-              'alice',
-              'https://github.com/jqssun/android-alice-extension/releases/latest/download/alice.crx']
+              'titanium',
+              'https://github.com/jqssun/android-titanium-extension/releases/latest/download/titanium.crx']
   },
 ]
 target_os = ['android']
