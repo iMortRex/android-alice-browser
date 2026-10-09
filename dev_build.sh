@@ -36,6 +36,17 @@ if [ -d "$SCRIPT_DIR/mods" ]; then
     done
 fi
 
+# 修正所有 gritdeps 里 alice 条目的位置
+echo "=== 修正 gritdeps ==="
+cd "$CHROMIUM"
+for GRITDEPS in $(find . -name "*.grd.gritdeps" -o -name "*.grdp.gritdeps" 2>/dev/null); do
+    ALICE_LINE=$(grep "^alice/" "$GRITDEPS" 2>/dev/null | head -1)
+    [ -z "$ALICE_LINE" ] && continue
+    sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
+    sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
+    echo "Fixed: $GRITDEPS"
+done
+
 # 3. 增量编译
 echo "=== 增量编译 ==="
 autoninja -C out/Default chrome_public_apk
