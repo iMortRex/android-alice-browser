@@ -18,17 +18,20 @@ git clean -fd
 # 应用 patch.sh
 if [ -f "$SCRIPT_DIR/patch.sh" ]; then
     echo "=== 应用 patch.sh ==="
+    source "$SCRIPT_DIR/common.sh"
     source "$SCRIPT_DIR/patch.sh" || exit 1
 fi
 
-# 修正所有 gritdeps 里 alice 条目的位置
+# 修正 gritdeps 里 alice 条目的位置
 echo "=== 修正 gritdeps ==="
 cd "$CHROMIUM"
-for GRITDEPS in $(grep -rl "^alice/" --include="*.gritdeps" . 2>/dev/null); do
-    # 已在第一行，跳过
+for GRITDEPS in \
+    "components/components_strings.grd.gritdeps" \
+    ; do
+    [ -f "$GRITDEPS" ] || continue
     head -1 "$GRITDEPS" | grep -q "^alice/" && continue
-
     ALICE_LINE=$(grep "^alice/" "$GRITDEPS" | head -1)
+    [ -z "$ALICE_LINE" ] && continue
     sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
     sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
     echo "Fixed: $GRITDEPS"
