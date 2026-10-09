@@ -1,10 +1,9 @@
 #!/bin/bash
 # 修改默认设置值
 
-# 检测是否以应用
+# 检测是否已应用
 if grep -q 'prefs::kCredentialsEnableService, false,' "components/password_manager/core/browser/password_manager.cc"; then
-    echo "已应用，跳过: $(basename "$0")"
-    exit 0
+    exit 100
 fi
 
 # 地址栏默认底部

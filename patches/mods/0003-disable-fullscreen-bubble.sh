@@ -1,10 +1,9 @@
 #!/bin/bash
 # 禁用全屏气泡提示
 
-# 检测是否以应用
+# 检测是否已应用
 if grep -q 'public void show() { if (true) return;' "chrome/android/java/src/org/chromium/chrome/browser/ui/ExclusiveAccessBubble.java"; then
-    echo "已应用，跳过: $(basename "$0")"
-    exit 0
+    exit 100
 fi
 
 sed -i 's|public void show() {|public void show() { if (true) return;|' \
