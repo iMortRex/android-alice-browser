@@ -1,6 +1,12 @@
 #!/bin/bash
 # Display Cutout 模式固定为 1
 
+# 检测是否以应用
+if grep -q 'if (attributes.layoutInDisplayCutoutMode == 1) return;' "components/browser_ui/display_cutout/android/java/src/org/chromium/components/browser_ui/display_cutout/DisplayCutoutController.java"; then
+    echo "已应用，跳过: $(basename "$0")"
+    exit 0
+fi
+
 sed -i 's|if (attributes.layoutInDisplayCutoutMode == displayCutoutMode) return;|if (attributes.layoutInDisplayCutoutMode == 1) return;|' \
     components/browser_ui/display_cutout/android/java/src/org/chromium/components/browser_ui/display_cutout/DisplayCutoutController.java
 
