@@ -17,7 +17,7 @@ git clean -fd
 
 # 应用 patch.sh
 if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    echo "=== 应用 patch.sh ==="
+    echo "=== 应用 common.sh ==="
     source "$SCRIPT_DIR/common.sh" || exit 1
 fi
 if [ -f "$SCRIPT_DIR/patch.sh" ]; then
