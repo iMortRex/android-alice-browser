@@ -192,7 +192,7 @@ echo "=== 应用 patch ==="
 if [ -d "$SCRIPT_DIR/patches" ]; then
     for p in "$SCRIPT_DIR"/patches/*.patch; do
         [ -f "$p" ] || continue
-        echo "应用: $p"
+        echo "应用: $(basename "$p")"
         git apply --whitespace=nowarn "$p"
     done
 fi
