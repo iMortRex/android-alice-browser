@@ -42,7 +42,7 @@ done
 
 # 增量编译
 echo "=== 增量编译 ==="
-autoninja -C out/Default chrome_public_apk
+# autoninja -C out/Default chrome_public_apk
 
 # 找 APK
 APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
