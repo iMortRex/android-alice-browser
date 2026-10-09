@@ -18,12 +18,16 @@ if [ -d "$SCRIPT_DIR/patches" ]; then
 
         # 已应用就跳过
         if git apply --reverse --check "$p" 2>/dev/null; then
-            echo "已应用Patch，跳过: $(basename "$p")"
+            echo "已应用，跳过: $(basename "$p")"
             continue
         fi
 
-        echo "应用Patch: $(basename "$p")"
-        git apply --whitespace=nowarn "$p" || { echo "失败: $p"; exit 1; }
+        # 没应用，正式应用
+        echo "应用: $(basename "$p")"
+        git apply --whitespace=nowarn "$p" || {
+            echo "应用失败: $p"
+            exit 1
+        }
     done
 fi
 
@@ -32,8 +36,20 @@ echo "=== 应用 mod ==="
 if [ -d "$SCRIPT_DIR/patches/mods" ]; then
     for m in "$SCRIPT_DIR"/patches/mods/*.sh; do
         [ -f "$m" ] || continue
-        echo "应用mod: $(basename "$m")"
-        bash "$m" || exit 1
+        name=$(basename "$m")
+
+        # 临时禁用 set -e
+        set +e
+        bash "$m"
+        code=$?
+        set -e
+
+        case $code in
+            0)   echo "应用: $name" ;;
+            100) echo "已应用，跳过: $name" ;;
+            *)   echo "应用失败: $name (exit=$code)"
+                 exit 1 ;;
+        esac
     done
 fi
 
@@ -41,14 +57,20 @@ fi
 echo "=== 增量编译 ==="
 autoninja -C out/Default chrome_public_apk
 
-# 找 APK
 APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
-if [ -f "$APK" ]; then
-    echo ""
-    echo "=== 编译成功 ==="
-    echo "APK: $APK"
-    echo "安装: adb install -r $APK"
-else
-    echo "编译失败：找不到 APK"
-    exit 1
-fi
+echo "=== 编译成功 ==="
+echo "安装:"
+echo "adb.exe install -r $APK"
+# adb.exe install -r $APK
+
+# 找 APK
+# APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
+# if [ -f "$APK" ]; then
+#     echo ""
+#     echo "=== 编译成功 ==="
+#     echo "APK: $APK"
+#     echo "安装: adb.exe install -r $APK"
+# else
+#     echo "编译失败：找不到 APK"
+#     exit 1
+# fi

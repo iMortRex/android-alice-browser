@@ -773,7 +773,7 @@ class AppMenuHandlerImpl
             ListItem item = mModelList.get(i);
             if (item.type != AppMenuItemType.BUTTON_ROW) continue;
             PropertyModel model = item.model;
-            mModelList.remove(i);
+            mModelList.removeAt(i);
             return model;
         }
         return null;

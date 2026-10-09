@@ -188,19 +188,21 @@ sed -i 's/|| mSupportedProfileType == SupportedProfileType.REGULAR) {/|| mSuppor
 sed -i 's/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD) {/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD || mSupportedProfileType == SupportedProfileType.MIXED) {/' chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 
 # Alice patch
+echo "=== 应用 patch ==="
 if [ -d "$SCRIPT_DIR/patches" ]; then
     for p in "$SCRIPT_DIR"/patches/*.patch; do
         [ -f "$p" ] || continue
-        echo "Applying $p"
+        echo "应用: $p"
         git apply --whitespace=nowarn "$p"
     done
 fi
 
 # Alice sed patch
+echo "=== 应用 mod ==="
 if [ -d "$SCRIPT_DIR/patches/mods" ]; then
     for m in "$SCRIPT_DIR"/patches/mods/*.sh; do
         [ -f "$m" ] || continue
-        echo "Applying mod: $(basename "$m")"
+        echo "应用: $(basename "$m")"
         bash "$m" || exit 1
     done
 fi

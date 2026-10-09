@@ -86,7 +86,7 @@ index 9a1cbc7..f93fc58 100644
 +            ListItem item = mModelList.get(i);
 +            if (item.type != AppMenuItemType.BUTTON_ROW) continue;
 +            PropertyModel model = item.model;
-+            mModelList.remove(i);
++            mModelList.removeAt(i);
 +            return model;
 +        }
 +        return null;
@@ -145,3 +145,24 @@ index 9a1cbc7..f93fc58 100644
      }
  
      @Override
+diff --git a/home/mortrex/android-alice-browser/chromium/src/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/home/mortrex/android-alice-browser/patches/work/ChromeTabbedActivity.java
+index b1b4f9a..c5e3d83 100644
+--- a/home/mortrex/android-alice-browser/chromium/src/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
++++ b/home/mortrex/android-alice-browser/patches/work/ChromeTabbedActivity.java
+@@ -4630,9 +4630,13 @@ public class ChromeTabbedActivity extends ChromeActivity implements PreAttachInt
+             }
+         } else if (id == R.id.extensions_menu_menu_id) {
+             ExtensionsToolbarCoordinator coordinator =
+-                    getToolbarManager().getExtensionsToolbarCoordinator();
+-            coordinator.showExtensionsMenu();
+-            RecordUserAction.record("MobileMenuExtensionsMenu");
++                    getToolbarManager() == null
++                            ? null
++                            : getToolbarManager().getExtensionsToolbarCoordinator();
++            if (coordinator != null) {
++                coordinator.showExtensionsMenu();
++                RecordUserAction.record("MobileMenuExtensionsMenu");
++            }
+         } else if (id == R.id.manage_extensions_menu_id) {
+             LoadUrlParams params =
+                     new LoadUrlParams(
