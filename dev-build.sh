@@ -24,9 +24,11 @@ fi
 # 修正所有 gritdeps 里 alice 条目的位置
 echo "=== 修正 gritdeps ==="
 cd "$CHROMIUM"
-for GRITDEPS in $(find . -name "*.grd.gritdeps" -o -name "*.grdp.gritdeps" 2>/dev/null); do
-    ALICE_LINE=$(grep "^alice/" "$GRITDEPS" 2>/dev/null | head -1)
-    [ -z "$ALICE_LINE" ] && continue
+for GRITDEPS in $(grep -rl "^alice/" --include="*.gritdeps" . 2>/dev/null); do
+    # 已在第一行，跳过
+    head -1 "$GRITDEPS" | grep -q "^alice/" && continue
+
+    ALICE_LINE=$(grep "^alice/" "$GRITDEPS" | head -1)
     sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
     sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
     echo "Fixed: $GRITDEPS"
