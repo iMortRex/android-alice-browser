@@ -16,6 +16,7 @@ git checkout -- .
 git clean -fd
 
 # 1. 先应用 patches（大段替换）
+echo "=== 应用补丁 ==="
 if [ -d "$SCRIPT_DIR/patches" ]; then
     for p in "$SCRIPT_DIR"/patches/*.patch; do
         [ -f "$p" ] || continue
@@ -28,8 +29,8 @@ if [ -d "$SCRIPT_DIR/patches" ]; then
 fi
 
 # 2. 再应用 mods（sed 微调）
-if [ -d "$SCRIPT_DIR/mods" ]; then
-    for m in "$SCRIPT_DIR"/mods/*.sh; do
+if [ -d "$SCRIPT_DIR/patches/mods" ]; then
+    for m in "$SCRIPT_DIR"/patches/mods/*.sh; do
         [ -f "$m" ] || continue
         echo "Applying mod: $(basename "$m")"
         bash "$m" || exit 1

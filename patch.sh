@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mkdir -p chrome/android/java/res_alice_base
+mkdir -p chrome/android/java/res_alice_base/drawable
 cp $SCRIPT_DIR/res/drawable/themed_app_icon.xml chrome/android/java/res_alice_base/drawable/themed_app_icon.xml
 for icon in $(find chrome/android/java/res_alice_base -type f -name '*.png'); do convert $icon -fill navy -tint 36 $icon && $SCRIPT_DIR/res/icon.sh $icon; done
 sed -i 's|<application |<application android:extractNativeLibs="false" |' chrome/android/java/AndroidManifest.xml
