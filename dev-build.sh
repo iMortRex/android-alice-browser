@@ -16,9 +16,12 @@ git checkout -- .
 git clean -fd
 
 # 应用 patch.sh
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    echo "=== 应用 patch.sh ==="
+    source "$SCRIPT_DIR/common.sh" || exit 1
+fi
 if [ -f "$SCRIPT_DIR/patch.sh" ]; then
     echo "=== 应用 patch.sh ==="
-    source "$SCRIPT_DIR/common.sh"
     source "$SCRIPT_DIR/patch.sh" || exit 1
 fi
 
