@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/hub/internal/android/res/layout/hub_layout.xml b/chrome/browser/hub/internal/android/res/layout/hub_layout.xml
+index d12757f..f1fda17 100644
+--- a/chrome/browser/hub/internal/android/res/layout/hub_layout.xml
++++ b/chrome/browser/hub/internal/android/res/layout/hub_layout.xml
+@@ -18,7 +18,7 @@ found in the LICENSE file.
+       android:layout_width="match_parent"
+       android:layout_height="match_parent"
+       android:orientation="vertical"
+-      android:layout_marginTop="@dimen/toolbar_height_no_shadow">
++      android:layout_marginBottom="@dimen/toolbar_height_no_shadow">
+       <include
+           layout="@layout/hub_pane_host_layout"
+           android:layout_width="match_parent"
+@@ -26,6 +26,13 @@ found in the LICENSE file.
+           android:layout_weight="1" />
+     </LinearLayout>
+ 
++    <FrameLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_gravity="bottom">
++      <include layout="@layout/hub_toolbar_layout" />
++    </FrameLayout>
++
+     <include layout="@layout/hub_toolbar_layout" />
+ 
+   </FrameLayout>

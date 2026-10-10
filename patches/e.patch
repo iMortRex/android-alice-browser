@@ -1,0 +1,13 @@
+diff --git a/chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java b/chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java
+index 62ef19f..142ed47 100644
+--- a/chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java
++++ b/chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java
+@@ -267,7 +267,7 @@ public class HubToolbarView extends LinearLayout {
+                 // Pane switcher in new design needs to be center aligned in the toolbar.
+                 FrameLayout.LayoutParams params =
+                         (FrameLayout.LayoutParams) mPaneSwitcherCard.getLayoutParams();
+-                params.gravity = Gravity.CENTER;
++                params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+                 params.height =
+                         resources.getDimensionPixelSize(R.dimen.hub_pane_switcher_card_height);
+                 mPaneSwitcherCard.setLayoutParams(params);
