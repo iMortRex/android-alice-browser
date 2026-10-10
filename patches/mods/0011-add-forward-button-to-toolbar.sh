@@ -1,0 +1,72 @@
+#!/bin/bash
+# 工具栏左侧：扩展按钮左边加一个前进按钮
+
+set -e
+
+# 检测是否已应用
+if grep -q 'mForwardButton' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"; then
+    exit 100
+fi
+
+# 1) import Tab
+sed -i '/^import org.chromium.chrome.browser.toolbar.back_button.BackButtonCoordinator;$/i\
+import org.chromium.chrome.browser.tab.Tab;' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 2) XML：把扩展 stub 包进左侧横向容器，并在它前面加前进按钮（不依赖缩进）
+sed -i ':a;N;$!ba;s|[[:space:]]*<ViewStub\n[[:space:]]*android:id="@+id/extensions_toolbar_container_stub"\n[^>]*/>\n|\
+    <LinearLayout\
+        android:id="@+id/left_toolbar_buttons"\
+        android:orientation="horizontal"\
+        android:layout_width="wrap_content"\
+        android:layout_height="wrap_content"\
+        android:layout_gravity="top\|start">\
+\
+        <org.chromium.ui.widget.ChromeImageButton\
+            android:id="@+id/forward_button"\
+            style="@style/ToolbarHoverableButton"\
+            android:src="@drawable/btn_forward"\
+            android:contentDescription="@string/accessibility_menu_forward"\
+            android:tooltipText="@string/menu_forward"\
+            android:visibility="gone"\
+            app:tint="@color/default_icon_color_tint_list" />\
+\
+        <ViewStub\
+            android:id="@+id/extensions_toolbar_container_stub"\
+            android:inflatedId="@+id/extensions_toolbar_container"\
+            android:layout_width="wrap_content"\
+            android:layout_height="?attr/toolbarButtonHeight"\
+            android:layout_marginVertical="?attr/toolbarButtonMarginVertical" />\
+\
+    </LinearLayout>\n|' \
+    "chrome/browser/ui/android/toolbar/java/res/layout/toolbar_phone.xml"
+
+# 3) 字段
+sed -i '/^    private View mToolbarBackButton;$/a\
+    private @Nullable View mForwardButton;' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 4) 初始化 + 点击前进
+sed -i '/^            mToolbarBackButton = findViewById(R.id.back_button);$/a\
+            mForwardButton = findViewById(R.id.forward_button);\
+            if (mForwardButton != null) {\
+                mForwardButton.setVisibility(VISIBLE);\
+            }' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 5) 可见性：能前进时才显示
+sed -i '/^            mToolbarBackButton.setVisibility(backBtnVis);$/a\
+\
+        if (mForwardButton != null) {\
+            Tab forwardTab = getToolbarDataProvider().getTab();\
+            mForwardButton.setVisibility(\
+                    forwardTab != null \&\& forwardTab.canGoForward() \&\& !hasFocus ? VISIBLE : GONE);\
+        }' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 6) 左侧偏移改成按"左侧按钮组"宽度算（前进 + 扩展）
+sed -i -e 's|View extensionsContainer = findViewById(R.id.extensions_toolbar_container);|View leftButtons = findViewById(R.id.left_toolbar_buttons);|' \
+       -e 's|if (extensionsContainer != null \&\& extensionsContainer.getVisibility() != GONE) {|if (leftButtons != null \&\& leftButtons.getVisibility() != GONE) {|' \
+       -e 's|padding = Math.max(padding, extensionsContainer.getMeasuredWidth());|padding = Math.max(padding, leftButtons.getMeasuredWidth());|' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
