@@ -1,0 +1,48 @@
+#!/bin/bash
+# 扩展图标挪到地址栏左侧
+
+set -e
+
+# 检测是否已应用
+if grep -q 'View extensionsContainer = findViewById' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"; then
+    exit 100
+fi
+
+# 1) 从右侧按钮容器里删掉（整块删，含 <ViewStub 开标签）
+sed -i ':a;N;$!ba;s|        <ViewStub\n[^>]*extensions_toolbar_container_stub[^>]*/>\n||' \
+    "chrome/browser/ui/android/toolbar/java/res/layout/toolbar_phone.xml"
+
+# 2) 插到 ToolbarPhone 最前面（FrameLayout 默认左上 → 左对齐）
+sed -i '/^    <org.chromium.chrome.browser.toolbar.home_button.HomeButton$/i\
+    <ViewStub\
+        android:id="@+id/extensions_toolbar_container_stub"\
+        android:inflatedId="@+id/extensions_toolbar_container"\
+        android:layout_width="wrap_content"\
+        android:layout_height="?attr/toolbarButtonHeight"\
+        android:layout_marginVertical="?attr/toolbarButtonMarginVertical" />\
+' \
+    "chrome/browser/ui/android/toolbar/java/res/layout/toolbar_phone.xml"
+
+# 3) 地址栏左边界至少让到扩展容器宽度
+sed -i '/^        int padding = mToolbarSidePaddingForNtp;$/a\
+        View extensionsContainer = findViewById(R.id.extensions_toolbar_container);\
+        if (extensionsContainer != null \&\& extensionsContainer.getVisibility() != GONE) {\
+            padding = Math.max(padding, extensionsContainer.getMeasuredWidth());\
+        }' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 4) 手工绘制起点改成 this
+sed -i 's|ViewUtils.translateCanvasToView(mToolbarButtonsContainer, extContainer, canvas)|ViewUtils.translateCanvasToView(this, extContainer, canvas)|' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 5) 容器已挪成 ToolbarPhone 的直接子级，会被正常绘制 —— 删掉 Alice 那段手工补画，否则画两份
+sed -i '/{ View extContainer = findViewById(R.id.extensions_toolbar_container);/d' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 6) capture 路径里对 tab switcher 的手绘 —— 和真实子视图重复
+sed -i '/\/\/ Draw the tab stack button and associated text if necessary\./,/^        }$/d' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 7) capture 路径里对菜单按钮的手绘 —— 同上
+sed -i '/\/\/ Draw the menu button if necessary\./,/^        }$/d' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
