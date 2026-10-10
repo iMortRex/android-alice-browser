@@ -3,11 +3,8 @@
 
 set -e
 
-TAB_LIST="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
-PROGUARD="chrome/android/proguard/main.flags"
-
 # 检测是否已应用
-if grep -q 'mStackFromEnd' "$TAB_LIST"; then
+if grep -q 'mStackFromEnd' "chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"; then
     exit 100
 fi
 
