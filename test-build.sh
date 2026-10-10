@@ -59,10 +59,14 @@ autoninja -C out/Default chrome_public_apk
 
 APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
 echo "=== 编译成功 ==="
-echo "安装:"
+echo "手动安装指令:"
 echo "adb.exe install -r $APK"
 echo "正在安装"
 adb.exe install -r $APK
+echo "安装完成"
+pactl set-sink-volume @DEFAULT_SINK@ 200% 2>/dev/null
+paplay "/mnt/c/Windows/Media/Windows Unlock.wav"
+pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null
 
 # 找 APK
 # APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
