@@ -61,7 +61,8 @@ APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
 echo "=== 编译成功 ==="
 echo "安装:"
 echo "adb.exe install -r $APK"
-# adb.exe install -r $APK
+echo "正在安装"
+adb.exe install -r $APK
 
 # 找 APK
 # APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"

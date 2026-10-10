@@ -1,10 +1,35 @@
 #!/bin/bash
-# Display Cutout 模式固定为 1
+# 标签页网格：标签居下（LinearLayoutManager.mStackFromEnd）
+
+set -e
+
+TAB_LIST="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
+PROGUARD="chrome/android/proguard/main.flags"
 
 # 检测是否已应用
-if grep -q 'gridLayoutManager.setStackFromEnd(true);' "chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"; then
+if grep -q 'mStackFromEnd' "$TAB_LIST"; then
     exit 100
 fi
 
-sed -i '/mRecyclerView.setLayoutManager(gridLayoutManager);/i\                gridLayoutManager.setStackFromEnd(true);' \
-    chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java
+# 反射
+sed -i '/mRecyclerView\.setLayoutManager(gridLayoutManager);/i\
+                try {\
+                    java.lang.reflect.Field stackFromEnd =\
+                            androidx.recyclerview.widget.LinearLayoutManager.class\
+                                    .getDeclaredField("mStackFromEnd");\
+                    stackFromEnd.setAccessible(true);\
+                    stackFromEnd.setBoolean(gridLayoutManager, true);\
+                    gridLayoutManager.requestLayout();\
+                } catch (ReflectiveOperationException e) {\
+                    throw new RuntimeException("setStackFromEnd failed", e);\
+                }' \
+    "chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
+
+# 添加keep规则
+sed -i '$a\
+\
+# Alice: 反射设置 LinearLayoutManager.mStackFromEnd，保留字段名不被混淆\
+-keepclassmembers class androidx.recyclerview.widget.LinearLayoutManager {\
+    boolean mStackFromEnd;\
+}' \
+    "chrome/android/proguard/main.flags"
