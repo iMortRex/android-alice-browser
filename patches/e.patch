@@ -145,10 +145,10 @@ index 9a1cbc7..f93fc58 100644
      }
  
      @Override
-diff --git a/home/mortrex/android-alice-browser/chromium/src/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/home/mortrex/android-alice-browser/patches/work/ChromeTabbedActivity.java
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 index b1b4f9a..c5e3d83 100644
---- a/home/mortrex/android-alice-browser/chromium/src/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
-+++ b/home/mortrex/android-alice-browser/patches/work/ChromeTabbedActivity.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 @@ -4630,9 +4630,13 @@ public class ChromeTabbedActivity extends ChromeActivity implements PreAttachInt
              }
          } else if (id == R.id.extensions_menu_menu_id) {
@@ -166,3 +166,20 @@ index b1b4f9a..c5e3d83 100644
          } else if (id == R.id.manage_extensions_menu_id) {
              LoadUrlParams params =
                      new LoadUrlParams(
+diff --git a/chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java b/chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java
+index 5456f09633..56092b2e7c 100644
+--- a/chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java
++++ b/chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java
+@@ -434,6 +434,12 @@ class AppMenu implements OnKeyListener {
+                 mAdapter == null
+                         ? 0
+                         : UiUtils.computeListAdapterContentDimensions(mAdapter, mListView)[0];
++        if (footer != null) {
++            footer.measure(
++                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
++                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
++            itemWidth = Math.max(itemWidth, footer.getMeasuredWidth());
++        }
+         int contentWidth = itemWidth + bgPadding.left + bgPadding.right;
+         int minWidth = context.getResources().getDimensionPixelSize(R.dimen.menu_width_min);
+         int menuMaxWidth = context.getResources().getDimensionPixelSize(R.dimen.menu_width_max);
