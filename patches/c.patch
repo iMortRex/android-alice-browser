@@ -1,0 +1,49 @@
+diff --git a/chrome/browser/devtools/devtools_window.cc b/chrome/browser/devtools/devtools_window.cc
+index 8aabdbd..4b49ea8 100644
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -160,6 +160,7 @@ static const char kWorkerFrontendURL[] =
+ static const char kJSFrontendURL[] = "devtools://devtools/bundled/js_app.html";
+ static const char kFallbackFrontendURL[] =
+     "devtools://devtools/bundled/inspector.html";
++static int64_t g_android_target_browser_window_ptr = 0;
+ 
+ void SetPreferencesFromJson(Profile* profile, const std::string& json) {
+   std::optional<base::DictValue> parsed =
+@@ -1041,6 +1042,14 @@ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
+   if (!owned_main_web_contents_ || launched_activity_) {
+     return;
+   }
++  if (g_android_target_browser_window_ptr != 0) {
++    AttachToBrowser(
++        reinterpret_cast<BrowserWindowInterface*>(g_android_target_browser_window_ptr));
++    g_android_target_browser_window_ptr = 0;
++    launched_activity_ = true;
++    OverrideAndSyncDevToolsRendererPrefs();
++    return;
++  }
+   JNIEnv* env = base::android::AttachCurrentThread();
+   Java_DevToolsActivity_launchDevToolsActivity(
+       env, main_web_contents_->GetJavaWebContents());
+@@ -2319,6 +2328,11 @@ raw_ptr<content::WebContents> DevToolsWindow::GetDevToolsWebContents() {
+   return main_web_contents_;
+ }
+ 
++void DevToolsWindow::SetAndroidTargetBrowserWindow(int64_t ptr) {
++  g_android_target_browser_window_ptr = ptr;
++}
++
++
+ void DevToolsWindow::AttachToBrowser(BrowserWindowInterface* browser) {
+   if (!owned_main_web_contents_) {
+     return;
+@@ -2333,6 +2347,8 @@ void DevToolsWindow::AttachToBrowser(BrowserWindowInterface* browser) {
+   if (!tab_list) {
+     return;
+   }
+-  tab_list->InsertWebContentsAt(0, std::move(owned_web_contents), false,
++  const int insert_index =
++  std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());
++  tab_list->InsertWebContentsAt(insert_index, std::move(owned_web_contents), false,
+                                 std::nullopt);
+ }

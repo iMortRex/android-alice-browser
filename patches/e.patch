@@ -1,0 +1,17 @@
+diff --git a/chrome/browser/devtools/android/devtools_window_android.cc b/chrome/browser/devtools/android/devtools_window_android.cc
+index 5a3408f21e..2c8d2435c9 100644
+--- a/chrome/browser/devtools/android/devtools_window_android.cc
++++ b/chrome/browser/devtools/android/devtools_window_android.cc
+@@ -58,4 +58,12 @@ static void JNI_DevToolsWindowAndroid_AttachToBrowser(
+ #endif
+ }
+ 
++static void JNI_DevToolsWindowAndroid_SetTargetBrowserWindow(
++    JNIEnv* env,
++    int64_t native_browser_window_ptr) {
++#if BUILDFLAG(ENABLE_DEVTOOLS_FRONTEND)
++  DevToolsWindow::SetAndroidTargetBrowserWindow(native_browser_window_ptr);
++#endif
++}
++
+ DEFINE_JNI(DevToolsWindowAndroid)

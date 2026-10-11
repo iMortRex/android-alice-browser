@@ -69,4 +69,3 @@ sed -i -e 's|View extensionsContainer = findViewById(R.id.extensions_toolbar_con
        -e 's|if (extensionsContainer != null \&\& extensionsContainer.getVisibility() != GONE) {|if (leftButtons != null \&\& leftButtons.getVisibility() != GONE) {|' \
        -e 's|padding = Math.max(padding, extensionsContainer.getMeasuredWidth());|padding = Math.max(padding, leftButtons.getMeasuredWidth());|' \
     "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
-

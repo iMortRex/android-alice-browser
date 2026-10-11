@@ -1,0 +1,12 @@
+diff --git a/chrome/browser/devtools/devtools_window.h b/chrome/browser/devtools/devtools_window.h
+index e44b0c31ee..fe69854fd9 100644
+--- a/chrome/browser/devtools/devtools_window.h
++++ b/chrome/browser/devtools/devtools_window.h
+@@ -137,6 +137,7 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
+   static bool IsDevToolsWindow(content::WebContents* web_contents);
+   static DevToolsWindow* AsDevToolsWindow(content::WebContents* web_contents);
+   static DevToolsWindow* AsDevToolsWindow(BrowserWindowInterface* browser);
++  static void SetAndroidTargetBrowserWindow(int64_t ptr);
+   static DevToolsWindow* FindDevToolsWindow(content::DevToolsAgentHost*);
+ 
+   // Open or reveal DevTools window, and perform the specified action.

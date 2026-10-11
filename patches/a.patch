@@ -1,0 +1,21 @@
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
+index 26c8111687..8626e68e76 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
+@@ -3275,11 +3275,12 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
+         if (id == R.id.dev_tools
+                 && DevToolsWindowAndroid.isDevToolsAllowedFor(
+                         currentTab.getProfile(), currentTab.getWebContents())) {
+-            DevToolsWindowAndroid.openDevTools(currentTab.getWebContents());
+-            if (fromMenu) {
+-                RecordUserAction.record("MobileMenuDevTools");
++            ChromeAndroidTask task = getChromeAndroidTaskSupplier().get();
++            if (task != null) {
++                DevToolsWindowAndroid.setTargetBrowserWindow(
++                        task.getOrCreateNativeBrowserWindowPtr(currentTab.getProfile()));
+             }
+-            return true;
++            DevToolsWindowAndroid.openDevTools(currentTab.getWebContents());
+         }
+ 
+         if (id == R.id.task_manager && TaskManager.isEnabled()) {

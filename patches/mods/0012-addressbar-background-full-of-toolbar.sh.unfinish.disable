@@ -1,0 +1,23 @@
+#!/bin/bash
+# 地址栏背景铺满工具栏
+
+set -e
+
+# 检测是否已应用
+if grep -q 'Alice: 背景铺满' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"; then
+    exit 100
+fi
+
+# 1) 绘制路径 A：非 animation-refactor，drawable 的绘制范围改成整宽
+sed -i -e 's|mLocationBarBackgroundBounds.left + mLocationBarBackgroundNtpOffset.left,|0,   // Alice: 背景铺满|' \
+       -e 's|mLocationBarBackgroundBounds.right + mLocationBarBackgroundNtpOffset.right,|getMeasuredWidth(),   // Alice: 背景铺满|' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+# 2) 绘制路径 B：animation-refactor，背景宿主 View 铺满
+sed -i -e 's|mActiveLocationBarBackgroundView.setTranslationX(rect.left);|mActiveLocationBarBackgroundView.setTranslationX(0);   // Alice: 背景铺满|' \
+       -e 's|lp.width = rect.right - rect.left;|lp.width = getMeasuredWidth();   // Alice: 背景铺满|' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
+sed -i 's|return (child == mHomeButton) \^ LocalizationUtils.isLayoutRtl();|return (child == mHomeButton \|\| child == findViewById(R.id.left_toolbar_buttons)) ^ LocalizationUtils.isLayoutRtl();|' \
+    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+

@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java b/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
+index 7f6fdf283d..bea9981783 100644
+--- a/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
++++ b/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
+@@ -49,6 +49,11 @@ public class DevToolsWindowAndroid {
+         DevToolsWindowAndroidJni.get().attachToBrowser(webContents, nativeBrowserWindowPtr);
+     }
+ 
++    /** 指定前端要挂进的浏览器窗口（0 = 走原来的新窗口逻辑）。 */
++    public static void setTargetBrowserWindow(long nativeBrowserWindowPtr) {
++        DevToolsWindowAndroidJni.get().setTargetBrowserWindow(nativeBrowserWindowPtr);
++    }
++
+     @NativeMethods
+     interface Natives {
+         void openDevTools(WebContents webContents);
+@@ -56,5 +61,7 @@ public class DevToolsWindowAndroid {
+         boolean isDevToolsAllowedFor(Profile profile, WebContents webContents);
+ 
+         void attachToBrowser(WebContents webContents, long nativeBrowserWindowPtr);
++
++        void setTargetBrowserWindow(long browserWindowPtr);
+     }
+ }
