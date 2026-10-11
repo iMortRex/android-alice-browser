@@ -1,0 +1,340 @@
+diff --git a/chrome/browser/ui/android/extensions/extension_action_popup_contents.cc b/chrome/browser/ui/android/extensions/extension_action_popup_contents.cc
+index 873977b..cc625c2 100644
+--- a/chrome/browser/ui/android/extensions/extension_action_popup_contents.cc
++++ b/chrome/browser/ui/android/extensions/extension_action_popup_contents.cc
+@@ -130,8 +130,9 @@ void ExtensionActionPopupContents::OnLoaded() {
+         host_->host_contents(), DevToolsToggleAction::ShowConsolePanel(),
+         DevToolsOpenedByAction::kContextMenuInspect);
+   }
+-  Java_ExtensionActionPopupContents_onLoaded(AttachCurrentThread(),
+-                                             java_object_);
++  Java_ExtensionActionPopupContents_onLoaded(
++      AttachCurrentThread(), java_object_,
++      host_->host_contents()->GetLastCommittedURL().spec());
+ if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE) Java_ExtensionActionPopupContents_resizeDueToAutoResize(AttachCurrentThread(), java_object_, 100000, 100000);
+ }
+ 
+diff --git a/chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java b/chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java
+index 2fa4a21..7fe9745 100644
+--- a/chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java
++++ b/chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java
+@@ -98,9 +98,9 @@ public class ExtensionActionPopupContents implements Destroyable {
+     }
+ 
+     @CalledByNative
+-    private void onLoaded() {
++    private void onLoaded(@JniType("std::string") String url) {
+         if (mDelegate != null) {
+-            mDelegate.onLoaded();
++            mDelegate.onLoaded(url);
+         }
+     }
+ 
+@@ -139,7 +139,7 @@ public class ExtensionActionPopupContents implements Destroyable {
+         boolean handleKeyboardEvent(@Nullable KeyEvent event);
+ 
+         /** Called when it finished loading the initial page. */
+-        void onLoaded();
++        void onLoaded(String url);
+ 
+         /**
+          * Called when the popup is requested to close programmatically (e.g. by window.close()).
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java
+index 6ca6455..ac7f0e4 100644
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java
+@@ -15,6 +15,7 @@ import android.view.WindowManager;
+ import android.widget.PopupWindow.OnDismissListener;
+ 
+ import org.chromium.base.Callback;
++import org.chromium.base.ThreadUtils;
+ import org.chromium.base.lifetime.Destroyable;
+ import org.chromium.base.version_info.VersionInfo;
+ import org.chromium.build.NullUtil;
+@@ -79,6 +80,9 @@ class ExtensionActionPopup implements Destroyable {
+     private final TabModelSelector mTabModelSelector;
+     private final Callback<@Nullable Tab> mCurrentTabObserver;
+ 
++    /** Alice: if not null, the loaded popup page URL is handed over to this callback. */
++    private final @Nullable Callback<String> mOnPreviewUrl;
++
+     /**
+      * Constructs an ExtensionActionPopup.
+      *
+@@ -103,10 +107,12 @@ class ExtensionActionPopup implements Destroyable {
+             @Nullable ContextMenuPopulatorFactory contextMenuPopulatorFactory,
+             @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
+             TabModelSelector tabModelSelector,
+-            boolean inspectWithDevTools) {
++            boolean inspectWithDevTools,
++            @Nullable Callback<String> onPreviewUrl) {
+         mActivity = activity;
+         mActionId = actionId;
+         mContents = contents;
++        mOnPreviewUrl = onPreviewUrl;
+ 
+         WebContents webContents = contents.getWebContents();
+ 
+@@ -212,6 +218,12 @@ mPopupWindowAndroid =
+         mContents.loadInitialPage();
+     }
+ 
++    /** Alice: shows the popup anchored to the action button (fallback path). */
++    public void showOnAnchor() {
++        mPopupWindow.show();
++        mContentView.requestFocus();
++    }
++
+     /** Adds a listener that will be notified when the popup window is dismissed. */
+     public void addOnDismissListener(OnDismissListener listener) {
+         mPopupWindow.addOnDismissListener(listener);
+@@ -220,6 +232,11 @@ mPopupWindowAndroid =
+     private class ContentsDelegate implements ExtensionActionPopupContents.Delegate {
+         @Override
+         public void resizeDueToAutoResize(int width, int height) {
++            if (mOnPreviewUrl != null) {
++                // Alice: in preview mode the popup is never shown as an anchored window, so
++                // the content view has no window LayoutParams and nothing needs resizing.
++                return;
++            }
+             if (Build.VERSION.SDK_INT >= 34) {
+                 // Disable transition animations for the popup window. On Android, {@link
+                 // onLoaded()} is called first, and then {@link resizeDueToAutoResize()} is called.
+@@ -253,7 +270,15 @@ mPopupWindowAndroid =
+         }
+ 
+         @Override
+-        public void onLoaded() {
++        public void onLoaded(String url) {
++            final @Nullable Callback<String> onPreviewUrl = mOnPreviewUrl;
++            if (onPreviewUrl != null) {
++                // Alice: still inside the native call stack; Destroy() is delete this, so the
++                // popup contents have to be torn down asynchronously.
++                final String previewUrl = url;
++                ThreadUtils.postOnUiThread(() -> onPreviewUrl.onResult(previewUrl));
++                return;
++            }
+             mPopupWindow.show();
+             mContentView.requestFocus();
+         }
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java
+index a861223..d98346e 100644
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java
+@@ -18,11 +18,15 @@ import android.view.ViewConfiguration;
+ 
+ import androidx.annotation.VisibleForTesting;
+ 
++import org.chromium.base.Callback;
+ import org.chromium.base.lifetime.Destroyable;
+ import org.chromium.base.lifetime.LifetimeAssert;
+ import org.chromium.base.supplier.NullableObservableSupplier;
+ import org.chromium.build.annotations.NullMarked;
+ import org.chromium.build.annotations.Nullable;
++import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
++import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinatorSupplier;
++import org.chromium.chrome.browser.ephemeraltab.EphemeralTabObserver;
+ import org.chromium.chrome.browser.extensions.ContextMenuSource;
+ import org.chromium.chrome.browser.profiles.Profile;
+ import org.chromium.chrome.browser.tab.Tab;
+@@ -49,6 +53,7 @@ import org.chromium.ui.modelutil.PropertyModel;
+ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
+ import org.chromium.ui.widget.AnchoredPopupWindow;
+ import org.chromium.ui.widget.RectProvider;
++import org.chromium.url.GURL;
+ 
+ import java.util.Arrays;
+ import java.util.HashSet;
+@@ -111,6 +116,19 @@ class ExtensionActionListMediator implements Destroyable {
+             }
+         }
+ 
++        /** State when the popup is displayed in the ephemeral tab (preview page) sheet. */
++        public static final class PreviewActive extends ActionState {
++            private final String mActionId;
++
++            public PreviewActive(String actionId) {
++                mActionId = actionId;
++            }
++
++            public String getActionId() {
++                return mActionId;
++            }
++        }
++
+         /** State when a context menu is active. */
+         public static final class ContextMenuActive extends ActionState {
+             private final String mActionId;
+@@ -156,6 +174,20 @@ class ExtensionActionListMediator implements Destroyable {
+ 
+     private ActionState mActionState = new ActionState.Idle();
+ 
++    /** Alice: ExtensionActionPopup hands the loaded popup page URL over through this. */
++    private final Callback<String> mPreviewPopupUrlCallback = this::showPopupInPreviewSheet;
++
++    /** Alice: resets the action state when the user dismisses the preview sheet. */
++    private final EphemeralTabObserver mPreviewSheetObserver =
++            new EphemeralTabObserver() {
++                @Override
++                public void onWebContentsDestroyed() {
++                    if (mActionState instanceof ActionState.PreviewActive) {
++                        closePopup();
++                    }
++                }
++            };
++
+     @Nullable private final LifetimeAssert mLifetimeAssert = LifetimeAssert.create(this);
+ 
+     // The ID of the action that should be "popped out", since it needs to be visible to show a
+@@ -686,6 +718,19 @@ class ExtensionActionListMediator implements Destroyable {
+             String actionId,
+             ExtensionActionPopupContents popupContents,
+             boolean inspectWithDevTools) {
++        if (mActionState instanceof ActionState.PreviewActive) {
++            // Alice: if the preview sheet is really still showing, drop this request
++            // (EphemeralTabCoordinator asserts !isOpened()). Otherwise the state is stale
++            // (the sheet was dismissed without notifying us) - reset it and carry on.
++            var previewSupplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);
++            EphemeralTabCoordinator previewCoordinator =
++                    previewSupplier != null ? previewSupplier.get() : null;
++            if (previewCoordinator != null && previewCoordinator.isOpened()) {
++                mHandler.post(popupContents::destroy);
++                return;
++            }
++            mActionState = new ActionState.Idle();
++        }
+         closeHoverCard();
+         closePopup();
+         closeContextMenu();
+@@ -727,6 +772,15 @@ class ExtensionActionListMediator implements Destroyable {
+         // ourselves.
+         if (buttonView != null) buttonView.setIsPressed(true);
+ 
++        // Alice: prefer the ephemeral tab (preview page) sheet for extension popups.
++        var ephemeralTabSupplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);
++        EphemeralTabCoordinator ephemeralTabCoordinator =
++                (ephemeralTabSupplier != null
++                                && EphemeralTabCoordinator.isSupported()
++                                && ephemeralTabSupplier.get() != null)
++                        ? ephemeralTabSupplier.get()
++                        : null;
++
+         ExtensionActionPopup popup =
+                 new ExtensionActionPopup(
+                         activity,
+@@ -737,13 +791,77 @@ class ExtensionActionListMediator implements Destroyable {
+                         mContextMenuPopulatorFactory,
+                         mSelectionDropdownMenuDelegate,
+                         mTabModelSelector,
+-                        inspectWithDevTools);
++                        inspectWithDevTools,
++                        (ephemeralTabCoordinator == null || inspectWithDevTools)
++                                ? null
++                                : mPreviewPopupUrlCallback);
+         popup.loadInitialPage();
+         popup.addOnDismissListener(this::closePopup);
+         mActionState = new ActionState.PopupActive(popup, actionId);
+     }
+ 
++    /** Alice: shows the loaded extension popup page in the ephemeral tab bottom sheet. */
++    private void showPopupInPreviewSheet(String url) {
++        if (!(mActionState instanceof ActionState.PopupActive activeState)) {
++            return;
++        }
++        String actionId = activeState.getActionId();
++        ExtensionActionPopup popup = activeState.getPopup();
++
++        var supplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);
++        EphemeralTabCoordinator coordinator =
++                (supplier != null && EphemeralTabCoordinator.isSupported())
++                        ? supplier.get()
++                        : null;
++        if (coordinator == null) {
++            popup.showOnAnchor();
++            return;
++        }
++
++        // Switch the state first so that popup.destroy() cannot re-enter closePopup().
++        mActionState = new ActionState.PreviewActive(actionId);
++        popup.destroy();
++        coordinator.addObserver(mPreviewSheetObserver);
++
++        Tab currentTab = mCurrentTabSupplier.get();
++        WebContents webContents = currentTab != null ? currentTab.getWebContents() : null;
++        ExtensionAction action = mExtensionsToolbarBridge.getAction(actionId, webContents);
++        String title = action != null ? action.getName() : "";
++
++        coordinator.requestOpenSheet(
++                new GURL(url),
++                /* fullPageUrl= */ null,
++                title,
++                mProfile,
++                /* canPromoteToNewTab= */ true,
++                /* shouldHaveContextMenu= */ true,
++                /* initiatorOrigin= */ null,
++                /* requestDeniedCallback= */ () -> {});
++    }
++
+     private void closePopup() {
++        if (mActionState instanceof ActionState.PreviewActive previewState) {
++            mActionState = new ActionState.Idle();
++            ListMenuButton previewButtonView =
++                    (ListMenuButton)
++                            mRecyclerViewDelegate.getButtonViewForId(
++                                    previewState.getActionId());
++            if (previewButtonView != null) {
++                previewButtonView.setIsPressed(false);
++            }
++            var previewSupplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);
++            EphemeralTabCoordinator previewCoordinator =
++                    previewSupplier != null ? previewSupplier.get() : null;
++            if (previewCoordinator != null) {
++                previewCoordinator.removeObserver(mPreviewSheetObserver);
++                if (previewCoordinator.isOpened()) {
++                    previewCoordinator.close();
++                }
++            }
++            undoPopout();
++            return;
++        }
++
+         if (mActionState instanceof ActionState.PopupPending pendingState) {
+             // Handle cancellation of a pending popup.
+             pendingState.getContents().destroy();
+@@ -925,6 +1043,12 @@ class ExtensionActionListMediator implements Destroyable {
+ 
+         @Override
+         public boolean hasActivePopup() {
++            if (mActionState instanceof ActionState.PreviewActive) {
++                // Alice: the sheet may already be gone; only report active while it is open.
++                var supplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);
++                EphemeralTabCoordinator coordinator = supplier != null ? supplier.get() : null;
++                return coordinator != null && coordinator.isOpened();
++            }
+             return mActionState instanceof ActionState.PopupActive;
+         }
+     }
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn
+index 9b9e634..d7d36e7 100644
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn
+@@ -57,6 +57,7 @@ android_library("java") {
+     "//chrome/browser/tabmodel:java",
+     "//chrome/browser/ui/android/extensions:java",
+     "//chrome/browser/ui/android/extensions:java_resources",
++    "//chrome/browser/ui/android/ephemeraltab:java",
+     "//chrome/browser/ui/android/layouts:java",
+     "//chrome/browser/ui/android/theme:java",
+     "//chrome/browser/ui/android/toolbar:core_java",
+diff --git a/chrome/browser/ui/android/toolbar/DEPS b/chrome/browser/ui/android/toolbar/DEPS
+index 4434f2f..326bd4d 100644
+--- a/chrome/browser/ui/android/toolbar/DEPS
++++ b/chrome/browser/ui/android/toolbar/DEPS
+@@ -5,6 +5,7 @@ include_rules = [
+   "+chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPageUtils.java",
+   "+chrome/browser/ui/android/actions",
+   "+chrome/browser/ui/android/bottombar",
++  "+chrome/browser/ui/android/ephemeraltab",
+   "+chrome/browser/ui/messages/android/java",
+   "+components/browser_ui/bottomsheet/android/java",
+   "+components/browser_ui/device_lock/android/java",
