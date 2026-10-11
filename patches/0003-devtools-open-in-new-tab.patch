@@ -1,0 +1,123 @@
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
+index 26c8111687..8626e68e76 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java
+@@ -3275,11 +3275,12 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
+         if (id == R.id.dev_tools
+                 && DevToolsWindowAndroid.isDevToolsAllowedFor(
+                         currentTab.getProfile(), currentTab.getWebContents())) {
+-            DevToolsWindowAndroid.openDevTools(currentTab.getWebContents());
+-            if (fromMenu) {
+-                RecordUserAction.record("MobileMenuDevTools");
++            ChromeAndroidTask task = getChromeAndroidTaskSupplier().get();
++            if (task != null) {
++                DevToolsWindowAndroid.setTargetBrowserWindow(
++                        task.getOrCreateNativeBrowserWindowPtr(currentTab.getProfile()));
+             }
+-            return true;
++            DevToolsWindowAndroid.openDevTools(currentTab.getWebContents());
+         }
+ 
+         if (id == R.id.task_manager && TaskManager.isEnabled()) {
+diff --git a/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java b/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
+index 7f6fdf283d..bea9981783 100644
+--- a/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
++++ b/chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devtools/DevToolsWindowAndroid.java
+@@ -49,6 +49,11 @@ public class DevToolsWindowAndroid {
+         DevToolsWindowAndroidJni.get().attachToBrowser(webContents, nativeBrowserWindowPtr);
+     }
+ 
++    /** 指定前端要挂进的浏览器窗口（0 = 走原来的新窗口逻辑）。 */
++    public static void setTargetBrowserWindow(long nativeBrowserWindowPtr) {
++        DevToolsWindowAndroidJni.get().setTargetBrowserWindow(nativeBrowserWindowPtr);
++    }
++
+     @NativeMethods
+     interface Natives {
+         void openDevTools(WebContents webContents);
+@@ -56,5 +61,7 @@ public class DevToolsWindowAndroid {
+         boolean isDevToolsAllowedFor(Profile profile, WebContents webContents);
+ 
+         void attachToBrowser(WebContents webContents, long nativeBrowserWindowPtr);
++
++        void setTargetBrowserWindow(long browserWindowPtr);
+     }
+ }
+diff --git a/chrome/browser/devtools/devtools_window.cc b/chrome/browser/devtools/devtools_window.cc
+index 8aabdbd..4b49ea8 100644
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -160,6 +160,7 @@ static const char kWorkerFrontendURL[] =
+ static const char kJSFrontendURL[] = "devtools://devtools/bundled/js_app.html";
+ static const char kFallbackFrontendURL[] =
+     "devtools://devtools/bundled/inspector.html";
++static int64_t g_android_target_browser_window_ptr = 0;
+ 
+ void SetPreferencesFromJson(Profile* profile, const std::string& json) {
+   std::optional<base::DictValue> parsed =
+@@ -1041,6 +1042,14 @@ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
+   if (!owned_main_web_contents_ || launched_activity_) {
+     return;
+   }
++  if (g_android_target_browser_window_ptr != 0) {
++    AttachToBrowser(
++        reinterpret_cast<BrowserWindowInterface*>(g_android_target_browser_window_ptr));
++    g_android_target_browser_window_ptr = 0;
++    launched_activity_ = true;
++    OverrideAndSyncDevToolsRendererPrefs();
++    return;
++  }
+   JNIEnv* env = base::android::AttachCurrentThread();
+   Java_DevToolsActivity_launchDevToolsActivity(
+       env, main_web_contents_->GetJavaWebContents());
+@@ -2319,6 +2328,11 @@ raw_ptr<content::WebContents> DevToolsWindow::GetDevToolsWebContents() {
+   return main_web_contents_;
+ }
+ 
++void DevToolsWindow::SetAndroidTargetBrowserWindow(int64_t ptr) {
++  g_android_target_browser_window_ptr = ptr;
++}
++
++
+ void DevToolsWindow::AttachToBrowser(BrowserWindowInterface* browser) {
+   if (!owned_main_web_contents_) {
+     return;
+@@ -2333,6 +2347,8 @@ void DevToolsWindow::AttachToBrowser(BrowserWindowInterface* browser) {
+   if (!tab_list) {
+     return;
+   }
+-  tab_list->InsertWebContentsAt(0, std::move(owned_web_contents), false,
++  const int insert_index =
++  std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());
++  tab_list->InsertWebContentsAt(insert_index, std::move(owned_web_contents), false,
+                                 std::nullopt);
+ }
+diff --git a/chrome/browser/devtools/devtools_window.h b/chrome/browser/devtools/devtools_window.h
+index e44b0c31ee..fe69854fd9 100644
+--- a/chrome/browser/devtools/devtools_window.h
++++ b/chrome/browser/devtools/devtools_window.h
+@@ -137,6 +137,7 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
+   static bool IsDevToolsWindow(content::WebContents* web_contents);
+   static DevToolsWindow* AsDevToolsWindow(content::WebContents* web_contents);
+   static DevToolsWindow* AsDevToolsWindow(BrowserWindowInterface* browser);
++  static void SetAndroidTargetBrowserWindow(int64_t ptr);
+   static DevToolsWindow* FindDevToolsWindow(content::DevToolsAgentHost*);
+ 
+   // Open or reveal DevTools window, and perform the specified action.
+diff --git a/chrome/browser/devtools/android/devtools_window_android.cc b/chrome/browser/devtools/android/devtools_window_android.cc
+index 5a3408f21e..2c8d2435c9 100644
+--- a/chrome/browser/devtools/android/devtools_window_android.cc
++++ b/chrome/browser/devtools/android/devtools_window_android.cc
+@@ -58,4 +58,12 @@ static void JNI_DevToolsWindowAndroid_AttachToBrowser(
+ #endif
+ }
+ 
++static void JNI_DevToolsWindowAndroid_SetTargetBrowserWindow(
++    JNIEnv* env,
++    int64_t native_browser_window_ptr) {
++#if BUILDFLAG(ENABLE_DEVTOOLS_FRONTEND)
++  DevToolsWindow::SetAndroidTargetBrowserWindow(native_browser_window_ptr);
++#endif
++}
++
+ DEFINE_JNI(DevToolsWindowAndroid)
