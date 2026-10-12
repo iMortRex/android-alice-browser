@@ -33,7 +33,9 @@ gclient sync -D --no-history --nohooks
 gclient runhooks
 ./build/install-build-deps.sh --no-prompt
 
+cd "$SCRIPT_DIR"
 source $SCRIPT_DIR/pre-build.sh
+cd "$SCRIPT_DIR/chromium/src"
 cp $SCRIPT_DIR/args.gn out/Default/args.gn
 gn gen out/Default # gn args out/Default; echo 'treat_warnings_as_errors = false' >> out/Default/args.gn
 mkdir -p out/tmp out/release
