@@ -1,0 +1,48 @@
+#!/bin/bash
+# 底部导航栏适配（edge-to-edge）
+#   1) 工具栏在底部时，工具栏背景铺到屏幕最底部（导航栏 / 底部 chin 跟随工具栏背景色）
+#   2) 设置页：导航栏背景全透明，内容按导航栏高度留白避让
+#   3) 标签管理页（概览）：导航栏背景全透明，列表底部按导航栏高度留白避让
+
+set -e
+
+# 检测是否已应用
+if grep -q 'Alice: 底部工具栏背景铺到屏幕最底部' "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"; then
+    exit 100
+fi
+
+# 1) 工具栏在底部时，导航栏 / 底部 chin 跟随工具栏背景色
+#    （原本会退化成网页背景色，工具栏下方出现一条与工具栏不同色的纯色）
+sed -i '/^    private @Nullable @ColorInt Integer calculateBottomAttachedColor() {$/a\
+        // Alice: 底部工具栏背景铺到屏幕最底部，导航栏/底部 chin 跟随工具栏背景色。\
+        if (mBrowserControlsStateProvider.getControlsPosition() == ControlsPosition.BOTTOM\
+                \&\& mBottomControlsColor != null) {\
+            return mBottomControlsColor;\
+        }\
+' \
+    "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"
+
+# 2) 设置页：导航栏背景全透明
+#    （内容已由 EdgeToEdgeLayoutCoordinator 按导航栏高度留白，不再额外涂一块纯色）
+sed -i '/^        setContentView(R.layout.settings_activity);$/a\
+        // Alice: 设置页导航栏背景全透明。\
+        final var aliceEdgeToEdgeManager = getEdgeToEdgeManager();\
+        if (aliceEdgeToEdgeManager != null) {\
+            aliceEdgeToEdgeManager\
+                    .getEdgeToEdgeSystemBarColorHelper()\
+                    .setNavigationBarColor(Color.TRANSPARENT);\
+            aliceEdgeToEdgeManager\
+                    .getEdgeToEdgeSystemBarColorHelper()\
+                    .setNavigationBarDividerColor(Color.TRANSPARENT);\
+        }\
+' \
+    "chrome/android/java/src/org/chromium/chrome/browser/settings/SettingsActivity.java"
+
+# 3) 标签管理页（概览）：导航栏背景全透明
+sed -i 's|return mOverviewColorSupplier.get();|return Color.TRANSPARENT;   // Alice: 标签管理页导航栏背景透明|g' \
+    "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
+
+# 4) 标签管理页：列表底部至少留出导航栏高度，不再被导航栏遮住
+sed -i 's|^                            mEdgeToEdgeBottomInsets = inset;$|                            mEdgeToEdgeBottomInsets = Math.max(inset, mEdgeToEdgeSupplier.get() != null ? mEdgeToEdgeSupplier.get().getSystemBottomInsetPx() : 0);   // Alice: 标签管理页底部避让导航栏|' \
+    "chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneCoordinator.java"
+    
