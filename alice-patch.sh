@@ -1,13 +1,12 @@
 #!/bin/bash
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-echo "$SCRIPT_DIR"
+PROJECT_DIR="$HOME/android-alice-browser"
 
 # 应用 patches
 echo "=== 应用 patch ==="
-if [ -d "$SCRIPT_DIR/patches" ]; then
-    for p in "$SCRIPT_DIR"/patches/*.patch; do
+if [ -d "$PROJECT_DIR/patches" ]; then
+    for p in "$PROJECT_DIR"/patches/*.patch; do
         [ -f "$p" ] || continue
 
         # 已应用就跳过
@@ -27,8 +26,8 @@ fi
 
 # 应用 mod
 echo "=== 应用 mod ==="
-if [ -d "$SCRIPT_DIR/patches/mods" ]; then
-    for m in "$SCRIPT_DIR"/patches/mods/*.sh; do
+if [ -d "$PROJECT_DIR/patches/mods" ]; then
+    for m in "$PROJECT_DIR"/patches/mods/*.sh; do
         [ -f "$m" ] || continue
         name=$(basename "$m")
 
