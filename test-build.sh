@@ -11,7 +11,7 @@ export PATH="$SCRIPT_DIR/depot_tools:$PATH"
 cd "$CHROMIUM"
 
 # 应用补丁
-source $HOME/android-alice-browser/alice-patch.sh
+source "$SCRIPT_DIR/alice-patch.sh"
 
 # 增量编译
 echo "=== 增量编译 ==="
