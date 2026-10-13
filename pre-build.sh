@@ -25,21 +25,6 @@ if [ -f "$SCRIPT_DIR/patch.sh" ]; then
     source "$SCRIPT_DIR/patch.sh" || exit 1
 fi
 
-# 修正 gritdeps 里 alice 条目的位置
-echo "=== 修正 gritdeps ==="
-cd "$CHROMIUM"
-for GRITDEPS in \
-    "components/components_strings.grd.gritdeps" \
-    ; do
-    [ -f "$GRITDEPS" ] || continue
-    head -1 "$GRITDEPS" | grep -q "^alice/" && continue
-    ALICE_LINE=$(grep "^alice/" "$GRITDEPS" | head -1)
-    [ -z "$ALICE_LINE" ] && continue
-    sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
-    sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
-    echo "Fixed: $GRITDEPS"
-done
-
 # 增量编译
 echo "=== 增量编译 ==="
 autoninja -C out/Default chrome_public_apk
