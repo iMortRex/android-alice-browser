@@ -1,8 +1,11 @@
 #!/bin/bash
-# DevTools 默认关闭“与 Chrome 配色方案匹配”，使其跟随浏览器深浅色
+# DevTools 默认关闭"与 Chrome 配色方案匹配"，使其跟随浏览器深浅色
+
+# 目标文件路径
+path1="chrome/browser/devtools/devtools_ui_bindings.cc"
 
 # 检测是否已应用
-if grep -q 'Alice: devtools dark' "chrome/browser/devtools/devtools_ui_bindings.cc"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 
@@ -11,6 +14,7 @@ fi
 #    注意 DevTools 的设置值是 JSON 文本（Setting.set 用 JSON.stringify、get 用 JSON.parse），
 #    布尔就是 "false"。
 sed -i '/^  base::Value settings = base::Value(settings_.Get());$/a\
+  // Alice patch start\
 #if BUILDFLAG(IS_ANDROID)\
   // Alice: devtools dark -- 默认关掉"与 Chrome 配色方案匹配"（不改用户已设置的值）。\
   if (base::DictValue* alice_theme_dict = settings.GetIfDict()) {\
@@ -21,5 +25,5 @@ sed -i '/^  base::Value settings = base::Value(settings_.Get());$/a\
       alice_theme_dict->Set("__bundled__chrome-theme-colors", "false");\
     }\
   }\
-#endif  // BUILDFLAG(IS_ANDROID)' \
-    "chrome/browser/devtools/devtools_ui_bindings.cc"
+#endif  // BUILDFLAG(IS_ANDROID)\
+  // Alice patch end' "$path1"

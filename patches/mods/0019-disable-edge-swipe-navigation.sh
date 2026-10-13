@@ -1,8 +1,11 @@
 #!/bin/bash
 # 禁用边缘左右滑动前进/后退
 
+# 目标文件路径
+path1="chrome/android/java/src/org/chromium/chrome/browser/SwipeRefreshHandler.java"
+
 # 检测是否已应用
-if grep -q 'Alice: disable-swipe-nav' "chrome/android/java/src/org/chromium/chrome/browser/SwipeRefreshHandler.java"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 
@@ -12,9 +15,10 @@ fi
 # 于是边缘滑动不再前进/后退（也不再有滑动动画）。
 sed -i '/^        } else if (type == OverscrollAction.HISTORY_NAVIGATION) {$/,/^        } else if (type == OverscrollAction.PULL_FROM_BOTTOM_EDGE) {$/c\
         } else if (type == OverscrollAction.HISTORY_NAVIGATION) {\
+            // Alice patch start\
             // Alice: disable-swipe-nav -- 禁用边缘左右滑动前进/后退：消费掉这个 overscroll，\
             // 不做任何导航（返回 true = 已消费，native 不会再执行默认的前进/后退）。\
             mSwipeType = OverscrollAction.NONE;\
             return true;\
-        } else if (type == OverscrollAction.PULL_FROM_BOTTOM_EDGE) {' \
-    "chrome/android/java/src/org/chromium/chrome/browser/SwipeRefreshHandler.java"
+            // Alice patch end\
+        } else if (type == OverscrollAction.PULL_FROM_BOTTOM_EDGE) {' "$path1"

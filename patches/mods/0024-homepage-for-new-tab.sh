@@ -3,36 +3,42 @@
 
 set -e
 
+# 目标文件路径
+path1="chrome/browser/tabmodel/android/java/src/org/chromium/chrome/browser/tabmodel/TabCreatorUtil.java"
+path2="chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+
 # 检测是否已应用
-if grep -q 'getHomepageForNewTab' "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 
-# TabCreatorUtil：新标签页优先打开自定义主页（无痕等仍沿用原 NTP 逻辑）
-sed -i 's|            tabCreator.launchUrl(urlConstantResolver.getNtpUrl(), type);|            // Alice: 主页为自定义网址时，新标签页直接打开该网址（无痕等仍沿用原逻辑）。\n            String homepageUrl =\n                    profile.isOffTheRecord()\n                            ? null\n                            : UrlConstantResolverFactory.getHomepageForNewTab();\n            tabCreator.launchUrl(\n                    homepageUrl == null ? urlConstantResolver.getNtpUrl() : homepageUrl, type);|' \
-    "chrome/browser/tabmodel/android/java/src/org/chromium/chrome/browser/tabmodel/TabCreatorUtil.java"
+# path1：主页为自定义网址时，新标签页直接打开该网址（无痕等仍沿用原逻辑）
+sed -i 's|            tabCreator.launchUrl(urlConstantResolver.getNtpUrl(), type);|            // Alice patch start\n            // Alice: 主页为自定义网址时，新标签页直接打开该网址（无痕等仍沿用原逻辑）。\n            String homepageUrl =\n                    profile.isOffTheRecord()\n                            ? null\n                            : UrlConstantResolverFactory.getHomepageForNewTab();\n            tabCreator.launchUrl(\n                    homepageUrl == null ? urlConstantResolver.getNtpUrl() : homepageUrl, type);\n            // Alice patch end|' "$path1"
 
-# UrlConstantResolverFactory：补 import
+# path2：补 import
 sed -i '/^import org.chromium.base.ResettersForTesting;$/a\
-import org.chromium.base.shared_preferences.SharedPreferencesManager;' \
-    "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+// Alice patch start\
+import org.chromium.base.shared_preferences.SharedPreferencesManager;\
+// Alice patch end' "$path2"
 
 sed -i '/^import org.chromium.chrome.browser.profiles.Profile;$/i\
+// Alice patch start\
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;\
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;' \
-    "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
+// Alice patch end' "$path2"
 
 sed -i '/^import org.chromium.chrome.browser.profiles.Profile;$/a\
+// Alice patch start\
 import org.chromium.components.embedder_support.util.UrlUtilities;\
-import org.chromium.url.GURL;' \
-    "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+import org.chromium.url.GURL;\
+// Alice patch end' "$path2"
 
-# UrlConstantResolverFactory：NTP override 未启用时回落到自定义主页
-sed -i 's|^                        return null;$|                        return getHomepageForNewTab();|' \
-    "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+# path2：NTP override 未启用时回落到自定义主页
+sed -i 's|^                        return null;$|                        // Alice patch start\n                        return getHomepageForNewTab();\n                        // Alice patch end|' "$path2"
 
-# UrlConstantResolverFactory：新增 getHomepageForNewTab()
+# path2：新增 getHomepageForNewTab()
 sed -i '/^    public static void setForTesting(UrlConstantResolver resolver) {$/i\
+    // Alice patch start\
     /**\
      * Alice: Returns the URL a new tab should open when the user set a custom homepage.\
      *\
@@ -57,5 +63,5 @@ sed -i '/^    public static void setForTesting(UrlConstantResolver resolver) {$/
 \
         return UrlUtilities.isNtpUrl(customHomepage) ? null : customHomepage.getSpec();\
     }\
-' \
-    "chrome/browser/url_constants/android/java/src/org/chromium/chrome/browser/url_constants/UrlConstantResolverFactory.java"
+    // Alice patch end\
+' "$path2"

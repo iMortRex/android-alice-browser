@@ -188,4 +188,18 @@ sed -i 's/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD) {/|| 
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/alice-patch.sh"
 
+# 修正 gritdeps 里 alice 条目的位置
+echo "=== 修正 gritdeps ==="
+for GRITDEPS in \
+    "chromium/src/components/components_strings.grd.gritdeps" \
+    ; do
+    [ -f "$GRITDEPS" ] || continue
+    head -1 "$GRITDEPS" | grep -q "^alice/" && continue
+    ALICE_LINE=$(grep "^alice/" "$GRITDEPS" | head -1)
+    [ -z "$ALICE_LINE" ] && continue
+    sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
+    sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
+    echo "Fixed: $GRITDEPS"
+done
+
 export PATCHED=1

@@ -3,8 +3,11 @@
 
 set -e
 
+# 目标文件路径
+path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+
 # 检测是否已应用
-if grep -q 'Alice: 背景铺满' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 

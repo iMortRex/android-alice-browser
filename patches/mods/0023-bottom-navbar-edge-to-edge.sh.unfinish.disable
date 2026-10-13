@@ -6,25 +6,35 @@
 
 set -e
 
+# 目标文件路径
+path1="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"
+path2="chrome/android/java/src/org/chromium/chrome/browser/settings/SettingsActivity.java"
+path3="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
+path4="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneCoordinator.java"
+
 # 检测是否已应用
-if grep -q 'Alice: 底部工具栏背景铺到屏幕最底部' "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"; then
+if grep -q 'Alice patch start' "$path1" "$path2" "$path3" "$path4"; then
     exit 100
 fi
 
 # 1) 工具栏在底部时，导航栏 / 底部 chin 跟随工具栏背景色
 #    （原本会退化成网页背景色，工具栏下方出现一条与工具栏不同色的纯色）
 sed -i '/^    private @Nullable @ColorInt Integer calculateBottomAttachedColor() {$/a\
+// Alice patch start\
         // Alice: 底部工具栏背景铺到屏幕最底部，导航栏/底部 chin 跟随工具栏背景色。\
         if (mBrowserControlsStateProvider.getControlsPosition() == ControlsPosition.BOTTOM\
                 \&\& mBottomControlsColor != null) {\
             return mBottomControlsColor;\
         }\
-' \
+\
+// Alice patch end' \
     "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"
 
 # 2) 设置页：导航栏背景全透明
 #    （内容已由 EdgeToEdgeLayoutCoordinator 按导航栏高度留白，不再额外涂一块纯色）
+
 sed -i '/^        setContentView(R.layout.settings_activity);$/a\
+// Alice patch start\
         // Alice: 设置页导航栏背景全透明。\
         final var aliceEdgeToEdgeManager = getEdgeToEdgeManager();\
         if (aliceEdgeToEdgeManager != null) {\
@@ -35,10 +45,12 @@ sed -i '/^        setContentView(R.layout.settings_activity);$/a\
                     .getEdgeToEdgeSystemBarColorHelper()\
                     .setNavigationBarDividerColor(Color.TRANSPARENT);\
         }\
-' \
+\
+// Alice patch end' \
     "chrome/android/java/src/org/chromium/chrome/browser/settings/SettingsActivity.java"
 
 # 3) 标签管理页（概览）：导航栏背景全透明
+
 sed -i 's|return mOverviewColorSupplier.get();|return Color.TRANSPARENT;   // Alice: 标签管理页导航栏背景透明|g' \
     "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
 

@@ -8,12 +8,18 @@
 #   3) 同一个关闭动作会来多次通知，每通知一次就 post 一个建标签任务 ->
 #      会一次开 2 个、下次 4 个（翻倍），所以任务里必须再复查一次
 
+set -e
+
+# 目标文件路径
+path1="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
+
 # 检测是否已应用
-if grep -q 'Alice: keep a tab alive' "chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 
 sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                        }$/c\
+                        // Alice patch start\
                         private void closeIfNoTabsAndHomepageEnabled(\
                                 boolean isPendingClosure, boolean shouldRemoveWindowWithZeroTabs) {\
                             if (getTabModelSelector().getTotalTabCount() != 0) return;\
@@ -40,5 +46,5 @@ sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                     
                                         getTabCreator(/* incognito= */ false)\
                                                 .launchNtp(TabLaunchType.FROM_CHROME_UI);\
                                     });\
-                        }' \
-    "chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
+                        }\
+                        // Alice patch end' "$path1"

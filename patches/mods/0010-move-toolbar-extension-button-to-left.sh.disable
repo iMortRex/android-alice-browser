@@ -3,8 +3,12 @@
 
 set -e
 
+# 目标文件路径
+path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path2="chrome/browser/ui/android/toolbar/java/res/layout/toolbar_phone.xml"
+
 # 检测是否已应用
-if grep -q 'View extensionsContainer = findViewById' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"; then
+if grep -q 'Alice patch start' "$path1" "$path2"; then
     exit 100
 fi
 
@@ -14,24 +18,30 @@ sed -i ':a;N;$!ba;s|        <ViewStub\n[^>]*extensions_toolbar_container_stub[^>
 
 # 2) 插到 ToolbarPhone 最前面（FrameLayout 默认左上 → 左对齐）
 sed -i '/^    <org.chromium.chrome.browser.toolbar.home_button.HomeButton$/i\
+<!-- Alice patch start -->\
     <ViewStub\
         android:id="@+id/extensions_toolbar_container_stub"\
         android:inflatedId="@+id/extensions_toolbar_container"\
         android:layout_width="wrap_content"\
         android:layout_height="?attr/toolbarButtonHeight"\
         android:layout_marginVertical="?attr/toolbarButtonMarginVertical" />\
-' \
+\
+<!-- Alice patch end -->' \
     "chrome/browser/ui/android/toolbar/java/res/layout/toolbar_phone.xml"
 
 # 3) 地址栏左边界至少让到扩展容器宽度
+
 sed -i '/^        int padding = mToolbarSidePaddingForNtp;$/a\
+// Alice patch start\
         View extensionsContainer = findViewById(R.id.extensions_toolbar_container);\
         if (extensionsContainer != null \&\& extensionsContainer.getVisibility() != GONE) {\
             padding = Math.max(padding, extensionsContainer.getMeasuredWidth());\
-        }' \
+        }\
+// Alice patch end' \
     "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
 # 4) 手工绘制起点改成 this
+
 sed -i 's|ViewUtils.translateCanvasToView(mToolbarButtonsContainer, extContainer, canvas)|ViewUtils.translateCanvasToView(this, extContainer, canvas)|' \
     "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
