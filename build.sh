@@ -50,4 +50,4 @@ export ANDROID_HOME=$PWD/third_party/android_sdk/public
 sign_apk out/tmp/$VERSION-armeabi-v7a.apk out/release/$VERSION-armeabi-v7a.apk
 sign_apk out/tmp/$VERSION-arm64-v8a.apk out/release/$VERSION-arm64-v8a.apk
 # sign_aab out/tmp/$VERSION-arm64-v8a.aab out/release/$VERSION-arm64-v8a.aab
-rm -rf $SCRIPT_DIR/keys
+# rm -rf $SCRIPT_DIR/keys
