@@ -4,34 +4,34 @@ set_keys
 export VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' vanadium/args.gn)
 export CHROMIUM_SOURCE=https://chromium.googlesource.com/chromium/src.git # https://github.com/chromium/chromium.git
 export DEBIAN_FRONTEND=noninteractive
-# sudo apt-get update
-# sudo apt-get install -y sudo lsb-release file nano git curl python3 python3-pillow imagemagick librsvg2-bin
-# sudo dpkg --add-architecture i386; sudo apt-get update; sudo apt-get install -y libgcc-s1:i386
+sudo apt-get update
+sudo apt-get install -y sudo lsb-release file nano git curl python3 python3-pillow imagemagick librsvg2-bin
+sudo dpkg --add-architecture i386; sudo apt-get update; sudo apt-get install -y libgcc-s1:i386
 
-# git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export PATH="$PWD/depot_tools:$PATH"
-# mkdir -p chromium/src/out/Default; cd chromium/src
-# git init
-# git remote add origin $CHROMIUM_SOURCE
-# git fetch --depth 1 $CHROMIUM_SOURCE +refs/tags/$VERSION:chromium_$VERSION
-# git checkout $VERSION
-# cp $SCRIPT_DIR/.gclient ../.gclient
+mkdir -p chromium/src/out/Default; cd chromium/src
+git init
+git remote add origin $CHROMIUM_SOURCE
+git fetch --depth 1 $CHROMIUM_SOURCE +refs/tags/$VERSION:chromium_$VERSION
+git checkout $VERSION
+cp $SCRIPT_DIR/.gclient ../.gclient
 
-# # https://grapheneos.org/build#browser-and-webview
-# rm -rf $SCRIPT_DIR/vanadium/patches/*trichrome-{apk-build-targets,browser-apk-targets}.patch
-# rm -rf $SCRIPT_DIR/vanadium/patches/*{detailed,supported}-language*.patch
-# rm -rf $SCRIPT_DIR/vanadium/patches/*javascript-optimizer-{site-setting,settings-UI}.patch
-# rm -rf $SCRIPT_DIR/vanadium/patches/*component-updates.patch
-# rm -rf $SCRIPT_DIR/vanadium/patches/*{pdf,PDF,for-content-public,toolbar-button,configs-from-config-app,config-app-parsing,new-tab-card,predictive-back}*.patch
-# # rm -rf $SCRIPT_DIR/vanadium/patches/*crashpad*.patch
-# replace "$SCRIPT_DIR/vanadium/patches" "VANADIUM" "ALICE"
-# replace "$SCRIPT_DIR/vanadium/patches" "Vanadium" "Alice"
-# replace "$SCRIPT_DIR/vanadium/patches" "vanadium" "alice"
-# git am --whitespace=nowarn --keep-non-patch $SCRIPT_DIR/vanadium/patches/*.patch
+# https://grapheneos.org/build#browser-and-webview
+rm -rf $SCRIPT_DIR/vanadium/patches/*trichrome-{apk-build-targets,browser-apk-targets}.patch
+rm -rf $SCRIPT_DIR/vanadium/patches/*{detailed,supported}-language*.patch
+rm -rf $SCRIPT_DIR/vanadium/patches/*javascript-optimizer-{site-setting,settings-UI}.patch
+rm -rf $SCRIPT_DIR/vanadium/patches/*component-updates.patch
+rm -rf $SCRIPT_DIR/vanadium/patches/*{pdf,PDF,for-content-public,toolbar-button,configs-from-config-app,config-app-parsing,new-tab-card,predictive-back}*.patch
+# rm -rf $SCRIPT_DIR/vanadium/patches/*crashpad*.patch
+replace "$SCRIPT_DIR/vanadium/patches" "VANADIUM" "ALICE"
+replace "$SCRIPT_DIR/vanadium/patches" "Vanadium" "Alice"
+replace "$SCRIPT_DIR/vanadium/patches" "vanadium" "alice"
+git am --whitespace=nowarn --keep-non-patch $SCRIPT_DIR/vanadium/patches/*.patch
 
-# gclient sync -D --no-history --nohooks
-# gclient runhooks
-# ./build/install-build-deps.sh --no-prompt
+gclient sync -D --no-history --nohooks
+gclient runhooks
+./build/install-build-deps.sh --no-prompt
 
 source $SCRIPT_DIR/patch.sh
 cp $SCRIPT_DIR/args.gn out/Default/args.gn
