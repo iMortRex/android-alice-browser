@@ -4,27 +4,28 @@
 set -e
 
 # 目标文件路径
-path1="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-path2="chrome/browser/hub/internal/android/res/layout/hub_layout.xml"
-path3="chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
-path4="chrome/browser/hub/internal/android/res/values/dimens.xml"
-path5="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
-path6="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
-path7="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
+path1="chrome/browser/hub/internal/android/res/layout/hub_layout.xml"
+path2="chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
+path3="chrome/browser/hub/internal/android/res/values/dimens.xml"
+path4="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
+path5="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
+path6="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
+path7="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
 path8="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubCoordinator.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1" "$path2" "$path3" "$path4" "$path5" "$path6" "$path7" "$path8"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
-fi\
+fi
 
-# ---- hub_layout.xml ----
-sed -i '\|^      android:layout_marginTop="@dimen/toolbar_height_no_shadow">$|c\
-<!-- Alice patch start -->\
-      android:layout_marginBottom="@dimen/toolbar_height_no_shadow">\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_layout.xml"
-
-sed -i '\|^    <include layout="@layout/hub_toolbar_layout" />$|i\
+# --- hub_layout.xml：工具条挪到底部 ---
+# 1) 顶部留白改成底部留白（marker 放元素外的上下行）
+sed -i '/^    <LinearLayout$/{N;/\n      android:id="@+id\/hub_pane_host_container"$/i\
+<!-- Alice patch start -->
+}' "$path1"
+sed -i 's|^\( *\)android:layout_marginTop="@dimen/toolbar_height_no_shadow">$|\1android:layout_marginBottom="@dimen/toolbar_height_no_shadow">\n\1<!-- Alice patch end -->|' "$path1"
+# 2) 底部再插一份工具栏（整元素，marker 在元素外）
+sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/i\
 <!-- Alice patch start -->\
     <FrameLayout\
         android:layout_width="match_parent"\
@@ -32,149 +33,76 @@ sed -i '\|^    <include layout="@layout/hub_toolbar_layout" />$|i\
         android:layout_gravity="bottom">\
       <include layout="@layout/hub_toolbar_layout" />\
     </FrameLayout>\
-\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_layout.xml"
+<!-- Alice patch end -->\
+' "$path1"
 
-# ---- hub_toolbar_layout.xml ----
-
+# --- hub_toolbar_layout.xml：按钮重排（结构搬动，标签内不能放注释，故不加 marker）---
 sed -i '\|^          app:tint="@color/default_icon_color_tint_list"/>$|a\
-<!-- Alice patch start -->\
-      </LinearLayout>\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
-
+      </LinearLayout>' "$path2"
 sed -i '\|^        <Button$|i\
-<!-- Alice patch start -->\
       <FrameLayout\
           android:layout_width="wrap_content"\
           android:layout_height="match_parent"\
-          android:layout_gravity="center">\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
-
+          android:layout_gravity="center">' "$path2"
 sed -i '\#^          android:layout_gravity="start|center_vertical"$#c\
-<!-- Alice patch start -->\
-          android:layout_gravity="center"\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
-
-sed -i '\|^          style="?attr/newTabButtonStyle"/>$|,\|^      </LinearLayout>$| s|^      </LinearLayout>$|      </FrameLayout>|' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
+          android:layout_gravity="center"' "$path2"
+sed -i '/^          style="?attr\/newTabButtonStyle"\/>$/,/^      <\/LinearLayout>$/ s|^      </LinearLayout>$|      </FrameLayout>|' "$path2"
 sed -i '\#^        android:layout_gravity="center_horizontal|bottom"$#c\
-<!-- Alice patch start -->\
         android:layout_gravity="start|center_vertical"\
-        android:layout_marginStart="16dp"\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
-
+        android:layout_marginStart="16dp"' "$path2"
 sed -i '\|^        android:layout_gravity="end" >$|i\
-<!-- Alice patch start -->\
-        android:layout_marginEnd="16dp"\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
+        android:layout_marginEnd="16dp"' "$path2"
 
-# ---- dimens.xml ----
+# --- dimens.xml：搜索框高度/间距改 0 ---
+sed -i 's|^\( *\)<dimen name="hub_search_box_height">40dp</dimen>$|\1<!-- Alice patch start -->\n\1<dimen name="hub_search_box_height">0dp</dimen>\n\1<!-- Alice patch end -->|' "$path3"
+sed -i 's|^\( *\)<dimen name="hub_search_box_vertical_margin">8dp</dimen>$|\1<!-- Alice patch start -->\n\1<dimen name="hub_search_box_vertical_margin">0dp</dimen>\n\1<!-- Alice patch end -->|' "$path3"
 
-sed -i '/^    <dimen name="hub_search_box_height">40dp<\/dimen>$/,/^    <dimen name="hub_search_box_vertical_margin">8dp<\/dimen>$/c\
-<!-- Alice patch start -->\
-    <dimen name="hub_search_box_height">0dp</dimen>\
-    <dimen name="hub_search_box_vertical_margin">0dp</dimen>\
-<!-- Alice patch end -->' "chrome/browser/hub/internal/android/res/values/dimens.xml"
-
-# ---- HubManagerImpl.java ----
-
-sed -i '\|^import android\.widget\.FrameLayout\.LayoutParams;$|i\
+# --- HubManagerImpl.java ---
+sed -i '/^import android\.view\.View;$/a\
 // Alice patch start\
 import android.view.ViewGroup;\
 import android.view.ViewParent;\
-// Alice patch end' "chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
+// Alice patch end' "$path4"
+sed -i 's|^\( *\)params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn ? 0 : mAppHeaderHeight);$|\1// Alice patch start\n\1int searchBoxGap =\n\1        mHubContainerView\n\1                .getResources()\n\1                .getDimensionPixelSize(R.dimen.hub_search_box_gap);\n\1params.topMargin = mStatusIndicatorHeight - searchBoxGap;\n\1// Alice patch end|' "$path4"
+sed -i 's|^\( *\)mHubContainerView\.setPadding(0, isVerticalTabsOn ? mAppHeaderHeight : 0, 0, 0);$|\1// Alice patch start\n\1mHubContainerView.setPadding(0, 0, 0, 0);\n\n\1ViewParent parent = mHubContainerView.getParent();\n\1if (parent instanceof ViewGroup) {\n\1    ((ViewGroup) parent).setClipChildren(false);\n\1    ((ViewGroup) parent).setClipToPadding(false);\n\1}\n\1// Alice patch end|' "$path4"
 
-sed -i '\|^        params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn ? 0 : mAppHeaderHeight);$|c\
-// Alice patch start\
-        int searchBoxGap =\
-                mHubContainerView\
-                        .getResources()\
-                        .getDimensionPixelSize(R.dimen.hub_search_box_gap);\
-        params.topMargin = mStatusIndicatorHeight - searchBoxGap;\
-// Alice patch end' "chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
-
-sed -i '\|^        mHubContainerView\.setPadding(0, isVerticalTabsOn ? mAppHeaderHeight : 0, 0, 0);$|c\
-// Alice patch start\
-        mHubContainerView.setPadding(0, 0, 0, 0);\
-\
-        ViewParent parent = mHubContainerView.getParent();\
-        if (parent instanceof ViewGroup) {\
-            ((ViewGroup) parent).setClipChildren(false);\
-            ((ViewGroup) parent).setClipToPadding(false);\
-        }\
-// Alice patch end' "chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
-
-# ---- ShrinkExpandAnimator.java ----
-
-sed -i '\|^                        - Math\.round(mInitialRect\.top + (1\.0 - scaleY) \* initialRectHeight / 2\.0));$|a\
-// Alice patch start\
+# --- ShrinkExpandAnimator.java ---
+sed -i '/^                        - Math\.round(mInitialRect\.top + (1\.0 - scaleY) \* initialRectHeight \/ 2\.0));$/a\
+        // Alice patch start\
         final float translationY =\
         (float) rect.top\
                 - Math.round(mInitialRect.top + (1.0 - scaleY) * initialRectHeight / 2.0);\
         final int searchBoxGap =\
                 Math.round(56 * mView.getResources().getDisplayMetrics().density);\
         mView.setTranslationY(translationY + searchBoxGap);\
-// Alice patch end' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
+        // Alice patch end' "$path5"
 
-# ---- HubToolbarView.java ----
+# --- HubToolbarView.java ---
+sed -i 's@^\( *\)params\.gravity = Gravity\.CENTER;$@\1// Alice patch start\n\1params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;\n\1// Alice patch end@' "$path6"
 
-sed -i '\|^                params\.gravity = Gravity\.CENTER;$|c\
-// Alice patch start\
-                params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;\
-// Alice patch end' "chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
-
-# ---- HubContainerView.java ----
-
-sed -i '\|^import android\.widget\.FrameLayout;$|i\
+# --- HubContainerView.java ---
+sed -i '/^import android\.widget\.FrameLayout;$/i\
 // Alice patch start\
 import android.view.View;\
 import android.view.ViewParent;\
-// Alice patch end' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-
-sed -i '\|^import org\.chromium\.ui\.animation\.RunOnNextLayout;$|i\
+// Alice patch end' "$path7"
+sed -i '/^import org\.chromium\.ui\.animation\.RunOnNextLayout;$/i\
 // Alice patch start\
 import org.chromium.build.annotations.Nullable;\
-// Alice patch end' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-
-sed -i '\|^    /\*\* Default {@link FrameLayout} constructor\. \*/$|i\
-// Alice patch start\
+// Alice patch end' "$path7"
+sed -i '/^    \/\*\* Default {@link FrameLayout} constructor\. \*\/$/i\
+    // Alice patch start\
     private @Nullable View mPinnedBottomView;\
-\
-// Alice patch end' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
+    // Alice patch end\
+' "$path7"
+sed -i '/^    public HubContainerView(Context context) {$/,/^    }$/ s|^    }$|    }\n    // Alice patch start\n\n    public void setPinnedBottomView(@Nullable View view) {\n        mPinnedBottomView = view;\n    }\n    // Alice patch end|' "$path7"
+sed -i 's|^\( *\)runOnNextLayoutRunnables();$|        // Alice patch start\n        runOnNextLayoutRunnables();\n        pinBottomView();\n    }\n\n    private void pinBottomView() {\n        View pinned = mPinnedBottomView;\n        if (pinned == null) return;\n        ViewParent parent = getParent();\n        if (!(parent instanceof View)) return;\n        View parentView = (View) parent;\n\n        int[] location = new int[2];\n        parentView.getLocationInWindow(location);\n        int parentBottom = location[1] + parentView.getHeight();\n\n        pinned.getLocationInWindow(location);\n        int pinnedBottom = location[1] + pinned.getHeight();\n\n        int delta = parentBottom - pinnedBottom;\n        if (delta != 0) {\n            pinned.setTranslationY(pinned.getTranslationY() + delta);\n        }\n        // Alice patch end|' "$path7"
+printf '%s' "$(cat "$path7")" > "$path7"
 
-sed -i '/^    public HubContainerView(Context context) {$/,/^    }$/ s|^    }$|    }\n\n    public void setPinnedBottomView(@Nullable View view) {\n        mPinnedBottomView = view;\n    }|' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-sed -i '\|^        runOnNextLayoutRunnables();$|a\
-// Alice patch start\
-        pinBottomView();\
-    }\
-\
-    private void pinBottomView() {\
-        View pinned = mPinnedBottomView;\
-        if (pinned == null) return;\
-        ViewParent parent = getParent();\
-        if (!(parent instanceof View)) return;\
-        View parentView = (View) parent;\
-\
-        int[] location = new int[2];\
-        parentView.getLocationInWindow(location);\
-        int parentBottom = location[1] + parentView.getHeight();\
-\
-        pinned.getLocationInWindow(location);\
-        int pinnedBottom = location[1] + pinned.getHeight();\
-\
-        int delta = parentBottom - pinnedBottom;\
-        if (delta != 0) {\
-            pinned.setTranslationY(pinned.getTranslationY() + delta);\
-        }\
-// Alice patch end' "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-# 该文件末尾没有换行符，保持一致
-printf '%s' "$(cat "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java")" > "chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
-
-# ---- HubCoordinator.java ----
-
-sed -i '\|^        hubToolbarView\.setXrSpaceModeObservableSupplier(xrSpaceModeObservableSupplier);$|i\
-// Alice patch start\
+# --- HubCoordinator.java ---
+sed -i '/^        hubToolbarView\.setXrSpaceModeObservableSupplier(xrSpaceModeObservableSupplier);$/i\
+        // Alice patch start\
         if (mContainerView instanceof HubContainerView) {\
             ((HubContainerView) mContainerView).setPinnedBottomView(hubToolbarView);\
         }\
-// Alice patch end' "chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubCoordinator.java"
-
+        // Alice patch end' "$path8"

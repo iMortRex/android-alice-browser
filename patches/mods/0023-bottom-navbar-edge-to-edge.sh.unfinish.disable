@@ -13,7 +13,7 @@ path3="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNav
 path4="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneCoordinator.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1" "$path2" "$path3" "$path4"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 

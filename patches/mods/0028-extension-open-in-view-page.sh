@@ -11,7 +11,7 @@ path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/to
 path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1" "$path2" "$path3" "$path4" "$path5"; then
+if grep -q 'Alice patch start' "$path1"; then
     exit 100
 fi
 
