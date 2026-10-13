@@ -1,4 +1,10 @@
 export SCRIPT_DIR=$(realpath $(dirname "${BASH_SOURCE[0]}"))
+# 本地：如果 keys/ 文件存在，从文件读
+if [ -f "$SCRIPT_DIR/keys/local.properties" ] && [ -f "$SCRIPT_DIR/keys/test.jks" ]; then
+    echo "已获取到本地 key"
+    export LOCAL_TEST_JKS=$(base64 -w 0 "$SCRIPT_DIR/keys/local.properties")
+    export STORE_TEST_JKS=$(base64 -w 0 "$SCRIPT_DIR/keys/test.jks")
+fi
 
 replace() {
     export org=$2 new=$3
