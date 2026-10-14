@@ -31,7 +31,7 @@ if [ ! -f "$SCRIPT_DIR/keys/test.jks" ] || [ ! -f "$SCRIPT_DIR/keys/local.proper
     echo "keys 不存在，从备份恢复..."
     mkdir -p "$SCRIPT_DIR/keys"
     cp ~/keys/test.jks "$SCRIPT_DIR/keys/" 2>/dev/null || {
-        echo "错误：找不到 ~/my-keys/test.jks"
+        echo "错误：找不到 ~/keys/test.jks"
         exit 1
     }
     cp ~/keys/local.properties "$SCRIPT_DIR/keys/" 2>/dev/null || {
