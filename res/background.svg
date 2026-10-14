@@ -6,9 +6,7 @@
             <rect x="-500" y="-500" width="1512" height="1512" style="fill:url(#_Linear1);"/>
         </g>
     </g>
-    <g id="前景">
-    </g>
     <defs>
-        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1512,0,0,1512,-500,256)"><stop offset="0" style="stop-color:rgb(112,219,244);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(13,97,167);stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1512,0,0,1512,-500,256)"><stop offset="0" style="stop-color:rgb(110,208,245);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(44,91,246);stop-opacity:1"/></linearGradient>
     </defs>
 </svg>

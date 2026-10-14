@@ -12,7 +12,7 @@ RES_DIR="$SCRIPT_DIR/res"
 #   100 -> 81.5%（原样，个别启动器遮罩会裁到）
 # 注意：这是"整层等比缩放 + 居中"，SVG 自己的留白比例保留（不做 trim）。
 # 默认60
-FG_SCALE=60
+FG_SCALE=61
 
 # 确保 depot_tools 在 PATH
 export PATH="$SCRIPT_DIR/depot_tools:$PATH"
