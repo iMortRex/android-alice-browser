@@ -38,12 +38,12 @@ APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
 if [ ! -f "$SCRIPT_DIR/keys/test.jks" ] || [ ! -f "$SCRIPT_DIR/keys/local.properties" ]; then
     echo "keys 不存在，从备份恢复..."
     mkdir -p "$SCRIPT_DIR/keys"
-    cp ~/my-keys/test.jks "$SCRIPT_DIR/keys/" 2>/dev/null || {
-        echo "错误：找不到 ~/my-keys/test.jks"
+    cp ~/keys/test.jks "$SCRIPT_DIR/keys/" 2>/dev/null || {
+        echo "错误：找不到 ~/keys/test.jks"
         exit 1
     }
-    cp ~/my-keys/local.properties "$SCRIPT_DIR/keys/" 2>/dev/null || {
-        echo "错误：找不到 ~/my-keys/local.properties"
+    cp ~/keys/local.properties "$SCRIPT_DIR/keys/" 2>/dev/null || {
+        echo "错误：找不到 ~/keys/local.properties"
         exit 1
     }
 fi
