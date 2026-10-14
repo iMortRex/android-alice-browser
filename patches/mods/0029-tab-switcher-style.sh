@@ -1,0 +1,309 @@
+#!/bin/bash
+# 设置-外观：新增「标签切换器」入口（点击进入子页选择样式），并在入口下方显示当前选项。
+#   0 默认（上游标签网格） / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0030 实现）
+# 取值保存在 ChromeSharedPreferences: alice_tab_switcher_style
+
+set -e
+
+# 目标文件路径
+path1="chrome/android/java/res/xml/appearance_preferences.xml"
+path2="alice/chromium_src/chrome/android/chrome_java_ext_sources.gni"
+path3="alice/chromium_src/chrome/android/chrome_app_java_resources_ext_sources.gni"
+path4="alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings"
+path5="alice/chromium_src/chrome/android/java/res/xml"
+path6="alice/chromium_src/chrome/android/java/res/layout"
+path7="chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AppearanceSettingsFragment.java"
+
+# 检测是否已应用
+# 用 path3 判断：path1 / path7 里还有 mod 0021 的标记，path2 里还有 mod 0030 的标记，
+# 用它们判断会被误认为已应用。后面那条是给旧版标记（Alice tab-switcher patch）留的兼容。
+if grep -q 'Alice patch start' "$path3" \
+        || grep -q 'alice_tab_switcher_style_entry' "$path1"; then
+    exit 100
+fi
+
+# ---------- 新增文件 ----------
+mkdir -p "$path4" "$path5" "$path6"
+
+cat > "$path5/alice_tab_switcher_style_preferences.xml" << 'ALICE_EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alice: 标签切换器样式设置页 -->
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStylePreference
+        android:key="alice_tab_switcher_style"
+        android:order="0"
+        android:persistent="false"
+        android:title="标签切换器样式" />
+
+</PreferenceScreen>
+ALICE_EOF
+
+cat > "$path6/alice_tab_switcher_style_preference.xml" << 'ALICE_EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alice: 标签切换器样式的单选组 -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout
+        android:id="@+id/alice_style_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:focusable="false">
+
+        <org.chromium.components.browser_ui.widget.RadioButtonWithDescription
+            android:id="@+id/alice_style_default"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="@dimen/min_touch_target_size"
+            android:paddingTop="@dimen/settings_item_default_padding"
+            android:paddingBottom="@dimen/settings_item_default_padding"
+            app:primaryText="默认（浏览器自带的标签网格）" />
+
+        <org.chromium.components.browser_ui.widget.RadioButtonWithDescription
+            android:id="@+id/alice_style_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="@dimen/min_touch_target_size"
+            android:paddingTop="@dimen/settings_item_default_padding"
+            android:paddingBottom="@dimen/settings_item_default_padding"
+            app:primaryText="竖向（暂未支持）" />
+
+        <org.chromium.components.browser_ui.widget.RadioButtonWithDescription
+            android:id="@+id/alice_style_horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="@dimen/min_touch_target_size"
+            android:paddingTop="@dimen/settings_item_default_padding"
+            android:paddingBottom="@dimen/settings_item_default_padding"
+            app:primaryText="横向（类 iOS 横向堆叠卡片）" />
+
+    </org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout>
+
+</LinearLayout>
+ALICE_EOF
+
+cat > "$path4/AliceTabSwitcherStylePreference.java" << 'ALICE_EOF'
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package org.chromium.chrome.browser.appearance.settings;
+
+import android.content.Context;
+import android.util.AttributeSet;
+import android.widget.RadioGroup;
+
+import androidx.preference.PreferenceViewHolder;
+
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.components.browser_ui.settings.ContainedRadioButtonGroupPreference;
+import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
+import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
+
+/**
+ * Alice: 标签切换器样式的单选组（默认 / 竖向 / 横向）。
+ *
+ * <p>竖向暂未支持：按钮置灰不可选。
+ */
+@NullMarked
+public class AliceTabSwitcherStylePreference extends ContainedRadioButtonGroupPreference
+        implements RadioGroup.OnCheckedChangeListener {
+
+    /** SharedPreferences key（与 tab_ui 侧读取的 key 一致）。 */
+    public static final String PREF_TAB_SWITCHER_STYLE = "alice_tab_switcher_style";
+
+    /** 默认样式（上游标签网格）。 */
+    public static final int STYLE_DEFAULT = 0;
+
+    /** 竖向堆叠（暂未支持）。 */
+    public static final int STYLE_VERTICAL = 1;
+
+    /** 横向堆叠。 */
+    public static final int STYLE_HORIZONTAL = 2;
+
+    private int mStyle = STYLE_DEFAULT;
+    private @Nullable RadioButtonWithDescriptionLayout mGroup;
+    private @Nullable RadioButtonWithDescription mDefaultButton;
+    private @Nullable RadioButtonWithDescription mVerticalButton;
+    private @Nullable RadioButtonWithDescription mHorizontalButton;
+
+    public AliceTabSwitcherStylePreference(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        setLayoutResource(R.layout.alice_tab_switcher_style_preference);
+    }
+
+    @Override
+    public void onBindViewHolder(PreferenceViewHolder holder) {
+        super.onBindViewHolder(holder);
+        mGroup = (RadioButtonWithDescriptionLayout) holder.findViewById(R.id.alice_style_group);
+        mDefaultButton =
+                (RadioButtonWithDescription) holder.findViewById(R.id.alice_style_default);
+        mVerticalButton =
+                (RadioButtonWithDescription) holder.findViewById(R.id.alice_style_vertical);
+        mHorizontalButton =
+                (RadioButtonWithDescription) holder.findViewById(R.id.alice_style_horizontal);
+        if (mGroup == null) return;
+
+        // 竖向暂未支持：置灰不可选。
+        if (mVerticalButton != null) {
+            mVerticalButton.setEnabled(false);
+            mVerticalButton.setAlpha(0.5f);
+        }
+
+        mGroup.setOnCheckedChangeListener(this);
+        setCheckedState(mStyle);
+    }
+
+    @Override
+    public void onCheckedChanged(RadioGroup group, int checkedId) {
+        if (mHorizontalButton != null && mHorizontalButton.isChecked()) {
+            mStyle = STYLE_HORIZONTAL;
+        } else if (mVerticalButton != null && mVerticalButton.isChecked()) {
+            mStyle = STYLE_VERTICAL;
+        } else {
+            mStyle = STYLE_DEFAULT;
+        }
+        callChangeListener(mStyle);
+    }
+
+    /** 设置当前选中的样式。 */
+    public void setCheckedState(int style) {
+        mStyle = style;
+        if (mDefaultButton != null) mDefaultButton.setChecked(style == STYLE_DEFAULT);
+        if (mVerticalButton != null) mVerticalButton.setChecked(style == STYLE_VERTICAL);
+        if (mHorizontalButton != null) mHorizontalButton.setChecked(style == STYLE_HORIZONTAL);
+    }
+
+    /** @return 已保存的样式，非法值回退为默认。 */
+    public static int getCurrentStyle() {
+        int style =
+                ChromeSharedPreferences.getInstance()
+                        .readInt(PREF_TAB_SWITCHER_STYLE, STYLE_DEFAULT);
+        if (style == STYLE_VERTICAL || style == STYLE_HORIZONTAL) return style;
+        return STYLE_DEFAULT;
+    }
+
+    /** @return 样式的短名称，用于「设置-外观」入口下方的摘要。 */
+    public static String getStyleTitle(int style) {
+        if (style == STYLE_VERTICAL) return "竖向（暂未支持）";
+        if (style == STYLE_HORIZONTAL) return "横向";
+        return "默认";
+    }
+
+    /** 供测试使用。 */
+    public int getStyleForTesting() {
+        return mStyle;
+    }
+}
+ALICE_EOF
+
+cat > "$path4/AliceTabSwitcherStyleSettingsFragment.java" << 'ALICE_EOF'
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package org.chromium.chrome.browser.appearance.settings;
+
+import android.os.Bundle;
+
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
+import org.chromium.components.browser_ui.settings.SettingsUtils;
+
+/** Alice: 标签切换器样式设置页（默认 / 竖向 / 横向）。 */
+@NullMarked
+public class AliceTabSwitcherStyleSettingsFragment extends ChromeBaseSettingsFragment {
+    /** 与 tab_ui 侧读取的 key 保持一致。 */
+    public static final String PREF_ALICE_TAB_SWITCHER_STYLE =
+            AliceTabSwitcherStylePreference.PREF_TAB_SWITCHER_STYLE;
+
+    private final SettableMonotonicObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createMonotonic();
+    private @Nullable AliceTabSwitcherStylePreference mStylePref;
+
+    @Override
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        mPageTitle.set("标签切换器");
+        SettingsUtils.addPreferencesFromResource(this, R.xml.alice_tab_switcher_style_preferences);
+        initStylePref();
+    }
+
+    @Override
+    public MonotonicObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
+    }
+
+    @Override
+    public @AnimationType int getAnimationType() {
+        return AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "appearance";
+    }
+
+    private void initStylePref() {
+        mStylePref = findPreference(PREF_ALICE_TAB_SWITCHER_STYLE);
+        if (mStylePref == null) return;
+
+        mStylePref.setCheckedState(AliceTabSwitcherStylePreference.getCurrentStyle());
+        mStylePref.setOnPreferenceChangeListener(
+                (preference, newValue) -> {
+                    writeStyle((int) newValue);
+                    return true;
+                });
+    }
+
+    private static void writeStyle(int style) {
+        ChromeSharedPreferences.getInstance().writeInt(PREF_ALICE_TAB_SWITCHER_STYLE, style);
+    }
+
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
+                    AliceTabSwitcherStyleSettingsFragment.class.getName(),
+                    ChromeBaseSearchIndexProvider.INDEX_OPT_OUT);
+}
+ALICE_EOF
+
+# ---------- 注册新增文件 ----------
+sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.java",$|&\n  # Alice patch start\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStylePreference.java",\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStyleSettingsFragment.java",\n  # Alice patch end|' "$path2"
+
+sed -i 's|^  "java/res/xml/privacy_preferences_ext.xml",$|&\n  # Alice patch start\n  "java/res/xml/alice_tab_switcher_style_preferences.xml",\n  "java/res/layout/alice_tab_switcher_style_preference.xml",\n  # Alice patch end|' "$path3"
+
+# ---------- 设置-外观 新增入口 ----------
+sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:order="4"\n        android:persistent="false"\n        android:title="标签切换器" />\n    <!-- Alice patch end -->\n</PreferenceScreen>|' "$path1"
+
+# ---------- 设置-外观 入口下方显示当前选项 ----------
+sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n\n    // Alice patch start\n    public static final String PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY =\n            "alice_tab_switcher_style_entry";\n    // Alice patch end|' "$path7"
+
+sed -i 's|^        updateUiThemePref();$|&\n        // Alice patch start\n        updateAliceTabSwitcherStylePref();\n        // Alice patch end|' "$path7"
+
+sed -i '/^    private void updateUiThemePref() {$/i\
+    // Alice patch start\
+    /** 标签切换器入口下方显示当前选中的样式。 */\
+    private void updateAliceTabSwitcherStylePref() {\
+        Preference pref = findPreference(PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY);\
+        if (pref == null) return;\
+        pref.setSummary(\
+                AliceTabSwitcherStylePreference.getStyleTitle(\
+                        AliceTabSwitcherStylePreference.getCurrentStyle()));\
+    }\
+    // Alice patch end\
+' "$path7"
