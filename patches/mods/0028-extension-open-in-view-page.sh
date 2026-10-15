@@ -9,83 +9,84 @@ path2="chrome/browser/ui/android/extensions/extension_action_popup_contents.cc"
 path3="chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java"
 path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
 path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn"
+path6="chrome/browser/ui/android/toolbar/DEPS"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0028' "$path1"; then
     exit 100
 fi
 
 # ---- extension_action_popup_contents.cc ----
 sed -i '/^  Java_ExtensionActionPopupContents_onLoaded(AttachCurrentThread(),$/,/^                                             java_object_);$/c\
-// Alice patch start\
+// Alice patch start 0028\
   Java_ExtensionActionPopupContents_onLoaded(\
       AttachCurrentThread(), java_object_,\
       host_->host_contents()->GetLastCommittedURL().spec());\
-// Alice patch end' "chrome/browser/ui/android/extensions/extension_action_popup_contents.cc"
+// Alice patch end 0028' "$path2"
 
 # ---- ExtensionActionPopupContents.java ----
 
 sed -i '\|^    private void onLoaded() {$|c\
-// Alice patch start\
+// Alice patch start 0028\
     private void onLoaded(@JniType("std::string") String url) {\
-// Alice patch end' "chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java"
+// Alice patch end 0028' "$path3"
 
 sed -i '\|^            mDelegate\.onLoaded();$|c\
-// Alice patch start\
+// Alice patch start 0028\
             mDelegate.onLoaded(url);\
-// Alice patch end' "chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java"
+// Alice patch end 0028' "$path3"
 
 sed -i '\|^        void onLoaded();$|c\
-// Alice patch start\
+// Alice patch start 0028\
         void onLoaded(String url);\
-// Alice patch end' "chrome/browser/ui/android/extensions/java/src/org/chromium/chrome/browser/ui/extensions/ExtensionActionPopupContents.java"
+// Alice patch end 0028' "$path3"
 
 # ---- ExtensionActionPopup.java ----
 
 sed -i '\|^import org\.chromium\.base\.lifetime\.Destroyable;$|i\
-// Alice patch start\
+// Alice patch start 0028\
 import org.chromium.base.ThreadUtils;\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^    /\*\*$|i\
-// Alice patch start\
+// Alice patch start 0028\
     /** Alice: if not null, the loaded popup page URL is handed over to this callback. */\
     private final @Nullable Callback<String> mOnPreviewUrl;\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^            boolean inspectWithDevTools) {$|c\
-// Alice patch start\
+// Alice patch start 0028\
             boolean inspectWithDevTools,\
             @Nullable Callback<String> onPreviewUrl) {\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^        mContents = contents;$|a\
-// Alice patch start\
+// Alice patch start 0028\
         mOnPreviewUrl = onPreviewUrl;\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^    /\*\* Adds a listener that will be notified when the popup window is dismissed\. \*/$|i\
-// Alice patch start\
+// Alice patch start 0028\
     /** Alice: shows the popup anchored to the action button (fallback path). */\
     public void showOnAnchor() {\
         mPopupWindow.show();\
         mContentView.requestFocus();\
     }\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^            if (Build\.VERSION\.SDK_INT >= 34) {$|i\
-// Alice patch start\
+// Alice patch start 0028\
             if (mOnPreviewUrl != null) {\
                 // Alice: in preview mode the popup is never shown as an anchored window, so\
                 // the content view has no window LayoutParams and nothing needs resizing.\
                 return;\
             }\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 sed -i '\|^        public void onLoaded() {$|c\
-// Alice patch start\
+// Alice patch start 0028\
         public void onLoaded(String url) {\
             final @Nullable Callback<String> onPreviewUrl = mOnPreviewUrl;\
             if (onPreviewUrl != null) {\
@@ -95,29 +96,29 @@ sed -i '\|^        public void onLoaded() {$|c\
                 ThreadUtils.postOnUiThread(() -> onPreviewUrl.onResult(previewUrl));\
                 return;\
             }\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionPopup.java"
+// Alice patch end 0028' "$path4"
 
 # ---- ExtensionActionListMediator.java ----
 
 sed -i '\|^import org\.chromium\.base\.lifetime\.Destroyable;$|i\
-// Alice patch start\
+// Alice patch start 0028\
 import org.chromium.base.Callback;\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^import org\.chromium\.chrome\.browser\.extensions\.ContextMenuSource;$|i\
-// Alice patch start\
+// Alice patch start 0028\
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;\
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinatorSupplier;\
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabObserver;\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^import org\.chromium\.ui\.widget\.RectProvider;$|a\
-// Alice patch start\
+// Alice patch start 0028\
 import org.chromium.url.GURL;\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^        /\*\* State when a context menu is active\. \*/$|i\
-// Alice patch start\
+// Alice patch start 0028\
         /** State when the popup is displayed in the ephemeral tab (preview page) sheet. */\
         public static final class PreviewActive extends ActionState {\
             private final String mActionId;\
@@ -131,10 +132,10 @@ sed -i '\|^        /\*\* State when a context menu is active\. \*/$|i\
             }\
         }\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^    @Nullable private final LifetimeAssert mLifetimeAssert = LifetimeAssert\.create(this);$|i\
-// Alice patch start\
+// Alice patch start 0028\
     /** Alice: ExtensionActionPopup hands the loaded popup page URL over through this. */\
     private final Callback<String> mPreviewPopupUrlCallback = this::showPopupInPreviewSheet;\
 \
@@ -149,7 +150,7 @@ sed -i '\|^    @Nullable private final LifetimeAssert mLifetimeAssert = Lifetime
                 }\
             };\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^            boolean inspectWithDevTools) {$|a\
         if (mActionState instanceof ActionState.PreviewActive) {\
@@ -164,9 +165,9 @@ sed -i '\|^            boolean inspectWithDevTools) {$|a\
                 return;\
             }\
             mActionState = new ActionState.Idle();\
-        }' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+        }' "$path1"
 sed -i '\|^        ExtensionActionPopup popup =$|i\
-// Alice patch start\
+// Alice patch start 0028\
         // Alice: prefer the ephemeral tab (preview page) sheet for extension popups.\
         var ephemeralTabSupplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);\
         EphemeralTabCoordinator ephemeralTabCoordinator =\
@@ -176,18 +177,18 @@ sed -i '\|^        ExtensionActionPopup popup =$|i\
                         ? ephemeralTabSupplier.get()\
                         : null;\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^                        inspectWithDevTools);$|c\
-// Alice patch start\
+// Alice patch start 0028\
                         inspectWithDevTools,\
                         (ephemeralTabCoordinator == null || inspectWithDevTools)\
                                 ? null\
                                 : mPreviewPopupUrlCallback);\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^    private void closePopup() {$|i\
-// Alice patch start\
+// Alice patch start 0028\
     /** Alice: shows the loaded extension popup page in the ephemeral tab bottom sheet. */\
     private void showPopupInPreviewSheet(String url) {\
         if (!(mActionState instanceof ActionState.PopupActive activeState)) {\
@@ -228,10 +229,10 @@ sed -i '\|^    private void closePopup() {$|i\
                 /* requestDeniedCallback= */ () -> {});\
     }\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^        if (mActionState instanceof ActionState\.PopupPending pendingState) {$|i\
-// Alice patch start\
+// Alice patch start 0028\
         if (mActionState instanceof ActionState.PreviewActive previewState) {\
             mActionState = new ActionState.Idle();\
             ListMenuButton previewButtonView =\
@@ -254,22 +255,22 @@ sed -i '\|^        if (mActionState instanceof ActionState\.PopupPending pending
             return;\
         }\
 \
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 sed -i '\|^            return mActionState instanceof ActionState\.PopupActive;$|i\
-// Alice patch start\
+// Alice patch start 0028\
             if (mActionState instanceof ActionState.PreviewActive) {\
                 // Alice: the sheet may already be gone; only report active while it is open.\
                 var supplier = EphemeralTabCoordinatorSupplier.from(mWindowAndroid);\
                 EphemeralTabCoordinator coordinator = supplier != null ? supplier.get() : null;\
                 return coordinator != null && coordinator.isOpened();\
             }\
-// Alice patch end' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/ExtensionActionListMediator.java"
+// Alice patch end 0028' "$path1"
 
 # ---- BUILD.gn ----
 
-sed -i '0,\|^    "//chrome/browser/ui/android/extensions:java_resources",$| s||&\n    "//chrome/browser/ui/android/ephemeraltab:java",|' "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/extensions/BUILD.gn"
+sed -i '0,\|^    "//chrome/browser/ui/android/extensions:java_resources",$| s||&\n    "//chrome/browser/ui/android/ephemeraltab:java",|' "$path5"
 
 # ---- DEPS ----
 sed -i '\|^  "+chrome/browser/ui/messages/android/java",$|i\
-  "+chrome/browser/ui/android/ephemeraltab",' "chrome/browser/ui/android/toolbar/DEPS"
+  "+chrome/browser/ui/android/ephemeraltab",' "$path6"

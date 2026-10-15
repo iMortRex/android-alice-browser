@@ -10,7 +10,7 @@ path3="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.
 path4="chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0026' "$path1"; then
     exit 100
 fi
 
@@ -19,7 +19,7 @@ sed -i '/^            if (ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled(
 sed -i '/^            iconModels\.add(buildDownloadActionModel(currentTab));$/d' "$path1"
 sed -i '/^            if (!ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled()) {$/,/^$/d' "$path1"
 sed -i '/^            iconModels\.add(buildBookmarkActionModel(currentTab));$/a\
-            // Alice patch start\
+            // Alice patch start 0026\
             // 下载此网页 → 下载内容\
             iconModels.add(\
                     AppMenuItemUtils.buildModelForIcon(\
@@ -36,7 +36,7 @@ sed -i '/^            iconModels\.add(buildBookmarkActionModel(currentTab));$/a\
                             R.string.menu_extensions_menu,\
                             R.string.menu_extensions,\
                             R.drawable.ic_extension_24dp));\
-            // Alice patch end' "$path1"
+            // Alice patch end 0026' "$path1"
 
 # 2) AppMenuHandlerImpl：import
 sed -i '/^import android\.view\.ViewGroup;$/a\
@@ -55,27 +55,27 @@ sed -i '/^        setupModelForHighlightAndClick(mModelList, mHighlightMenuId, t
         mIconRowFooterModel = extractIconRowModel();' "$path2"
 
 # 5) AppMenuHandlerImpl：新增两个方法
-sed -i '/^    \/\*\*$/{N;/A means of reporting an exception without crashing\./s|^|    // Alice patch start\n    /** 把 BUTTON_ROW（图标行）从菜单模型里摘出来，留作底部固定 footer。 */\n    private @Nullable PropertyModel extractIconRowModel() {\n        if (mModelList == null) return null;\n        for (int i = 0; i < mModelList.size(); i++) {\n            ListItem item = mModelList.get(i);\n            if (item.type != AppMenuItemType.BUTTON_ROW) continue;\n            PropertyModel model = item.model;\n            mModelList.removeAt(i);\n            return model;\n        }\n        return null;\n    }\n\n    /** 用图标行模型生成一份独立视图（不随列表滚动，钉在菜单底部）。 */\n    private View buildIconRowFooterView(PropertyModel model) {\n        ViewGroup view =\n                (ViewGroup)\n                        LayoutInflater.from(mContext)\n                                .inflate(R.layout.icon_row_menu_item, /* root= */ null);\n        PropertyModelChangeProcessor.create(\n                model, view, AppMenuItemViewBinder::bindIconRowItem,\n                /* performInitialBind= */ true);\n        // 关键：root 传 null 时 inflate 不会带 LayoutParams，不设的话\n        // LinearLayout 默认 WRAP_CONTENT，而里面 5 个按钮是 weight=1 + width=0dp，\n        // 会导致整行宽度为 0（按钮全看不见）。\n        view.setLayoutParams(\n                new LinearLayout.LayoutParams(\n                        LinearLayout.LayoutParams.MATCH_PARENT,\n                        LinearLayout.LayoutParams.WRAP_CONTENT));\n        return view;\n    }\n    // Alice patch end\n\n|}' "$path2"
+sed -i '/^    \/\*\*$/{N;/A means of reporting an exception without crashing\./s|^|    // Alice patch start 0026\n    /** 把 BUTTON_ROW（图标行）从菜单模型里摘出来，留作底部固定 footer。 */\n    private @Nullable PropertyModel extractIconRowModel() {\n        if (mModelList == null) return null;\n        for (int i = 0; i < mModelList.size(); i++) {\n            ListItem item = mModelList.get(i);\n            if (item.type != AppMenuItemType.BUTTON_ROW) continue;\n            PropertyModel model = item.model;\n            mModelList.removeAt(i);\n            return model;\n        }\n        return null;\n    }\n\n    /** 用图标行模型生成一份独立视图（不随列表滚动，钉在菜单底部）。 */\n    private View buildIconRowFooterView(PropertyModel model) {\n        ViewGroup view =\n                (ViewGroup)\n                        LayoutInflater.from(mContext)\n                                .inflate(R.layout.icon_row_menu_item, /* root= */ null);\n        PropertyModelChangeProcessor.create(\n                model, view, AppMenuItemViewBinder::bindIconRowItem,\n                /* performInitialBind= */ true);\n        // 关键：root 传 null 时 inflate 不会带 LayoutParams，不设的话\n        // LinearLayout 默认 WRAP_CONTENT，而里面 5 个按钮是 weight=1 + width=0dp，\n        // 会导致整行宽度为 0（按钮全看不见）。\n        view.setLayoutParams(\n                new LinearLayout.LayoutParams(\n                        LinearLayout.LayoutParams.MATCH_PARENT,\n                        LinearLayout.LayoutParams.WRAP_CONTENT));\n        return view;\n    }\n    // Alice patch end 0026\n\n|}' "$path2"
 
 # 6) AppMenuHandlerImpl：底部 footer
 sed -i '/^        mAppMenu\.show($/i\
-        // Alice patch start\
+        // Alice patch start 0026\
         View footer = mDelegate.buildFooterView(this);\
         if (mIconRowFooterModel != null) {\
             footer = buildIconRowFooterView(mIconRowFooterModel);\
             mIconRowFooterModel = null;              // 每次显示重建\
         }\
-        // Alice patch end\
+        // Alice patch end 0026\
 ' "$path2"
 sed -i 's|^                mDelegate\.buildFooterView(this),$|                footer,|' "$path2"
 sed -i '/^        if (mModelList == null || mModelList\.isEmpty()) return false;$/,/^        return mModelList\.get(0)\.type != AppMenuItemType\.BUTTON_ROW;$/c\
-        // Alice patch start\
+        // Alice patch start 0026\
         return false;\
-        // Alice patch end' "$path2"
+        // Alice patch end 0026' "$path2"
 
 # 7) ChromeTabbedActivity：扩展菜单空指针保护
 sed -i '/^            ExtensionsToolbarCoordinator coordinator =$/,/^            RecordUserAction\.record("MobileMenuExtensionsMenu");$/c\
-            // Alice patch start\
+            // Alice patch start 0026\
             ExtensionsToolbarCoordinator coordinator =\
                     getToolbarManager() == null\
                             ? null\
@@ -84,15 +84,15 @@ sed -i '/^            ExtensionsToolbarCoordinator coordinator =$/,/^           
                 coordinator.showExtensionsMenu();\
                 RecordUserAction.record("MobileMenuExtensionsMenu");\
             }\
-            // Alice patch end' "$path3"
+            // Alice patch end 0026' "$path3"
 
 # 8) AppMenu：底部 footer 也参与宽度测量
 sed -i '/^        int contentWidth = itemWidth + bgPadding\.left + bgPadding\.right;$/i\
-        // Alice patch start\
+        // Alice patch start 0026\
         if (footer != null) {\
             footer.measure(\
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),\
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));\
             itemWidth = Math.max(itemWidth, footer.getMeasuredWidth());\
         }\
-        // Alice patch end' "$path4"
+        // Alice patch end 0026' "$path4"

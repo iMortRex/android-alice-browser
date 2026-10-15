@@ -7,20 +7,17 @@ set -e
 path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0012' "$path1"; then
     exit 100
 fi
 
-# 1) 绘制路径 A：非 animation-refactor，drawable 的绘制范围改成整宽
-sed -i -e 's|mLocationBarBackgroundBounds.left + mLocationBarBackgroundNtpOffset.left,|0,   // Alice: 背景铺满|' \
-       -e 's|mLocationBarBackgroundBounds.right + mLocationBarBackgroundNtpOffset.right,|getMeasuredWidth(),   // Alice: 背景铺满|' \
-    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+# 1) 绘制路径 A：drawable 的绘制范围改成整宽
+sed -i 's|^\( *\)mLocationBarBackgroundBounds\.left + mLocationBarBackgroundNtpOffset\.left,$|\1// Alice patch start 0012\n\10,   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
+sed -i 's|^\( *\)mLocationBarBackgroundBounds\.right + mLocationBarBackgroundNtpOffset\.right,$|\1// Alice patch start 0012\n\1getMeasuredWidth(),   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
 
-# 2) 绘制路径 B：animation-refactor，背景宿主 View 铺满
-sed -i -e 's|mActiveLocationBarBackgroundView.setTranslationX(rect.left);|mActiveLocationBarBackgroundView.setTranslationX(0);   // Alice: 背景铺满|' \
-       -e 's|lp.width = rect.right - rect.left;|lp.width = getMeasuredWidth();   // Alice: 背景铺满|' \
-    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+# 2) 绘制路径 B：背景宿主 View 铺满
+sed -i 's|^\( *\)mActiveLocationBarBackgroundView\.setTranslationX(rect\.left);$|\1// Alice patch start 0012\n\1mActiveLocationBarBackgroundView.setTranslationX(0);   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
+sed -i 's|^\( *\)lp\.width = rect\.right - rect\.left;$|\1// Alice patch start 0012\n\1lp.width = getMeasuredWidth();   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
 
-sed -i 's|return (child == mHomeButton) \^ LocalizationUtils.isLayoutRtl();|return (child == mHomeButton \|\| child == findViewById(R.id.left_toolbar_buttons)) ^ LocalizationUtils.isLayoutRtl();|' \
-    "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
-
+# 3) 底部工具条按钮组也参与 RTL 翻转
+sed -i 's#^\( *\)return (child == mHomeButton) \^ LocalizationUtils\.isLayoutRtl();$#\1// Alice patch start 0012\n\1return (child == mHomeButton \|\| child == findViewById(R.id.left_toolbar_buttons)) ^ LocalizationUtils.isLayoutRtl();\n\1// Alice patch end 0012#' "$path1"

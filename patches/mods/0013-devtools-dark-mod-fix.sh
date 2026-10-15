@@ -5,7 +5,7 @@
 path1="chrome/browser/devtools/devtools_ui_bindings.cc"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0013' "$path1"; then
     exit 100
 fi
 
@@ -14,7 +14,7 @@ fi
 #    注意 DevTools 的设置值是 JSON 文本（Setting.set 用 JSON.stringify、get 用 JSON.parse），
 #    布尔就是 "false"。
 sed -i '/^  base::Value settings = base::Value(settings_.Get());$/a\
-  // Alice patch start\
+  // Alice patch start 0013\
 #if BUILDFLAG(IS_ANDROID)\
   // Alice: devtools dark -- 默认关掉"与 Chrome 配色方案匹配"（不改用户已设置的值）。\
   if (base::DictValue* alice_theme_dict = settings.GetIfDict()) {\
@@ -26,4 +26,4 @@ sed -i '/^  base::Value settings = base::Value(settings_.Get());$/a\
     }\
   }\
 #endif  // BUILDFLAG(IS_ANDROID)\
-  // Alice patch end' "$path1"
+  // Alice patch end 0013' "$path1"

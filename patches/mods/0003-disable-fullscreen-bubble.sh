@@ -5,10 +5,10 @@
 path1="chrome/android/java/src/org/chromium/chrome/browser/ui/ExclusiveAccessBubble.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0003' "$path1"; then
     exit 100
 fi
 
-sed -i 's|^\( *\)public void show() {$|\1// Alice patch start\n\1public void show() { if (true) return;\n\1// Alice patch end|' "$path1"
+sed -i 's|^\( *\)public void show() {$|\1// Alice patch start 0003\n\1public void show() { if (true) return;\n\1// Alice patch end 0003|' "$path1"
 
-sed -i 's|^\( *\)public void update(String text) {$|\1// Alice patch start\n\1public void update(String text) { if (true) return;\n\1// Alice patch end|' "$path1"
+sed -i 's|^\( *\)public void update(String text) {$|\1// Alice patch start 0003\n\1public void update(String text) { if (true) return;\n\1// Alice patch end 0003|' "$path1"

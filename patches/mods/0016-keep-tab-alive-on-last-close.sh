@@ -14,12 +14,12 @@ set -e
 path1="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0016' "$path1"; then
     exit 100
 fi
 
 sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                        }$/c\
-                        // Alice patch start\
+                        // Alice patch start 0016\
                         private void closeIfNoTabsAndHomepageEnabled(\
                                 boolean isPendingClosure, boolean shouldRemoveWindowWithZeroTabs) {\
                             if (getTabModelSelector().getTotalTabCount() != 0) return;\
@@ -47,4 +47,4 @@ sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                     
                                                 .launchNtp(TabLaunchType.FROM_CHROME_UI);\
                                     });\
                         }\
-                        // Alice patch end' "$path1"
+                        // Alice patch end 0016' "$path1"

@@ -12,6 +12,7 @@ cd "$CHROMIUM"
 
 # 恢复干净（撤销上次所有 patch 和 mod 的修改）
 echo "=== 恢复工作区 ==="
+git reset -q
 git checkout -- .
 git clean -fd
 

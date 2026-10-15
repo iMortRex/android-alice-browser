@@ -14,49 +14,49 @@ path7="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/om
 path8="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsContainer.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start' "$path1"; then
+if grep -q 'Alice patch start 0008' "$path1"; then
     exit 100
 fi
 
 # --- 1) NewTabPageLayoutProperties：新增 BOTTOM_INSET_PX 属性 ---
 sed -i '/^    static final WritableIntPropertyKey TOP_INSET_PX = new WritableIntPropertyKey();$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 \
     /** The bottom inset (toolbar height) for the NewTabPageLayout. */\
     static final WritableIntPropertyKey BOTTOM_INSET_PX = new WritableIntPropertyKey();\
-    // Alice patch end' "$path1"
+    // Alice patch end 0008' "$path1"
 
-sed -i 's|^\( *\)DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, TRANSITION_Y,$|\1// Alice patch start\n\1DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, BOTTOM_INSET_PX, TRANSITION_Y,\n\1// Alice patch end|' "$path1"
+sed -i 's|^\( *\)DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, TRANSITION_Y,$|\1// Alice patch start 0008\n\1DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, BOTTOM_INSET_PX, TRANSITION_Y,\n\1// Alice patch end 0008|' "$path1"
 
 # --- 2) ViewBinder：新增分支写 paddingBottom ---
 sed -i '/^import static org\.chromium\.chrome\.browser\.ntp\.NewTabPageLayoutProperties\.DELEGATE;$/i\
-    // Alice patch start\
+    // Alice patch start 0008\
 import static org.chromium.chrome.browser.ntp.NewTabPageLayoutProperties.BOTTOM_INSET_PX;\
-    // Alice patch end' "$path2"
+    // Alice patch end 0008' "$path2"
 
 sed -i '/^        } else if (TRANSITION_Y == key) {$/i\
-        // Alice patch start\
+        // Alice patch start 0008\
         } else if (BOTTOM_INSET_PX == key) {\
             newTabPageLayout.setPaddingRelative(\
                     newTabPageLayout.getPaddingStart(),\
                     newTabPageLayout.getPaddingTop(),\
                     newTabPageLayout.getPaddingEnd(),\
                     model.get(BOTTOM_INSET_PX));\
-        // Alice patch end' "$path2"
+        // Alice patch end 0008' "$path2"
 
 # --- 3) Coordinator：按工具栏位置算 top/bottom inset ---
 sed -i '/^    private int mTopInset;$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
     private boolean mToolbarOnBottom;\
-    // Alice patch end' "$path3"
+    // Alice patch end 0008' "$path3"
 
 sed -i '/^        int toolbarHeightNoShadow =$/,/^        mModel.set(NewTabPageLayoutProperties.TOP_INSET_PX, toolbarHeightNoShadow + mTopInset);$/c\
-        // Alice patch start\
+        // Alice patch start 0008\
         updateToolbarInsets();\
-        // Alice patch end' "$path3"
+        // Alice patch end 0008' "$path3"
 
 sed -i '$i\
-    // Alice patch start\
+    // Alice patch start 0008\
     void setToolbarOnBottom(boolean toolbarOnBottom) {\
         if (mToolbarOnBottom == toolbarOnBottom) return;\
         mToolbarOnBottom = toolbarOnBottom;\
@@ -73,38 +73,38 @@ sed -i '$i\
                 NewTabPageLayoutProperties.BOTTOM_INSET_PX,\
                 mToolbarOnBottom ? toolbarHeightNoShadow : 0);\
     }\
-    // Alice patch end' "$path3"
+    // Alice patch end 0008' "$path3"
 
 # --- 4) NewTabPage：接上工具栏位置变化 ---
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider;$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
-    // Alice patch end' "$path4"
+    // Alice patch end 0008' "$path4"
 
 sed -i '/^    \/\*\* Allows clients to listen for updates to the scroll changes of the search box on the NTP\. \*\/$/i\
-    // Alice patch start\
+    // Alice patch start 0008\
     @Override\
     public void onControlsPositionChanged(@ControlsPosition int controlsPosition) {\
         mNewTabPageCoordinator.setToolbarOnBottom(\
                 controlsPosition == ControlsPosition.BOTTOM);\
     }\
-    // Alice patch end\
+    // Alice patch end 0008\
 ' "$path4"
 
 # --- 5) ToolbarPositionController：不再强制把搜索框改到顶部 ---
 sed -i '/^        if (ntpShowing$/,/^                || doesUserPreferTopToolbar) {$/c\
-        // Alice patch start\
+        // Alice patch start 0008\
         if (isFindInPageShowing || doesUserPreferTopToolbar) {\
-        // Alice patch end' "$path5"
+        // Alice patch end 0008' "$path5"
 
 # --- 6) 建议下拉的 embedder 接口：新增 isToolbarOnBottom()/getAnchorView() ---
 sed -i '/^import android\.annotation\.SuppressLint;$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 import android.view.View;\
-    // Alice patch end' "$path6"
+    // Alice patch end 0008' "$path6"
 
 sed -i '/^    boolean isPhoneStyleWindow();$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 \
     /** Returns whether the toolbar is currently at the bottom of the screen. */\
     default boolean isToolbarOnBottom() {\
@@ -113,27 +113,27 @@ sed -i '/^    boolean isPhoneStyleWindow();$/a\
 \
     /** Returns the view the suggestions dropdown is aligned to. */\
     View getAnchorView();\
-    // Alice patch end' "$path6"
+    // Alice patch end 0008' "$path6"
 
 # --- 7) embedder 实现：实现上面两个方法 ---
-sed -i '/^    public boolean isPhoneStyleWindow() {$/,/^    }$/ s|^    }$|    }\n    // Alice patch start\n\n    @Override\n    public boolean isToolbarOnBottom() {\n        return mControlsPositionSupplier.get() == ControlsPosition.BOTTOM;\n    }\n\n    @Override\n    public View getAnchorView() {\n        return mAnchorView;\n    }\n    // Alice patch end|' "$path7"
+sed -i '/^    public boolean isPhoneStyleWindow() {$/,/^    }$/ s|^    }$|    }\n    // Alice patch start 0008\n\n    @Override\n    public boolean isToolbarOnBottom() {\n        return mControlsPositionSupplier.get() == ControlsPosition.BOTTOM;\n    }\n\n    @Override\n    public View getAnchorView() {\n        return mAnchorView;\n    }\n    // Alice patch end 0008|' "$path7"
 
 # --- 8) 建议下拉容器：每帧吸附到地址栏上沿 ---
 sed -i '/^import android\.view\.ViewGroup;$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 import android.view.ViewTreeObserver;\
-    // Alice patch end' "$path8"
+    // Alice patch end 0008' "$path8"
 
 sed -i '/^    private OmniboxAlignment mOmniboxAlignment = OmniboxAlignment\.UNSPECIFIED;$/a\
-    // Alice patch start\
+    // Alice patch start 0008\
 \
     /** Alice: 每帧吸附用的临时数组与监听器。 */\
     private final int[] mStickPosition = new int[2];\
     private final ViewTreeObserver.OnPreDrawListener mStickListener = this::stickToAnchor;\
-    // Alice patch end' "$path8"
+    // Alice patch end 0008' "$path8"
 
 sed -i '/^    private void installAlignmentObserver() {$/i\
-    // Alice patch start\
+    // Alice patch start 0008\
     /** Alice: 每帧把下拉底边吸附到地址栏上沿（仅地址栏在底部时）。 */\
     private boolean stickToAnchor() {\
         if (mDropdown == null) return true;\
@@ -162,15 +162,15 @@ sed -i '/^    private void installAlignmentObserver() {$/i\
         }\
         return true;\
     }\
-    // Alice patch end\
+    // Alice patch end 0008\
 ' "$path8"
 
 sed -i '/^            mOmniboxAlignment = mEmbedder\.addAlignmentObserver(mOmniboxAlignmentObserver);$/a\
-            // Alice patch start\
+            // Alice patch start 0008\
             getViewTreeObserver().addOnPreDrawListener(mStickListener);\
-            // Alice patch end' "$path8"
+            // Alice patch end 0008' "$path8"
 
 sed -i '/^            mEmbedder\.removeAlignmentObserver(mOmniboxAlignmentObserver);$/a\
-        // Alice patch start\
+        // Alice patch start 0008\
         getViewTreeObserver().removeOnPreDrawListener(mStickListener);\
-        // Alice patch end' "$path8"
+        // Alice patch end 0008' "$path8"
