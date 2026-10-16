@@ -59,8 +59,6 @@ sed -i 's|^\( *\)@RectStart int rectStart = isBottomBarInGts ? RectStart\.BOTTOM
 sed -i 's|^\( *\)mView.setTranslationY(translationY + searchBoxGap);$|\1// Alice patch start 0029\n\1mView.setTranslationY(\n\1        translationY + (mInitialRect.bottom == mFinalRect.bottom ? 0 : searchBoxGap));\n\1// Alice patch end 0029|' "$path4"
 
 # === 「新建标签页 / 开发者工具」的弹出动画起点 ===
-path5="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/NewTabAnimationUtils.java"
-path6="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewTabAnimationLayout.java"
 # 7) NewTabAnimationUtils：新增「右下角」起点（初始小卡片贴右下角，再往左上铺满）
 sed -i 's|^        RectStart\.BOTTOM_CENTER$|        // Alice patch start 0029\n        RectStart.BOTTOM_CENTER,\n        RectStart.BOTTOM_RIGHT\n        // Alice patch end 0029|' "$path5"
 sed -i 's|^        int BOTTOM_CENTER = 5;$|        // Alice patch start 0029\n        int BOTTOM_CENTER = 5;\n        int BOTTOM_RIGHT = 6;\n        // Alice patch end 0029|' "$path5"
