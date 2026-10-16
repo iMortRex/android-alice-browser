@@ -29,9 +29,7 @@ path11="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser
 path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 
 # 检测是否已应用
-# 用 path2 判断：path1 里还有别的 mod 的标记，用 path1 判断会被误认为已应用。
-if grep -q 'Alice patch start 0031' "$path2" \
-        || grep -q 'Alice tab-switcher patch start' "$path2"; then
+if grep -q 'Alice patch start 0031' "$path2"; then
     exit 100
 fi
 
