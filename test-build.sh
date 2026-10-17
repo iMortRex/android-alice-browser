@@ -50,7 +50,7 @@ SIGNED_APK="out/Test/test-$VERSION-arm64-v8a.apk"
 sign_apk "$APK" "$SIGNED_APK"
 echo "已签名: $SIGNED_APK"
 
-APK="$CHROMIUM/out/Test/apks/ChromePublic.apk"
+APK="$CHROMIUM/$SIGNED_APK"
 echo "=== 编译成功 ==="
 echo "手动安装指令:"
 echo "adb.exe install -r "$APK""
