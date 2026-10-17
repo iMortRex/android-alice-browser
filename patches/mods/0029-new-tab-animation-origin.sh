@@ -1,11 +1,5 @@
 #!/bin/bash
 # 新建标签页动画：从「屏幕底部中间」向上铺满整个屏幕
-#
-# 卡片是 Hub 的 ShrinkExpandImageView，矩形由 ShrinkExpandHubLayoutAnimatorProvider 决定：
-#   - 起点：Hub 容器的底部中间（卡片大小沿用上游的 0.2 倍）；
-#   - 终点：整个 Hub 容器（含底部工具栏那块），铺满屏幕且左右对称；
-#   - HubLayout 里 rectStart 固定成 BOTTOM_CENTER，圆角才是 {r, r, 0, 0}（左右一致）；
-#   - 新建标签页不吃 0027 的 56dp 工具栏留白（矩形已经算到屏幕底部了）。
 
 set -e
 
@@ -76,4 +70,21 @@ sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch 
 
 # 10) NewTabAnimationLayout：新建标签页的起点水平对准「标签管理页」（标签页）按钮
 #     rectStart 仍是 BOTTOM_CENTER（底部贴边、底部圆角等逻辑不变），只把起点矩形水平挪到按钮中心。
-sed -i 's|^        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);$|        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);\n\n        // Alice patch start 0029\n        // 新建标签页：起点水平对准「标签管理页」按钮（按钮不在时退回底部居中）\n        if (rectStart == RectStart.BOTTOM_CENTER\n                \&\& (newTab.getLaunchType() == TabLaunchType.FROM_CHROME_UI\n                        \|\| newTab.getLaunchType() == TabLaunchType.FROM_TAB_SWITCHER_UI)) {\n            View aliceSwitcher = null;\n            if (BottomBarConfigUtils.isBottomBarEnabled(getContext())) {\n                View aliceBottomBar =\n                        mAnimationHostView.findViewById(\n                                org.chromium.chrome.browser.ui.bottombar.R.id\n                                        .bottom_bar_container);\n                if (aliceBottomBar != null) {\n                    aliceSwitcher = aliceBottomBar.findViewById(R.id.tab_switcher_button);\n                }\n            } else {\n                View aliceToolbar = mAnimationHostView.findViewById(R.id.toolbar);\n                if (aliceToolbar != null) {\n                    aliceSwitcher = aliceToolbar.findViewById(R.id.tab_switcher_button);\n                }\n            }\n            Rect aliceSwitcherRect = new Rect();\n            if (aliceSwitcher != null \&\& aliceSwitcher.getGlobalVisibleRect(aliceSwitcherRect)) {\n                initialRect.offset(aliceSwitcherRect.centerX() - initialRect.centerX(), 0);\n            }\n        }\n        // Alice patch end 0029|' "$path6"
+sed -i 's|^        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);$|        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);\n\n        // Alice patch start 0029\n        // 新建标签页：起点水平对准「标签管理页」按钮（按钮不在时退回底部居中）\n        if (rectStart == RectStart.BOTTOM_CENTER) {\n            View aliceSwitcher = null;\n            if (BottomBarConfigUtils.isBottomBarEnabled(getContext())) {\n                View aliceBottomBar =\n                        mAnimationHostView.findViewById(\n                                org.chromium.chrome.browser.ui.bottombar.R.id\n                                        .bottom_bar_container);\n                if (aliceBottomBar != null) {\n                    aliceSwitcher = aliceBottomBar.findViewById(R.id.tab_switcher_button);\n                }\n            } else {\n                View aliceToolbar = mAnimationHostView.findViewById(R.id.toolbar);\n                if (aliceToolbar != null) {\n                    aliceSwitcher = aliceToolbar.findViewById(R.id.tab_switcher_button);\n                }\n            }\n            Rect aliceSwitcherRect = new Rect();\n            if (aliceSwitcher != null \&\& aliceSwitcher.getGlobalVisibleRect(aliceSwitcherRect)) {\n                initialRect.offset(aliceSwitcherRect.centerX() - initialRect.centerX(), 0);\n            }\n        }\n        // Alice patch end 0029|' "$path6"
+
+# 11) getForegroundRectStart：新建标签页 / 历史记录 / 开发者工具统一走「底部居中」起点
+#     第 8 步里的 devtools 特判和底部工具栏分支都被这段整体替换掉（那些分支最终都是左下角）。
+sed -i '/^    private @RectStart int getForegroundRectStart(@Nullable Tab oldTab, Tab newTab) {$/,/^    }$/c\
+    private @RectStart int getForegroundRectStart(@Nullable Tab oldTab, Tab newTab) {\
+        @TabLaunchType int tabLaunchType = newTab.getLaunchType();\
+        if (oldTab == null\
+                || tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND\
+                || tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND_IN_GROUP) {\
+            return RectStart.CENTER;\
+        }\
+\
+        // Alice patch start 0029\
+        // 新建标签页 / 历史记录 / 开发者工具：统一从「标签管理页」按钮处往上缩放\
+        return RectStart.BOTTOM_CENTER;\
+        // Alice patch end 0029\
+    }' "$path6"
