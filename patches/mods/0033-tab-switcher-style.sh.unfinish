@@ -1,6 +1,6 @@
 #!/bin/bash
 # 设置-外观：新增「标签切换器」入口（点击进入子页选择样式），并在入口下方显示当前选项。
-#   0 默认（上游标签网格） / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0032 实现）
+#   0 默认（上游标签网格） / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0033 实现）
 # 取值保存在 ChromeSharedPreferences: alice_tab_switcher_style
 
 set -e
@@ -15,7 +15,7 @@ path6="alice/chromium_src/chrome/android/java/res/layout"
 path7="chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AppearanceSettingsFragment.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start 0032' "$path3"; then
+if grep -q 'Alice patch start 0033' "$path3"; then
     exit 100
 fi
 
@@ -280,20 +280,20 @@ public class AliceTabSwitcherStyleSettingsFragment extends ChromeBaseSettingsFra
 ALICE_EOF
 
 # ---------- 注册新增文件 ----------
-sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.java",$|&\n  # Alice patch start 0032\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStylePreference.java",\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStyleSettingsFragment.java",\n  # Alice patch end 0032|' "$path2"
+sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.java",$|&\n  # Alice patch start 0033\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStylePreference.java",\n  "java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStyleSettingsFragment.java",\n  # Alice patch end 0033|' "$path2"
 
-sed -i 's|^  "java/res/xml/privacy_preferences_ext.xml",$|&\n  # Alice patch start 0032\n  "java/res/xml/alice_tab_switcher_style_preferences.xml",\n  "java/res/layout/alice_tab_switcher_style_preference.xml",\n  # Alice patch end 0032|' "$path3"
+sed -i 's|^  "java/res/xml/privacy_preferences_ext.xml",$|&\n  # Alice patch start 0033\n  "java/res/xml/alice_tab_switcher_style_preferences.xml",\n  "java/res/layout/alice_tab_switcher_style_preference.xml",\n  # Alice patch end 0033|' "$path3"
 
 # ---------- 设置-外观 新增入口 ----------
-sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0032 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:order="4"\n        android:persistent="false"\n        android:title="标签切换器" />\n    <!-- Alice patch end 0032 -->\n</PreferenceScreen>|' "$path1"
+sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0033 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:order="4"\n        android:persistent="false"\n        android:title="标签切换器" />\n    <!-- Alice patch end 0033 -->\n</PreferenceScreen>|' "$path1"
 
 # ---------- 设置-外观 入口下方显示当前选项 ----------
-sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n\n    // Alice patch start 0032\n    public static final String PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY =\n            "alice_tab_switcher_style_entry";\n    // Alice patch end 0032|' "$path7"
+sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n\n    // Alice patch start 0033\n    public static final String PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY =\n            "alice_tab_switcher_style_entry";\n    // Alice patch end 0033|' "$path7"
 
-sed -i 's|^        updateUiThemePref();$|&\n        // Alice patch start 0032\n        updateAliceTabSwitcherStylePref();\n        // Alice patch end 0032|' "$path7"
+sed -i 's|^        updateUiThemePref();$|&\n        // Alice patch start 0033\n        updateAliceTabSwitcherStylePref();\n        // Alice patch end 0033|' "$path7"
 
 sed -i '/^    private void updateUiThemePref() {$/i\
-    // Alice patch start 0032\
+    // Alice patch start 0033\
     /** 标签切换器入口下方显示当前选中的样式。 */\
     private void updateAliceTabSwitcherStylePref() {\
         Preference pref = findPreference(PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY);\
@@ -302,5 +302,5 @@ sed -i '/^    private void updateUiThemePref() {$/i\
                 AliceTabSwitcherStylePreference.getStyleTitle(\
                         AliceTabSwitcherStylePreference.getCurrentStyle()));\
     }\
-    // Alice patch end 0032\
+    // Alice patch end 0033\
 ' "$path7"

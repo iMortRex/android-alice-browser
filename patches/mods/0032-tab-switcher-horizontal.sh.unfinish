@@ -29,7 +29,7 @@ path11="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser
 path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start 0031' "$path2"; then
+if grep -q 'Alice patch start 0032' "$path2"; then
     exit 100
 fi
 
@@ -388,25 +388,25 @@ public final class AliceTabStackHelper {
 ALICE_EOF
 
 # ---------- 注册新增源文件（chrome_java 目标） ----------
-sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.java",$|&\n  # Alice patch start 0031\n  "java/src/org/chromium/chrome/browser/tasks/tab_management/AliceTabStackHelper.java",\n  # Alice patch end 0031|' "$path6"
+sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.java",$|&\n  # Alice patch start 0032\n  "java/src/org/chromium/chrome/browser/tasks/tab_management/AliceTabStackHelper.java",\n  # Alice patch end 0032|' "$path6"
 
 # ---------- 1) TabListCoordinator：GRID 分支记下网格布局管理器并应用当前样式 ----------
 # 上游的网格分支照常创建（这样切回「默认」样式时可以直接还原这个 LayoutManager），
 # 建完再按设置看要不要换成横向堆叠布局。
 sed -i '/^                updateGridCardLayout(frame.width());$/a\
-                // Alice patch start 0031\
+                // Alice patch start 0032\
                 // 记住上游的网格布局管理器：切回「默认」样式时用它还原。\
                 mAliceGridLayoutManager = gridLayoutManager;\
                 if (AliceTabStackHelper.isGridTabSwitcher(componentId)) {\
                     mAliceTabSwitcherGrid = true;\
                     updateAliceTabSwitcherStyleIfNeeded();\
                 }\
-                // Alice patch end 0031\
+                // Alice patch end 0032\
 ' "$path1"
 
 # ---------- 2) TabListCoordinator：记录横向样式相关的状态 ----------
 sed -i '/^    private @Nullable OnLayoutChangeListener mListLayoutListener;$/a\
-    // Alice patch start 0031\
+    // Alice patch start 0032\
     /** 上游 GRID 模式创建的网格布局管理器（切回「默认」样式时还原用）。 */\
     private @Nullable GridLayoutManager mAliceGridLayoutManager;\
 \
@@ -415,21 +415,21 @@ sed -i '/^    private @Nullable OnLayoutChangeListener mListLayoutListener;$/a\
 \
     /** 已经应用到界面上的样式（-1 = 还没应用过）。 */\
     private int mAliceAppliedStyle = -1;\
-    // Alice patch end 0031\
+    // Alice patch end 0032\
 ' "$path1"
 
 # ---------- 3) TabListCoordinator：改设置后不用重启浏览器 ----------
 sed -i '/^        return mMediator.resetWithListOfTabs(tabs, tabGroupSyncIds, quickMode);$/i\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 设置里换过「标签切换器」样式的话，这里就把布局换过来（不用重启浏览器）。\
         updateAliceTabSwitcherStyleIfNeeded();\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path1"
 
 
 # ---------- 4) TabListCoordinator：横向样式的卡片尺寸 ----------
 sed -i '/^    private void updateGridCardLayout(int viewWidth) {$/i\
-    // Alice patch start 0031\
+    // Alice patch start 0032\
     /**\
      * 按设置里的「标签切换器」样式装上/卸掉横向堆叠布局。可以重复调用（幂等）：\
      * 设置里换成别的样式后，下一次打开标签管理页就会切过来，不用重启浏览器。\
@@ -478,105 +478,105 @@ sed -i '/^    private void updateGridCardLayout(int viewWidth) {$/i\
         }\
         ViewUtils.requestLayout(mRecyclerView, "AliceTabStackHelper#updateAliceStackCardLayout");\
     }\
-    // Alice patch end 0031\
+    // Alice patch end 0032\
 ' "$path1"
 
 
 # ---------- 5) TabListCoordinator：横向样式不去算网格空位布局 ----------
 sed -i '/^        final GridLayoutManager layoutManager =$/i\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 横向堆叠样式下卡片大小是固定的（见 updateAliceStackCardLayout），不走网格那套。\
         if (AliceTabStackHelper.isStackLayout(mRecyclerView)) {\
             updateAliceStackCardLayout(viewWidth);\
             return;\
         }\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path1"
 
 # ---------- 6) TabGridItemTouchHelperCallback：上滑关闭、禁用左右拖拽 ----------
 sed -i '/^    public int getMovementFlags(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {$/a\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 横向堆叠样式：卡片不参与拖拽排序，只支持上滑关闭。\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
             return makeMovementFlags(0, isSwipeable(viewHolder) ? ItemTouchHelper.UP : 0);\
         }\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path2"
 
 sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder) {$/a\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 上滑关闭：阈值按卡片高度的五分之一左右。\
         if (AliceTabStackHelper.isStackLayout(mRecyclerViewSupplier.get())) return 0.2f;\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path2"
 
 # ---------- 7) TabListContainerViewBinder：初始滚动偏移（当前卡片居中） ----------
 sed -i '/^        LinearLayoutManager layoutManager = (LinearLayoutManager) view.getLayoutManager();$/i\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 横向样式：初始位置大致居中（第一次布局完成后会精确吸到正中）。\
         if (AliceTabStackHelper.isStackLayout(view)) {\
             return Math.max(\
                     0, AliceTabStackHelper.getCenterSpacePx((Activity) view.getContext(), view));\
         }\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path3"
 
 # ---------- 8) TabSwitcherPaneBase：允许非 GridLayoutManager ----------
 # 这里原来直接强转 GridLayoutManager，横向样式下会 ClassCastException。
-sed -i 's|^import androidx.recyclerview.widget.GridLayoutManager;$|// Alice patch start 0031\nimport androidx.recyclerview.widget.LinearLayoutManager;\n// Alice patch end 0031|' "$path4"
-sed -i 's|^                    GridLayoutManager lm =$|                    // Alice patch start 0031\n                    LinearLayoutManager lm =|' "$path4"
-sed -i 's|^                            (GridLayoutManager) tabListRecyclerView.getLayoutManager();$|                            (LinearLayoutManager) tabListRecyclerView.getLayoutManager();\n                    // Alice patch end 0031|' "$path4"
+sed -i 's|^import androidx.recyclerview.widget.GridLayoutManager;$|// Alice patch start 0032\nimport androidx.recyclerview.widget.LinearLayoutManager;\n// Alice patch end 0032|' "$path4"
+sed -i 's|^                    GridLayoutManager lm =$|                    // Alice patch start 0032\n                    LinearLayoutManager lm =|' "$path4"
+sed -i 's|^                            (GridLayoutManager) tabListRecyclerView.getLayoutManager();$|                            (LinearLayoutManager) tabListRecyclerView.getLayoutManager();\n                    // Alice patch end 0032|' "$path4"
 
 # ---------- 9) 缩略图更清晰 ----------
-sed -i 's|^\( *\)thumbnailScale = 1.5f / deviceDensity;$|\1// Alice patch start 0031\n\1// Alice: 提高缩略图捕获倍率，标签预览更清晰（代价是内存占用上升）。\n\1thumbnailScale = 3.0f / deviceDensity;\n\1// Alice patch end 0031|' "$path5"
+sed -i 's|^\( *\)thumbnailScale = 1.5f / deviceDensity;$|\1// Alice patch start 0032\n\1// Alice: 提高缩略图捕获倍率，标签预览更清晰（代价是内存占用上升）。\n\1thumbnailScale = 3.0f / deviceDensity;\n\1// Alice patch end 0032|' "$path5"
 
 # ---------- 10) 固定标签条：横向样式下主标签列表不是 GridLayoutManager ----------
 # 原来这里直接强转，横向样式下会 ClassCastException（打开标签管理页时崩在固定标签条构造里）。
 # 退化成没挂到 RecyclerView 上的 GridLayoutManager(span=1)，固定标签条查不到可见项会自动隐藏。
-sed -i 's|^        GridLayoutManager tabGridListLayoutManager =$|        // Alice patch start 0031\n        RecyclerView.LayoutManager aliceTabGridListLayoutManager =\n                tabGridListRecyclerView.getLayoutManager();\n        GridLayoutManager tabGridListLayoutManager =\n                aliceTabGridListLayoutManager instanceof GridLayoutManager\n                        ? (GridLayoutManager) aliceTabGridListLayoutManager\n                        : new GridLayoutManager(activity, 1);\n        // Alice patch end 0031|' "$path8"
+sed -i 's|^        GridLayoutManager tabGridListLayoutManager =$|        // Alice patch start 0032\n        RecyclerView.LayoutManager aliceTabGridListLayoutManager =\n                tabGridListRecyclerView.getLayoutManager();\n        GridLayoutManager tabGridListLayoutManager =\n                aliceTabGridListLayoutManager instanceof GridLayoutManager\n                        ? (GridLayoutManager) aliceTabGridListLayoutManager\n                        : new GridLayoutManager(activity, 1);\n        // Alice patch end 0032|' "$path8"
 
 sed -i '/^                (GridLayoutManager) tabGridListRecyclerView.getLayoutManager();$/d' "$path8"
 
 # ---------- 11) TabListMediator：横向样式下没有网格布局，跳过网格相关逻辑 ----------
 sed -i '/^    private @Nullable GridLayoutManager mGridLayoutManager;$/a\
-    // Alice patch start 0031\
+    // Alice patch start 0032\
     /** 横向堆叠样式下没有可用的网格布局，跳过所有网格相关逻辑。 */\
     private boolean mAliceStackStyle;\
 \
     void setAliceStackStyle(boolean enabled) {\
         mAliceStackStyle = enabled;\
     }\
-    // Alice patch end 0031\
+    // Alice patch end 0032\
 ' "$path9"
 
 sed -i '/^    int getPriceWelcomeMessageInsertionIndex() {$/a\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 横向堆叠样式下没有网格布局，不做消息卡片定位。\
         if (mAliceStackStyle || mGridLayoutManager == null) return TabList.INVALID_TAB_INDEX;\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path9"
 
 sed -i '/^    void updateLayout() {$/a\
-        // Alice patch start 0031\
+        // Alice patch start 0032\
         // 横向堆叠样式下没有网格布局，跳过网格空位整理。\
         if (mAliceStackStyle || mGridLayoutManager == null) return;\
-        // Alice patch end 0031\
+        // Alice patch end 0032\
 ' "$path9"
 
 # ---------- 12) TabListCoordinator：尺寸还没算出来时不要用 null 通知/取缩略图尺寸 ----------
-sed -i '/^    public void addTabListItemSizeChangedObserver(TabListItemSizeChangedObserver observer) {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0031\n        // 横向样式的卡片尺寸要等第一次布局之后才算得出来，这里先跳过。\n        if (size == null) return;\n        // Alice patch end 0031|' "$path1"
+sed -i '/^    public void addTabListItemSizeChangedObserver(TabListItemSizeChangedObserver observer) {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0032\n        // 横向样式的卡片尺寸要等第一次布局之后才算得出来，这里先跳过。\n        if (size == null) return;\n        // Alice patch end 0032|' "$path1"
 
-sed -i '/^    Size getThumbnailSize() {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0031\n        if (size == null) {\n            updateAliceStackCardLayout(mRecyclerView.getWidth());\n            size = mMediator.getDefaultGridCardSize();\n            if (size == null) return new Size(1, 1);\n        }\n        // Alice patch end 0031|' "$path1"
+sed -i '/^    Size getThumbnailSize() {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0032\n        if (size == null) {\n            updateAliceStackCardLayout(mRecyclerView.getWidth());\n            size = mMediator.getDefaultGridCardSize();\n            if (size == null) return new Size(1, 1);\n        }\n        // Alice patch end 0032|' "$path1"
 
 # ---------- 13) SingleChildViewManager：布局过程中改子视图一律延后（修 HubContainerView null child 崩溃） ----------
 sed -i '/^    private void onViewChanged(@Nullable View view) {$/,/^    }$/{
-    s|^    private void onViewChanged(@Nullable View view) {$|&\n        // Alice patch start 0031\n        // 布局过程中直接增删子视图，会让父容器（HubContainerView）的 children 出现 null 而崩溃；\n        // 这里统一延后一帧，并打一条带调用栈的日志便于定位。\n        if (mContainerView.isInLayout()) {\n            final @Nullable View pendingView = view;\n            android.util.Log.w("AliceHub", "defer onViewChanged in layout: " + view, new Throwable());\n            mContainerView.post(() -> onViewChanged(pendingView));\n            return;\n        }\n        // Alice patch end 0031|
+    s|^    private void onViewChanged(@Nullable View view) {$|&\n        // Alice patch start 0032\n        // 布局过程中直接增删子视图，会让父容器（HubContainerView）的 children 出现 null 而崩溃；\n        // 这里统一延后一帧，并打一条带调用栈的日志便于定位。\n        if (mContainerView.isInLayout()) {\n            final @Nullable View pendingView = view;\n            android.util.Log.w("AliceHub", "defer onViewChanged in layout: " + view, new Throwable());\n            mContainerView.post(() -> onViewChanged(pendingView));\n            return;\n        }\n        // Alice patch end 0032|
 }' "$path10"
 
 # ---------- 14) HubManagerImpl：合成器布局流程中删 HubContainerView 子视图会崩，延后一帧 ----------
-sed -i 's|^    public void onHubLayoutDoneHiding() {$|&\n        // Alice patch start 0031\n        // 本方法在合成器布局流程（即 View 布局过程中）被调用，直接 removeAllViews() 会让\n        // HubContainerView 的 children 出现 null 而崩溃（点卡片关闭 Hub 时必现）；延后一帧。\n        if (mHubContainerView.isInLayout()) {\n            android.util.Log.w("AliceHub", "defer onHubLayoutDoneHiding", new Throwable());\n            mHubContainerView.post(this::onHubLayoutDoneHiding);\n            return;\n        }\n        // Alice patch end 0031|' "$path11"
+sed -i 's|^    public void onHubLayoutDoneHiding() {$|&\n        // Alice patch start 0032\n        // 本方法在合成器布局流程（即 View 布局过程中）被调用，直接 removeAllViews() 会让\n        // HubContainerView 的 children 出现 null 而崩溃（点卡片关闭 Hub 时必现）；延后一帧。\n        if (mHubContainerView.isInLayout()) {\n            android.util.Log.w("AliceHub", "defer onHubLayoutDoneHiding", new Throwable());\n            mHubContainerView.post(this::onHubLayoutDoneHiding);\n            return;\n        }\n        // Alice patch end 0032|' "$path11"
 
 # ---------- 15) ShrinkExpandHubLayoutAnimatorProvider：动画清理也延后 ----------
 sed -i '/^    private void resetState() {$/,/^    }$/{
-    s|^        mHubContainerView.removeView(mShrinkExpandImageView);$|        // Alice patch start 0031\n        // 布局过程中不要直接移除 HubContainerView 的子视图（会崩）；把删除延后一帧，状态照常清理。\n        if (mHubContainerView.isInLayout()) {\n            final View aliceShrinkView = assumeNonNull(mShrinkExpandImageView);\n            final @Nullable View aliceFakeView = mFakeBottomControlsView;\n            android.util.Log.w("AliceHub", "defer resetState removals", new Throwable());\n            mHubContainerView.post(\n                    () -> {\n                        mHubContainerView.removeView(aliceShrinkView);\n                        if (aliceFakeView != null) {\n                            mHubContainerView.removeView(aliceFakeView);\n                        }\n                    });\n            mShrinkExpandImageView.setImageBitmap(null);\n            mShrinkExpandImageView = null;\n            mFakeBottomControlsView = null;\n            return;\n        }\n        // Alice patch end 0031\n        mHubContainerView.removeView(mShrinkExpandImageView);|
+    s|^        mHubContainerView.removeView(mShrinkExpandImageView);$|        // Alice patch start 0032\n        // 布局过程中不要直接移除 HubContainerView 的子视图（会崩）；把删除延后一帧，状态照常清理。\n        if (mHubContainerView.isInLayout()) {\n            final View aliceShrinkView = assumeNonNull(mShrinkExpandImageView);\n            final @Nullable View aliceFakeView = mFakeBottomControlsView;\n            android.util.Log.w("AliceHub", "defer resetState removals", new Throwable());\n            mHubContainerView.post(\n                    () -> {\n                        mHubContainerView.removeView(aliceShrinkView);\n                        if (aliceFakeView != null) {\n                            mHubContainerView.removeView(aliceFakeView);\n                        }\n                    });\n            mShrinkExpandImageView.setImageBitmap(null);\n            mShrinkExpandImageView = null;\n            mFakeBottomControlsView = null;\n            return;\n        }\n        // Alice patch end 0032\n        mHubContainerView.removeView(mShrinkExpandImageView);|
 }' "$path12"
