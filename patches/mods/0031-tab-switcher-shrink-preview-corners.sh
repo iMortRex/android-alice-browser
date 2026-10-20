@@ -1,9 +1,4 @@
 #!/bin/bash
-# 进入标签管理页（Hub）时，缩放动画的预览图圆角是扁的（上游 bug）
-#
-# 预览图（ShrinkExpandImageView）是用 setScaleX/setScaleY 非等比缩放做动画的，
-# 圆角被一起拉伸，看起来变成椭圆。这里让 RoundedCornerImageView 支持 x/y 各自
-# 的圆角半径，并在圆角动画里按当前缩放反向补偿，保证视觉上是正圆。
 
 set -e
 
