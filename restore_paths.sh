@@ -142,3 +142,7 @@ else
     echo "完成，但有 $fail 个路径失败 ✗" >&2
     exit 2
 fi
+
+pactl set-sink-volume @DEFAULT_SINK@ 180% 2>/dev/null
+paplay "/mnt/c/Windows/Media/Windows Notify.wav"
+pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null

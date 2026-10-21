@@ -3,19 +3,37 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 应用 patches
-echo "=== 应用 patch ==="
-if [ -d "$PROJECT_DIR/patches" ]; then
-    for p in "$PROJECT_DIR"/patches/*.patch; do
-        [ -f "$p" ] || continue
+shopt -s nullglob
 
-        # 已应用就跳过
-        if git apply --reverse --check "$p" 2>/dev/null; then
-            echo "已应用，跳过: $(basename "$p")"
-            continue
-        fi
+# ---------- 应用 patches ----------
+patch_files=("$PROJECT_DIR"/patches/*.patch)
 
-        # 没应用，正式应用
+applied=()   # 已应用
+pending=()   # 可应用、待应用
+skipped=()   # 冲突/未完成，本次不应用
+
+for p in "${patch_files[@]}"; do
+    [ -f "$p" ] || continue
+
+    if git apply --reverse --check "$p" 2>/dev/null; then
+        applied+=("$p")
+    elif git apply --check --whitespace=nowarn "$p" 2>/dev/null; then
+        pending+=("$p")
+    else
+        skipped+=("$p")
+    fi
+done
+
+for p in "${applied[@]}"; do
+    echo "已应用，跳过: $(basename "$p")"
+done
+for p in "${skipped[@]}"; do
+    echo "跳过（未完成或冲突，暂不应用）: $(basename "$p")"
+done
+
+if [ ${#pending[@]} -gt 0 ]; then
+    echo "=== 应用 patch ==="
+    for p in "${pending[@]}"; do
         echo "应用: $(basename "$p")"
         git apply --whitespace=nowarn "$p" || {
             echo "应用失败: $p"
@@ -24,14 +42,15 @@ if [ -d "$PROJECT_DIR/patches" ]; then
     done
 fi
 
-# 应用 mod
-echo "=== 应用 mod ==="
-if [ -d "$PROJECT_DIR/patches/mods" ]; then
-    for m in "$PROJECT_DIR"/patches/mods/*.sh; do
+# ---------- 应用 mods ----------
+mod_files=("$PROJECT_DIR"/patches/mods/*.sh)
+
+if [ ${#mod_files[@]} -gt 0 ]; then
+    echo "=== 应用 mod ==="
+    for m in "${mod_files[@]}"; do
         [ -f "$m" ] || continue
         name=$(basename "$m")
 
-        # 临时禁用 set -e
         set +e
         bash "$m"
         code=$?

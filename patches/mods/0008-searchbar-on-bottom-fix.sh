@@ -143,6 +143,14 @@ sed -i '/^    private void installAlignmentObserver() {$/i\
             return true;\
         }\
         if (mDropdown.getVisibility() != View.VISIBLE) return true;\
+        int aliceBottomPadding = mDropdown.getBaseBottomPadding();\
+        if (mDropdown.getPaddingBottom() != aliceBottomPadding) {\
+            mDropdown.setPaddingRelative(\
+                    mDropdown.getPaddingStart(),\
+                    mDropdown.getPaddingTop(),\
+                    mDropdown.getPaddingEnd(),\
+                    aliceBottomPadding);\
+        }\
         mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
         int target = mStickPosition[1];\
         if (target <= 0) return true;\
@@ -160,6 +168,14 @@ sed -i '/^    private void installAlignmentObserver() {$/i\
         if (delta != 0) {\
             mDropdown.setTranslationY(mDropdown.getTranslationY() + delta);\
         }\
+\
+        getLocationInWindow(mStickPosition);\
+        int containerBottom = mStickPosition[1] + getHeight();\
+        int containerDelta = target - containerBottom;\
+        if (containerDelta != 0) {\
+            setTranslationY(getTranslationY() + containerDelta);\
+            mDropdown.setTranslationY(mDropdown.getTranslationY() - containerDelta);\
+        }\
         return true;\
     }\
     // Alice patch end 0008\
@@ -173,4 +189,6 @@ sed -i '/^            mOmniboxAlignment = mEmbedder\.addAlignmentObserver(mOmnib
 sed -i '/^            mEmbedder\.removeAlignmentObserver(mOmniboxAlignmentObserver);$/a\
         // Alice patch start 0008\
         getViewTreeObserver().removeOnPreDrawListener(mStickListener);\
+        mDropdown.setTranslationY(0);\
+        setTranslationY(0);\
         // Alice patch end 0008' "$path8"

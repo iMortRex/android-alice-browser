@@ -66,7 +66,7 @@ if [ -f "$APK" ]; then
     echo "=== 编译成功 ==="
     echo "APK: $APK"
     echo "安装:"
-    echo "adb.exe install -r $APK"
+    echo "adb.exe install -r $SIGNED_APK"
 else
     echo "编译失败：找不到 APK"
     exit 1
