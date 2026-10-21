@@ -621,7 +621,6 @@ sed -i '/^        mToolbar\.onUrlFocusChange(hasFocus);$/c\
         // Alice patch end 0034\
 ' "$path18"
 
-path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 sed -i '/^    private boolean mControlsResizeView;$/a\
     // Alice patch start 0034\
     private int mAliceNavigationBarInset;\
@@ -629,3 +628,18 @@ sed -i '/^    private boolean mControlsResizeView;$/a\
     // Alice patch end 0034' "$path19"
 # 15) WebContents 固定按工具栏 + 导航栏留高
 sed -i 's|^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$|        // Alice patch start 0034\n        if (mAliceNavigationBarWidth != getWidth()) {\n            mAliceNavigationBarWidth = getWidth();\n            mAliceNavigationBarInset = 0;\n        }\n        View aliceRoot = getRootView();\n        android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\n        if (aliceWindowInsets != null) {\n            int aliceCurrentNavBarInset =\n                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\n                                    aliceWindowInsets, aliceRoot)\n                            .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\n                            .bottom;\n            mAliceNavigationBarInset =\n                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\n        }\n        int aliceTopControlsInset =\n                mBrowserControlsManager == null\n                        ? 0\n                        : (mControlsResizeView\n                                ? mBrowserControlsManager.getTopControlsHeight()\n                                : mBrowserControlsManager.getTopControlsMinHeight());\n        int aliceToolbarHeight =\n                (int)\n                        Math.ceil(\n                                getResources()\n                                        .getDimension(R.dimen.toolbar_height_no_shadow));\n        int aliceToolbarHairlineHeight =\n                getResources()\n                        .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\n        int verticalViewportInsets =\n                aliceTopControlsInset\n                        + aliceToolbarHeight\n                        + aliceToolbarHairlineHeight\n                        + mAliceNavigationBarInset;\n        // Alice patch end 0034|' "$path19"
+
+# 全屏时不再为隐藏的工具栏强制预留 WebContents 高度，否则视频底部会留下黑边
+sed -i '/^        int verticalViewportInsets =$/,/^                        + mAliceNavigationBarInset;$/c\
+        boolean aliceInFullscreen =\
+                mBrowserControlsManager != null\
+                        && mBrowserControlsManager\
+                                .getFullscreenManager()\
+                                .getPersistentFullscreenMode();\
+        int verticalViewportInsets =\
+                aliceInFullscreen\
+                        ? controlsInsets + webContentsHeightInset\
+                        : aliceTopControlsInset\
+                                + aliceToolbarHeight\
+                                + aliceToolbarHairlineHeight\
+                                + mAliceNavigationBarInset;' "$path19"

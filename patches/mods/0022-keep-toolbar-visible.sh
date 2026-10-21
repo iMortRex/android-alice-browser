@@ -22,4 +22,4 @@ sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/
     }' "$path1"
 
 # B) 不再因为 hiddenRatio > 0 把 Android 工具栏设成 INVISIBLE
-sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0022\n        // 全屏时仍按原逻辑隐藏；其它情况保持 Android 工具栏可见。\n        if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\n            return !BrowserControlsUtils.drawControlsAsTexture(this);\n        }\n        return true;\n        // Alice patch end 0022|' "$path2"
+sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0022\n        // 全屏时始终隐藏 Android 工具栏；其它情况保持 Android 工具栏可见。\n        if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\n            return false;\n        }\n        return true;\n        // Alice patch end 0022|' "$path2"
