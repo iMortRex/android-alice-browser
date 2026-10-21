@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e
+
+# 目标文件路径
+
+# 检测是否已应用
+if grep -q 'Alice patch start 0023' "$path1"; then
+    exit 100
+fi
