@@ -34,7 +34,7 @@ path18="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManag
 path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start 0034' "$path1"; then
+if grep -q 'Alice patch start 0032' "$path1"; then
     exit 100
 fi
 
@@ -42,93 +42,93 @@ fi
 # 1) 3 键导航也启用底部 edge-to-edge
 sed -i '/^    public static boolean isEdgeToEdgeBottomChinEnabled(Activity activity) {$/,/^    }$/c\
     public static boolean isEdgeToEdgeBottomChinEnabled(Activity activity) {\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (activity == null || activity.getWindow() == null) return false;\
         if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(activity)\
                 && (!isEdgeToEdgeTabletEnabled() || !isSupportedTablet(activity))) {\
             return false;\
         }\
         return !DeviceInfo.isAutomotive();\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
     }' "$path1"
 
 sed -i '/^    static boolean isSupportedByConfiguration(/,/^    }$/c\
     static boolean isSupportedByConfiguration(Activity activity, InsetObserver insetObserver) {\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         return EdgeToEdgeUtils.isEdgeToEdgeBottomChinEnabled(activity);\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
     }' "$path2"
 sed -i '/^        \/\/ Exit early if there is a tappable navbar (3-button) as the controller should not function$/,/^        }$/d' "$path2"
 sed -i '/^        boolean shouldDrawToEdge =$/,/^                        pageOptedIntoEdgeToEdge, currentLayoutType, mSystemInsets.bottom);$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         boolean shouldDrawToEdge =\
                 !mActivity.isInMultiWindowMode()\
                         \&\& EdgeToEdgeUtils.shouldDrawToEdge(\
                                 pageOptedIntoEdgeToEdge,\
                                 currentLayoutType,\
                                 mSystemInsets.bottom);\
-        // Alice patch end 0034' "$path2"
+        // Alice patch end 0032' "$path2"
 sed -i '/^                && EdgeToEdgeUtils\.doAllInsetsIndicateGestureNavigation(insets)$/d' "$path3"
 
 # 2) 导航栏透明 + 工具栏滑动透明 + 图标明暗
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
-// Alice patch end 0034' "$path4"
+// Alice patch end 0032' "$path4"
 sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import java.util.function.Supplier;\
-// Alice patch end 0034' "$path4"
+// Alice patch end 0032' "$path4"
 sed -i '/^        implements BottomAttachedUiObserver\.Observer, NavigationBarColorProvider {$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         implements BottomAttachedUiObserver.Observer, NavigationBarColorProvider,\
                 BrowserControlsStateProvider.Observer {\
-        // Alice patch end 0034' "$path4"
+        // Alice patch end 0032' "$path4"
 sed -i '/^    private final BottomAttachedUiObserver mBottomAttachedUiObserver;$/a\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;\
     private @Nullable Supplier<Integer> mToolbarColorSupplier;\
-    // Alice patch end 0034' "$path4"
+    // Alice patch end 0032' "$path4"
 sed -i '/^[[:space:]]*insetObserver));$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         mBrowserControlsStateProvider = browserControlsStateProvider;\
         mBrowserControlsStateProvider.addObserver(this);\
         updateNavigationBarColor();\
-        // Alice patch end 0034' "$path4"
+        // Alice patch end 0032' "$path4"
 sed -i '/^    \/\*\* Destroy this {@link TabbedNavigationBarColorController} instance\. \*\/$/i\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     void setToolbarColorSupplier(Supplier<Integer> toolbarColorSupplier) {\
         mToolbarColorSupplier = toolbarColorSupplier;\
         updateNavigationBarColor();\
     }\
-    // Alice patch end 0034\
+    // Alice patch end 0032\
 ' "$path4"
 sed -i '/^        if (mTabModelSelector != null) {$/i\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (mBrowserControlsStateProvider != null) {\
             mBrowserControlsStateProvider.removeObserver(this);\
             mBrowserControlsStateProvider = null;\
         }\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path4"
 sed -i '/^        return ColorUtils\.overlayColor(color, mCurrentScrimColor);$/{
 n
 a\
 \
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     @Override\
     public void onControlsPositionChanged(@ControlsPosition int controlsPosition) {\
         updateNavigationBarColor();\
     }\
-    // Alice patch end 0034
+    // Alice patch end 0032
 }' "$path4"
 sed -i '/^                applyCurrentScrimToColor(getNavigationBarColor(mForceDarkNavigationBarColor));$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         mEdgeToEdgeSystemBarColorHelper.setNavigationBarIconColor(\
                 applyCurrentScrimToColor(getNavigationBarIconColor()));\
-        // Alice patch end 0034' "$path4"
+        // Alice patch end 0032' "$path4"
 sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/i\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private boolean isDrawingToEdge() {\
         return mEdgeToEdgeController != null && mEdgeToEdgeController.isDrawingToEdge();\
     }\
@@ -158,11 +158,11 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
         if (mActiveTab != null) return mActiveTab.getBackgroundColor();\
         return SemanticColorUtils.getColorSurface(mContext);\
     }\
-    // Alice patch end 0034\
+    // Alice patch end 0032\
 ' "$path4"
 sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/,/^    }$/c\
     private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (!isDrawingToEdge()) {\
             if (mOverviewMode && mOverviewColorSupplier.get() != null) {\
                 return mOverviewColorSupplier.get();\
@@ -176,11 +176,11 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
         // Keep the system navigation bar fully transparent while drawing to edge.\
         // The toolbar/chrome background behind it provides the visible color.\
         return Color.TRANSPARENT;\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
     }' "$path4"
 sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {$/,/^    }$/c\
     int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (!isDrawingToEdge()) {\
             if (mOverviewMode && mOverviewColorSupplier.get() != null) {\
                 return mOverviewColorSupplier.get();\
@@ -193,45 +193,45 @@ sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, b
         }\
         // Keep the divider transparent as well while drawing to edge.\
         return Color.TRANSPARENT;\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
     }' "$path4"
 
 # 3) 系统栏 helper
 sed -i '/^import org\.chromium\.ui\.insets\.InsetObserver;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import java.util.function.Supplier;\
-// Alice patch end 0034' "$path5"
-sed -i 's|^            InsetObserver insetObserver,$|            InsetObserver insetObserver,\n            // Alice patch start 0034\n            Supplier<Integer> toolbarColorSupplier,\n            // Alice patch end 0034|' "$path5"
+// Alice patch end 0032' "$path5"
+sed -i 's|^            InsetObserver insetObserver,$|            InsetObserver insetObserver,\n            // Alice patch start 0032\n            Supplier<Integer> toolbarColorSupplier,\n            // Alice patch end 0032|' "$path5"
 sed -i '/^                        edgeToEdgeSystemBarColorHelper);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         mNavigationBarColorController.setToolbarColorSupplier(toolbarColorSupplier);\
-        // Alice patch end 0034' "$path5"
-sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0034\n                        toolbarManager::getPrimaryColor,\n                        // Alice patch end 0034\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path6"
+        // Alice patch end 0032' "$path5"
+sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0032\n                        toolbarManager::getPrimaryColor,\n                        // Alice patch end 0032\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path6"
 sed -i '/^import android\.view\.WindowManager;$/a\
 \
-// Alice patch start 0034\
+// Alice patch start 0032\
 import androidx.annotation.ColorInt;\
-// Alice patch end 0034' "$path7"
+// Alice patch end 0032' "$path7"
 sed -i '/^    private final boolean mCanSetTransparentStatusBarWithoutDelegate;$/a\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private @ColorInt int mNavigationBarIconColor;\
     private boolean mHasCustomNavigationBarIconColor;\
-    // Alice patch end 0034' "$path7"
-sed -i 's|^        updateNavigationBarIconColor(mWindow\.getDecorView(), mNavBarColor);$|        // Alice patch start 0034\n        updateNavigationBarIconColor(\n                mWindow.getDecorView(),\n                mHasCustomNavigationBarIconColor ? mNavigationBarIconColor : mNavBarColor);\n        // Alice patch end 0034|' "$path7"
+    // Alice patch end 0032' "$path7"
+sed -i 's|^        updateNavigationBarIconColor(mWindow\.getDecorView(), mNavBarColor);$|        // Alice patch start 0032\n        updateNavigationBarIconColor(\n                mWindow.getDecorView(),\n                mHasCustomNavigationBarIconColor ? mNavigationBarIconColor : mNavBarColor);\n        // Alice patch end 0032|' "$path7"
 sed -i '/^    @Nullable SystemBarColorHelper getEdgeToEdgeDelegateHelperForTesting() {$/i\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     public void setNavigationBarIconColor(@ColorInt int color) {\
         if (mHasCustomNavigationBarIconColor && mNavigationBarIconColor == color) return;\
         mNavigationBarIconColor = color;\
         mHasCustomNavigationBarIconColor = true;\
         updateNavigationBarIconColor(mWindow.getDecorView(), color);\
     }\
-    // Alice patch end 0034\
+    // Alice patch end 0032\
 ' "$path7"
 
 # 4) chin 不计入 Blink 视口
 sed -i '/^        mBrowserControlsSizer\.setBottomControlsHeight(mTotalHeight, mTotalMinHeight);$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         int aliceChinHeight = 0;\
         BottomControlsLayer aliceChin = mLayers.get(LayerType.BOTTOM_CHIN);\
         if (aliceChin != null && mLayerVisibilities.get(LayerType.BOTTOM_CHIN)) {\
@@ -239,11 +239,11 @@ sed -i '/^        mBrowserControlsSizer\.setBottomControlsHeight(mTotalHeight, m
         }\
         mBrowserControlsSizer.setBottomControlsHeight(\
                 Math.max(0, mTotalHeight - aliceChinHeight), mTotalMinHeight);\
-        // Alice patch end 0034' "$path8"
+        // Alice patch end 0032' "$path8"
 
 # 首次启动时原生页面不会再次派发 controls offset，主动按 resting offset 重排一次
 sed -i '/^        if (mBrowserControlsSizer\.offsetOverridden()) {$/,/^        }$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (mBrowserControlsSizer.offsetOverridden()) {\
             repositionLayers(\
                     mBrowserControlsSizer.getBottomControlOffset(),\
@@ -260,10 +260,10 @@ sed -i '/^        if (mBrowserControlsSizer\.offsetOverridden()) {$/,/^        }
                     /* animated= */ false,\
                     isVisibilityForced());\
         }\
-        // Alice patch end 0034' "$path8"
+        // Alice patch end 0032' "$path8"
 # 5) 设置页：导航栏彻底透明 + 内容避让
 sed -i '/^        setContentView(R.layout.settings_activity);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         getWindow().setNavigationBarColor(Color.TRANSPARENT);\
         getWindow().setNavigationBarDividerColor(Color.TRANSPARENT);\
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {\
@@ -278,30 +278,30 @@ sed -i '/^        setContentView(R.layout.settings_activity);$/a\
                     .getEdgeToEdgeSystemBarColorHelper()\
                     .setNavigationBarDividerColor(Color.TRANSPARENT);\
         }\
-        // Alice patch end 0034' "$path9"
+        // Alice patch end 0032' "$path9"
 
 
 # chin 在非 edge-to-edge（小窗/导航栏关闭）时不占高度
-sed -i 's|^        int newHeight = mEdgeToEdgeBottomInsetPx;$|        // Alice patch start 0034\n        int newHeight = mIsDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;\n        // Alice patch end 0034|' "$path11"
+sed -i 's|^        int newHeight = mEdgeToEdgeBottomInsetPx;$|        // Alice patch start 0032\n        int newHeight = mIsDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;\n        // Alice patch end 0032|' "$path11"
 
 # 6) 标签管理页底部避让
-sed -i 's|^\( *\)mEdgeToEdgeBottomInsets = .*;$|\1// Alice patch start 0034\n\1mEdgeToEdgeBottomInsets = Math.max(inset, mEdgeToEdgeSupplier.get() != null ? mEdgeToEdgeSupplier.get().getSystemBottomInsetPx() : 0);\n\1// Alice patch end 0034|' "$path10"
+sed -i 's|^\( *\)mEdgeToEdgeBottomInsets = .*;$|\1// Alice patch start 0032\n\1mEdgeToEdgeBottomInsets = Math.max(inset, mEdgeToEdgeSupplier.get() != null ? mEdgeToEdgeSupplier.get().getSystemBottomInsetPx() : 0);\n\1// Alice patch end 0032|' "$path10"
 
 # 7) 工具栏容器背景随主题更新，覆盖导航栏区域
 sed -i '/^    private void updateBackgroundColor() {$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (mToolbarDataProvider != null) {\
             // Put the solid color on the moving ToolbarControlContainer itself.\
             // The inner toolbar container can remain at the old layout position during IME\
             // inset animation, which leaves a detached background behind.\
             setBackgroundColor(mToolbarDataProvider.getPrimaryColor());\
         }\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path12"
 
 # 8) 设置页：页面延伸到导航栏下面，列表底部留出导航栏高度
 sed -i '/^        setContentView(R.layout.settings_activity);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         View aliceEdgeContent = getContentView();\
         aliceEdgeContent.addOnLayoutChangeListener(\
                 (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {\
@@ -310,16 +310,16 @@ sed -i '/^        setContentView(R.layout.settings_activity);$/a\
                                 v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), 0);\
                     }\
                 });\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path9"
 
 sed -i '/^import androidx\.lifecycle\.Lifecycle;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0034
+// Alice patch end 0032
 ' "$path13"
 sed -i '/^        super.onViewCreated(view, savedInstanceState);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         getListView().setClipToPadding(false);\
         getListView().addOnLayoutChangeListener(\
                 (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {\
@@ -340,7 +340,7 @@ sed -i '/^        super.onViewCreated(view, savedInstanceState);$/a\
                                 bottomInset);\
                     }\
                 });\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path13"
 
 # Hub 布局也保留底部 chin 高度，避免进入/退出动画高度变短
@@ -350,24 +350,24 @@ sed -i 's|^\( *\)layoutType == LayoutType.BROWSING$|\1layoutType == LayoutType.B
 if ! grep -q '^import androidx.core.view.WindowInsetsCompat;' "$path14"; then
     sed -i '/^import android\.widget\.FrameLayout;$/a\
 \
-// Alice patch start 0034\
+// Alice patch start 0032\
 import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0034' "$path14"
+// Alice patch end 0032' "$path14"
 fi
 
 # 设置 pinned view 时先应用一次底部 padding，避免首次动画使用旧高度
-sed -i '/^    public void setPinnedBottomView(@Nullable View view) {$/,/^    }$/ s|^        mPinnedBottomView = view;$|        mPinnedBottomView = view;\n        // Alice patch start 0034\n        if (view != null) {\n            applyAliceBottomInset(view);\n            view.post(() -> applyAliceBottomInset(view));\n        }\n        // Alice patch end 0034|' "$path14"
+sed -i '/^    public void setPinnedBottomView(@Nullable View view) {$/,/^    }$/ s|^        mPinnedBottomView = view;$|        mPinnedBottomView = view;\n        // Alice patch start 0032\n        if (view != null) {\n            applyAliceBottomInset(view);\n            view.post(() -> applyAliceBottomInset(view));\n        }\n        // Alice patch end 0032|' "$path14"
 
 # 每次布局时重新应用
 sed -i '/^        if (pinned == null) return;$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         applyAliceBottomInset(pinned);\
-        // Alice patch end 0034' "$path14"
+        // Alice patch end 0032' "$path14"
 
 # 新增 padding 辅助方法（插在 pinBottomView 结束之后）
 sed -i '/^        \/\/ Alice patch end 0027$/{n;a\
 \
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private void applyAliceBottomInset(View pinned) {\
         android.view.WindowInsets aliceWindowInsets = pinned.getRootWindowInsets();\
         int bottomInset = 0;\
@@ -392,20 +392,20 @@ sed -i '/^        \/\/ Alice patch end 0027$/{n;a\
             pinned.invalidate();\
         }\
     }\
-    // Alice patch end 0034
+    // Alice patch end 0032
 }' "$path14"
 
 # 9) 工具栏滑动/标签管理动画时，chin 背景直接跟随工具栏主色
 sed -i '/^import android\.graphics\.Color;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import android.graphics.drawable.ColorDrawable;\
-// Alice patch end 0034' "$path6"
+// Alice patch end 0032' "$path6"
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomOverscrollHandler;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
-// Alice patch end 0034' "$path6"
+// Alice patch end 0032' "$path6"
 sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         View aliceChinView = mActivity.findViewById(R.id.edge_to_edge_bottom_chin);\
         if (aliceChinView != null) {\
             aliceChinView.getViewTreeObserver().addOnPreDrawListener(\
@@ -433,16 +433,16 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
                         return true;\
                     });\
         }\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path6"
 
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
 sed -i '/^import android\.graphics\.Rect;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import android.graphics.drawable.Drawable;\
-// Alice patch end 0034' "$path15"
+// Alice patch end 0032' "$path15"
 sed -i '/^        int animatingHeight =$/,/^                        : Math\.max(0, bottomControlsHeight - bottomMargin);$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         // The bottom toolbar view includes the system navigation bar area. Reuse its\
         // exact geometry so the animation neither stops short nor leaves an extra strip.\
         int aliceToolbarHeight = toolbarView == null ? 0 : toolbarView.getHeight();\
@@ -454,10 +454,10 @@ sed -i '/^        int animatingHeight =$/,/^                        : Math\.max(
                         : aliceUseBottomToolbarGeometry\
                                 ? Math.max(0, aliceToolbarHeight)\
                                 : Math.max(0, bottomControlsHeight - bottomMargin);\
-        // Alice patch end 0034' "$path15"
-sed -i 's|^            fakeViewParams\.bottomMargin = bottomMargin;$|            // Alice patch start 0034\n            fakeViewParams.bottomMargin =\n                    aliceUseBottomToolbarGeometry ? 0 : bottomMargin;\n            // Alice patch end 0034|' "$path15"
+        // Alice patch end 0032' "$path15"
+sed -i 's|^            fakeViewParams\.bottomMargin = bottomMargin;$|            // Alice patch start 0032\n            fakeViewParams.bottomMargin =\n                    aliceUseBottomToolbarGeometry ? 0 : bottomMargin;\n            // Alice patch end 0032|' "$path15"
 sed -i '/^            @ColorInt$/,/^            mFakeBottomControlsView\.setBackgroundColor(onSurfaceColor);$/c\
-            // Alice patch start 0034\
+            // Alice patch start 0032\
             Drawable aliceToolbarDrawable =\
                     aliceUseBottomToolbarGeometry && toolbarView != null\
                             ? toolbarView.getBackground()\
@@ -480,11 +480,11 @@ sed -i '/^            @ColorInt$/,/^            mFakeBottomControlsView\.setBack
                                         : BrandedColorScheme.APP_DEFAULT);\
                 mFakeBottomControlsView.setBackgroundColor(onSurfaceColor);\
             }\
-            // Alice patch end 0034' "$path15"
+            // Alice patch end 0032' "$path15"
 # 11) 地址栏聚焦、搜索框展开时隐藏工具栏上方的分割条
 sed -i '/^    protected boolean shouldDrawHairline() {$/,/^    }$/c\
     protected boolean shouldDrawHairline() {\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         // TODO(twellington): Move this hairline state information to ToolbarDataProvider and show\
         // hairline when incognito NTP is scrolled.\
         return !urlHasFocus()\
@@ -493,10 +493,10 @@ sed -i '/^    protected boolean shouldDrawHairline() {$/,/^    }$/c\
                 && !hideHairlineForIncognitoNtp()\
                 && !hideHairlineForInterstitial()\
                 && getVisibility() == View.VISIBLE;\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
     }' "$path16"
 sed -i '/^            if (!hideHairlineForIncognitoNtp()$/,/^            }$/c\
-            // Alice patch start 0034\
+            // Alice patch start 0032\
             if (!urlHasFocus()\
                     && !hideHairlineForIncognitoNtp()\
                     && !hideHairlineForInterstitial()\
@@ -506,9 +506,9 @@ sed -i '/^            if (!hideHairlineForIncognitoNtp()$/,/^            }$/c\
             } else {\
                 getToolbarHairline().setVisibility(INVISIBLE);\
             }\
-            // Alice patch end 0034' "$path16"
+            // Alice patch end 0032' "$path16"
 sed -i '/^        updateLayoutParamsForMultiline();$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (mBrowserControlsStateProvider != null\
                 && mBrowserControlsStateProvider.getControlsPosition()\
                         == ControlsPosition.BOTTOM) {\
@@ -525,25 +525,25 @@ sed -i '/^        updateLayoutParamsForMultiline();$/a\
             }\
         }\
         updateHairlineVisibility();\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path16"
 # 12) 地址栏聚焦遮罩逐帧跟随搜索栏底部
 sed -i '/^import android\.content\.Context;$/i\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import android.app.Activity;\
-// Alice patch end 0034' "$path17"
+// Alice patch end 0032' "$path17"
 sed -i '/^import androidx\.annotation\.ColorInt;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0034' "$path17"
+// Alice patch end 0032' "$path17"
 sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
-// Alice patch start 0034\
+// Alice patch start 0032\
 import java.util.List;\
-// Alice patch end 0034' "$path17"
+// Alice patch end 0032' "$path17"
 sed -i '/^        mTabStripHeightSupplier\.addSyncObserverAndPostIfNonNull(mTabStripHeightChangeCallback);$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         if (mContext instanceof Activity) {\
             View aliceBottomBoundary =\
                     ((Activity) mContext).findViewById(R.id.control_container);\
@@ -568,15 +568,15 @@ sed -i '/^        mTabStripHeightSupplier\.addSyncObserverAndPostIfNonNull(mTabS
                         });\
             }\
         }\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path17"
 sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(LayerType\.BOTTOM_CHIN));$/a\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         updateScrimBottomMargin();\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path17"
 sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private void updateScrimBottomMargin() {\
         if (!(mContext instanceof Activity)) return;\
         View aliceBottomBoundary =\
@@ -601,33 +601,33 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     private void updateScrimBottomMargin(int bottomMargin) {\
         mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, Math.max(0, bottomMargin));\
     }\
-    // Alice patch end 0034\
+    // Alice patch end 0032\
 ' "$path17"
 sed -i '/^    private boolean mIsXrFsm;$/a\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private boolean mIsUrlBarFocusedForSceneLayer;\
-    // Alice patch end 0034' "$path18"
+    // Alice patch end 0032' "$path18"
 # 13) 地址栏聚焦时抑制 compositor 工具栏场景层，避免其在键盘后方残留
 sed -i '/^        mSuppressToolbarSceneLayerSupplier\.set(mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow);$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         mSuppressToolbarSceneLayerSupplier.set(\
                 mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);\
-        // Alice patch end 0034' "$path18"
+        // Alice patch end 0032' "$path18"
 sed -i '/^        mToolbar\.onUrlFocusChange(hasFocus);$/c\
-        // Alice patch start 0034\
+        // Alice patch start 0032\
         mIsUrlBarFocusedForSceneLayer = hasFocus;\
         mToolbar.onUrlFocusChange(hasFocus);\
         updateToolbarSceneLayerSuppression();\
-        // Alice patch end 0034\
+        // Alice patch end 0032\
 ' "$path18"
 
 sed -i '/^    private boolean mControlsResizeView;$/a\
-    // Alice patch start 0034\
+    // Alice patch start 0032\
     private int mAliceNavigationBarInset;\
     private int mAliceNavigationBarWidth;\
-    // Alice patch end 0034' "$path19"
+    // Alice patch end 0032' "$path19"
 # 15) WebContents 固定按工具栏 + 导航栏留高
-sed -i 's|^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$|        // Alice patch start 0034\n        if (mAliceNavigationBarWidth != getWidth()) {\n            mAliceNavigationBarWidth = getWidth();\n            mAliceNavigationBarInset = 0;\n        }\n        View aliceRoot = getRootView();\n        android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\n        if (aliceWindowInsets != null) {\n            int aliceCurrentNavBarInset =\n                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\n                                    aliceWindowInsets, aliceRoot)\n                            .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\n                            .bottom;\n            mAliceNavigationBarInset =\n                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\n        }\n        int aliceTopControlsInset =\n                mBrowserControlsManager == null\n                        ? 0\n                        : (mControlsResizeView\n                                ? mBrowserControlsManager.getTopControlsHeight()\n                                : mBrowserControlsManager.getTopControlsMinHeight());\n        int aliceToolbarHeight =\n                (int)\n                        Math.ceil(\n                                getResources()\n                                        .getDimension(R.dimen.toolbar_height_no_shadow));\n        int aliceToolbarHairlineHeight =\n                getResources()\n                        .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\n        int verticalViewportInsets =\n                aliceTopControlsInset\n                        + aliceToolbarHeight\n                        + aliceToolbarHairlineHeight\n                        + mAliceNavigationBarInset;\n        // Alice patch end 0034|' "$path19"
+sed -i 's|^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$|        // Alice patch start 0032\n        if (mAliceNavigationBarWidth != getWidth()) {\n            mAliceNavigationBarWidth = getWidth();\n            mAliceNavigationBarInset = 0;\n        }\n        View aliceRoot = getRootView();\n        android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\n        if (aliceWindowInsets != null) {\n            int aliceCurrentNavBarInset =\n                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\n                                    aliceWindowInsets, aliceRoot)\n                            .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\n                            .bottom;\n            mAliceNavigationBarInset =\n                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\n        }\n        int aliceTopControlsInset =\n                mBrowserControlsManager == null\n                        ? 0\n                        : (mControlsResizeView\n                                ? mBrowserControlsManager.getTopControlsHeight()\n                                : mBrowserControlsManager.getTopControlsMinHeight());\n        int aliceToolbarHeight =\n                (int)\n                        Math.ceil(\n                                getResources()\n                                        .getDimension(R.dimen.toolbar_height_no_shadow));\n        int aliceToolbarHairlineHeight =\n                getResources()\n                        .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\n        int verticalViewportInsets =\n                aliceTopControlsInset\n                        + aliceToolbarHeight\n                        + aliceToolbarHairlineHeight\n                        + mAliceNavigationBarInset;\n        // Alice patch end 0032|' "$path19"
 
 # 全屏时不再为隐藏的工具栏强制预留 WebContents 高度，否则视频底部会留下黑边
 sed -i '/^        int verticalViewportInsets =$/,/^                        + mAliceNavigationBarInset;$/c\
