@@ -1,0 +1,339 @@
+#!/bin/bash
+# 固定浏览器、地址栏、工具栏和设置页的区域配色
+
+set -e
+
+# 主题与背景资源
+path1="components/browser_ui/theme/android/templates/res/values/themes.xml"
+path2="ui/android/java/res/values/semantic_colors_non_adaptive.xml"
+path3="components/browser_ui/styles/android/java/src/org/chromium/components/browser_ui/styles/ChromeColors.java"
+path4="components/browser_ui/theme/android/java/res/values/colors.xml"
+path5="components/browser_ui/theme/android/java/res/values-night/colors.xml"
+path6="chrome/android/java/res/values-v31/styles.xml"
+path7="chrome/android/java/res/values/styles.xml"
+path8="chrome/android/java/res/layout/settings_activity.xml"
+
+# 设置项和工具栏颜色资源
+path9="components/browser_ui/styles/android/java/res/values/colors.xml"
+path10="components/browser_ui/styles/android/java/res/values-night/colors.xml"
+path11="components/browser_ui/settings/android/java/res/values/styles.xml"
+
+# 地址栏和工具栏颜色逻辑
+path12="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path13="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
+
+# 关闭运行时 Material 动态取色，并固定菜单和 WebUI 颜色。
+path14="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
+path15="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
+path16="chrome/android/java/src/org/chromium/chrome/browser/document/ChromeLauncherActivity.java"
+path17="ui/android/java/res/values/semantic_colors_adaptive.xml"
+path18="ui/android/java/res/values-night/colors.xml"
+path19="ui/webui/resources/css/md_colors.css"
+path20="ui/webui/resources/cr_elements/cr_shared_vars.css"
+path21="ui/webui/resources/cr_elements/cr_action_menu/cr_action_menu.css"
+path22="chrome/browser/resources/extensions/extensions.html"
+path23="components/browser_ui/styles/android/java/res/values/semantic_colors_dynamic.xml"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 0037' "$path3"; then
+    exit 100
+fi
+
+# 1) 关闭 Material 动态取色。浏览器背景/设置页背景固定为浅色黄色、深色蓝色。
+sed -i '/<item name="dynamicColorThemeOverlay">/c\
+        <!-- Alice patch start 0037 -->\
+        <!-- Material dynamic color overlay disabled. -->\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="android:colorBackground">@color\/baseline_neutral_100<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:colorBackground">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurface">@color\/gm3_baseline_surface_light<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurface">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="android:colorBackground">@color\/baseline_neutral_10<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:colorBackground">#FF0000FF</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurface">@color\/gm3_baseline_surface_dark<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurface">#FF0000FF</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="elevationOverlayEnabled">true<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="elevationOverlayEnabled">false</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+
+# 2) 固定 Material 全部 surface 色板。设置页、菜单和标签管理会分别读取这些角色。
+sed -i '/^        <item name="colorSurfaceVariant">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceVariant">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceContainerLow">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceContainerLow">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceContainerLow">.*$/a\
+        <item name="colorSurfaceContainerLowest">#FFFFFF00</item>' "$path1"
+sed -i '/^        <item name="colorSurfaceContainer">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceContainer">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceContainerHigh">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceContainerHigh">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceContainerHighest">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceContainerHighest">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceBright">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceBright">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+sed -i '/^        <item name="colorSurfaceDim">/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="colorSurfaceDim">#FFFFFF00</item>\
+        <!-- Alice patch end 0037 -->' "$path1"
+
+# 深色主题的同一组角色使用蓝色。
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^        {% endmacro %}$/ s|^        <item name="colorSurfaceVariant">.*$|        <item name="colorSurfaceVariant">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceContainerLow">.*$|        <item name="colorSurfaceContainerLow">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceContainerLowest">.*$|        <item name="colorSurfaceContainerLowest">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceContainer">.*$|        <item name="colorSurfaceContainer">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceContainerHigh">.*$|        <item name="colorSurfaceContainerHigh">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceContainerHighest">.*$|        <item name="colorSurfaceContainerHighest">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceBright">.*$|        <item name="colorSurfaceBright">#FF0000FF</item>|' "$path1"
+sed -i '/^    <style name="Theme\.BrowserUI\.Dark" parent=/,/^    <style name="Theme\.BrowserUI\.Dark\.DialogWhenLarge" parent=/ s|^        <item name="colorSurfaceDim">.*$|        <item name="colorSurfaceDim">#FF0000FF</item>|' "$path1"
+
+# 设置页背景直接使用固定的默认背景资源，避免重新解析 Material surface 角色。
+sed -i 's|^    <macro name="settings_bg_color">.*$|    <!-- Alice patch start 0037 -->\n    <macro name="settings_bg_color">@color/default_bg_color_baseline</macro>\n    <!-- Alice patch end 0037 -->|' "$path23"
+sed -i 's|^    <macro name="settings_container_background_color">.*$|    <!-- Alice patch start 0037 -->\n    <macro name="settings_container_background_color">@color/default_bg_color_baseline</macro>\n    <!-- Alice patch end 0037 -->|' "$path23"
+
+# 3) 浏览器默认背景固定为浅色黄色、深色蓝色。
+sed -i 's|^    <color name="default_bg_color_light">.*$|    <!-- Alice patch start 0037 -->\n    <color name="default_bg_color_light">#FFFFFF00</color>\n    <!-- Alice patch end 0037 -->|' "$path2"
+sed -i 's|^    <color name="default_bg_color_dark">.*$|    <!-- Alice patch start 0037 -->\n    <color name="default_bg_color_dark">#FF0000FF</color>\n    <!-- Alice patch end 0037 -->|' "$path2"
+
+# 4) ChromeColors：浏览器背景黄色/蓝色，默认工具栏红色/绿色。
+sed -i '/^import android\.content\.Context;$/a\
+// Alice patch start 0037\
+import android.content.res.Configuration;\
+// Alice patch end 0037' "$path3"
+sed -i '/^import com\.google\.android\.material\.color\.MaterialColors;$/c\
+// Alice patch start 0037\
+// Removed the Material dynamic color dependency.\
+// Alice patch end 0037' "$path3"
+sed -i '/^public class ChromeColors {$/a\
+    // Alice patch start 0037\
+    private static final int ALICE_LIGHT_BACKGROUND_COLOR = 0xFFFFFF00;\
+    private static final int ALICE_DARK_BACKGROUND_COLOR = 0xFF0000FF;\
+    private static final int ALICE_LIGHT_TOOLBAR_COLOR = 0xFFFF0000;\
+    private static final int ALICE_DARK_TOOLBAR_COLOR = 0xFF00FF00;\
+\
+    private static boolean isAliceNightMode(Context context) {\
+        return (context.getResources().getConfiguration().uiMode\
+                        & Configuration.UI_MODE_NIGHT_MASK)\
+                == Configuration.UI_MODE_NIGHT_YES;\
+    }\
+\
+    private static int getAliceBackgroundColor(Context context, boolean isIncognito) {\
+        return isIncognito || isAliceNightMode(context)\
+                ? ALICE_DARK_BACKGROUND_COLOR\
+                : ALICE_LIGHT_BACKGROUND_COLOR;\
+    }\
+\
+    private static int getAliceToolbarColor(Context context, boolean isIncognito) {\
+        return isIncognito || isAliceNightMode(context)\
+                ? ALICE_DARK_TOOLBAR_COLOR\
+                : ALICE_LIGHT_TOOLBAR_COLOR;\
+    }\
+    // Alice patch end 0037' "$path3"
+sed -i '/^    public static @ColorInt int getDefaultThemeColor(Context context, boolean isIncognito) {$/,/^    }$/c\
+    public static @ColorInt int getDefaultThemeColor(Context context, boolean isIncognito) {\
+        // Alice patch start 0037\
+        return getAliceToolbarColor(context, isIncognito);\
+        // Alice patch end 0037\
+    }' "$path3"
+sed -i '/^    public static @ColorInt int getPrimaryBackgroundColor(Context context, boolean isIncognito) {$/,/^    }$/c\
+    public static @ColorInt int getPrimaryBackgroundColor(Context context, boolean isIncognito) {\
+        // Alice patch start 0037\
+        return getAliceBackgroundColor(context, isIncognito);\
+        // Alice patch end 0037\
+    }' "$path3"
+sed -i '/^    public static @ColorInt int getDefaultBgColor(Context context, boolean isIncognito) {$/,/^    }$/c\
+    public static @ColorInt int getDefaultBgColor(Context context, boolean isIncognito) {\
+        // Alice patch start 0037\
+        return getAliceBackgroundColor(context, isIncognito);\
+        // Alice patch end 0037\
+    }' "$path3"
+
+# 5) 启动页跟随浏览器背景。
+sed -i 's|^    <color name="splash_screen_bg">.*$|    <!-- Alice patch start 0037 -->\n    <color name="splash_screen_bg">#FFFF00</color>\n    <!-- Alice patch end 0037 -->|' "$path4"
+sed -i 's|^    <color name="splash_screen_bg">.*$|    <!-- Alice patch start 0037 -->\n    <color name="splash_screen_bg">#0000FF</color>\n    <!-- Alice patch end 0037 -->|' "$path5"
+
+# 6) Widget 主题不再继承动态 Material 配色。
+sed -i '/parent="Theme\.Material3Expressive\.DynamicColors\.DayNight"/c\
+    <!-- Alice patch start 0037 -->\
+    <style name="Theme.Chromium.Widget" parent="Theme.Material3Expressive.DayNight" />\
+    <!-- Alice patch end 0037 -->' "$path6"
+
+# 7) 关闭运行时动态取色。只删 dynamicColorThemeOverlay 不会阻止 Activity 主动应用壁纸配色。
+sed -i '/^    protected boolean shouldApplyDynamicColors() {$/,/^    }$/c\
+    protected boolean shouldApplyDynamicColors() {\
+        // Alice patch start 0037\
+        return false;\
+        // Alice patch end 0037\
+    }' "$path14"
+sed -i '/^    protected boolean shouldApplyDynamicColors() {$/,/^    }$/c\
+    protected boolean shouldApplyDynamicColors() {\
+        // Alice patch start 0037\
+        return false;\
+        // Alice patch end 0037\
+    }' "$path15"
+sed -i '/^import com\.google\.android\.material\.color\.DynamicColors;$/c\
+// Alice patch start 0037\
+// Removed the Material dynamic color dependency.\
+// Alice patch end 0037' "$path16"
+sed -i '/^    private void applyThemeOverlays() {$/,/^    }$/c\
+    private void applyThemeOverlays() {\
+        // Alice patch start 0037\
+        // Fixed browser colors must not be replaced by Material colors.\
+        // Alice patch end 0037\
+    }' "$path16"
+
+# 8) 浏览器窗口和设置页根布局使用固定背景。
+sed -i '/^    <style name="Base\.Theme\.Chromium" parent="Theme\.BrowserUI\.DayNight">$/a\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:windowBackground">@color/default_bg_color_baseline</item>\
+        <!-- Alice patch end 0037 -->' "$path7"
+sed -i '/^    <style name="Base\.Theme\.Chromium\.TabbedMode" parent="Theme\.Chromium\.WithWindowAnimation">$/a\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:windowBackground">@color/default_bg_color_baseline</item>\
+        <!-- Alice patch end 0037 -->' "$path7"
+sed -i '/^    <style name="Base\.Theme\.Chromium\.Settings" parent="Theme\.Chromium">$/a\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:windowBackground">@color/default_bg_color_baseline</item>\
+        <!-- Alice patch end 0037 -->' "$path7"
+sed -i 's|android:background="@macro/default_bg_color"|android:background="@color/default_bg_color_baseline"|' "$path8"
+sed -i '/^<androidx\.coordinatorlayout\.widget\.CoordinatorLayout$/i\
+<!-- Alice patch start 0037 -->' "$path8"
+sed -i '/^<\/androidx\.coordinatorlayout\.widget\.CoordinatorLayout>$/a\
+<!-- Alice patch end 0037 -->' "$path8"
+
+# 9) 设置页选项背景固定为浅色红色、深色绿色。Preference.Material 的根 View 使用
+# selectableItemBackground，因此在 PreferenceTheme 中覆盖它，覆盖范围仅限设置项。
+sed -i '/^<\/resources>$/i\
+    <!-- Alice patch start 0037 -->\
+    <color name="alice_settings_item_background">#FFFF0000</color>\
+    <!-- Alice patch end 0037 -->' "$path9"
+sed -i '/^<\/resources>$/i\
+    <!-- Alice patch start 0037 -->\
+    <color name="alice_settings_item_background">#FF00FF00</color>\
+    <!-- Alice patch end 0037 -->' "$path10"
+sed -i '/^        <item name="android:background">?android:attr\/activatedBackgroundIndicator<\/item>$/c\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:background">@color/alice_settings_item_background</item>\
+        <!-- Alice patch end 0037 -->' "$path11"
+sed -i '/^    <style name="PreferenceTheme">$/a\
+        <!-- Alice patch start 0037 -->\
+        <item name="android:selectableItemBackground">@color/alice_settings_item_background</item>\
+        <!-- Alice patch end 0037 -->' "$path11"
+
+# 10) 原生弹窗菜单不再使用独立的默认白色/动态 surface。
+sed -i 's|^    <color name="menu_bg_color_baseline">.*$|    <!-- Alice patch start 0037 -->\n    <color name="menu_bg_color_baseline">#FFFFFF00</color>\n    <!-- Alice patch end 0037 -->|' "$path17"
+sed -i 's|^    <color name="menu_action_bar_bg_color_baseline">.*$|    <!-- Alice patch start 0037 -->\n    <color name="menu_action_bar_bg_color_baseline">#FFFFFF00</color>\n    <!-- Alice patch end 0037 -->|' "$path17"
+sed -i 's|^    <color name="menu_item_bg_color">.*$|    <!-- Alice patch start 0037 -->\n    <color name="menu_item_bg_color">#FFFFFF00</color>\n    <!-- Alice patch end 0037 -->|' "$path17"
+sed -i 's|^    <color name="menu_action_bar_bg_color_baseline">.*$|    <!-- Alice patch start 0037 -->\n    <color name="menu_action_bar_bg_color_baseline">#FF0000FF</color>\n    <!-- Alice patch end 0037 -->|' "$path18"
+sed -i 's|^    <color name="menu_item_bg_color">.*$|    <!-- Alice patch start 0037 -->\n    <color name="menu_item_bg_color">#FF0000FF</color>\n    <!-- Alice patch end 0037 -->|' "$path18"
+sed -i '/^<\/resources>$/i\
+    <!-- Alice patch start 0037 -->\
+    <color name="menu_bg_color_baseline">#FF0000FF</color>\
+    <!-- Alice patch end 0037 -->' "$path18"
+
+# 11) 扩展页和共享 WebUI 不再回退到硬编码白色或动态取色。
+sed -i 's|--md-background-color: rgb(248, 249, 250);|/* Alice patch start 0037 */\n  --md-background-color: #FF0;\n  /* Alice patch end 0037 */|' "$path19"
+sed -i 's|--md-background-color: rgb(32, 33, 36);|/* Alice patch start 0037 */\n    --md-background-color: #00F;\n    /* Alice patch end 0037 */|' "$path19"
+sed -i 's|--cr-card-background-color: white;|/* Alice patch start 0037 */\n  --cr-card-background-color: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-menu-background-color: white;|/* Alice patch start 0037 */\n  --cr-menu-background-color: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-card-background-color: var(--google-grey-900-white-4-percent);|/* Alice patch start 0037 */\n    --cr-card-background-color: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-menu-background-color: var(--google-grey-900);|/* Alice patch start 0037 */\n    --cr-menu-background-color: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-card-background-color: var(--color-webui-card-background);|/* Alice patch start 0037 */\n  --cr-card-background-color: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface: rgb(255, 255, 255);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface1: rgb(248, 250, 253);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface1: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface2: rgb(243, 246, 252);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface2: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface3: rgb(239, 243, 250);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface3: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface4: rgb(237, 242, 250);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface4: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface5: rgb(234, 240, 249);|/* Alice patch start 0037 */\n  --cr-fallback-color-surface5: #FF0;\n  /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface: rgb(31, 31, 31);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface1: rgb(39, 40, 42);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface1: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface2: rgb(45, 47, 49);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface2: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface3: rgb(51, 52, 56);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface3: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface4: rgb(52, 54, 58);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface4: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i 's|--cr-fallback-color-surface5: rgb(56, 58, 62);|/* Alice patch start 0037 */\n    --cr-fallback-color-surface5: #00F;\n    /* Alice patch end 0037 */|' "$path20"
+sed -i '/--cr-menu-background-color: var(--color-menu-background,$/,/var(--cr-fallback-color-surface));$/c\
+  /* Alice patch start 0037 */\
+  --cr-menu-background-color: var(--cr-fallback-color-surface);\
+  /* Alice patch end 0037 */' "$path21"
+sed -i '/^      touch-action: manipulation;$/a\
+      /* Alice patch start 0037 */\
+      background: #FF0;\
+      /* Alice patch end 0037 */' "$path22"
+sed -i 's|background: var(--md-background-color);|/* Alice patch start 0037 */\n        background: #00F;\n        /* Alice patch end 0037 */|' "$path22"
+sed -i '/^    html\[webui-refresh-2026\] {$/,/^    }$/c\
+    /* Alice patch start 0037 */\
+    html[webui-refresh-2026] {\
+      background: #FF0;\
+    }\
+\
+    @media (prefers-color-scheme: dark) {\
+      html[webui-refresh-2026] {\
+        background: #00F;\
+      }\
+    }\
+    /* Alice patch end 0037 */' "$path22"
+
+# 12) 地址栏胶囊固定为浅色黄色、深色蓝色；工具栏背景固定为浅色红色、深色绿色。
+sed -i '/^    private @ColorInt int getLocationBarColorForToolbarColor(@ColorInt int toolbarColor) {$/,/^    }$/c\
+    private @ColorInt int getLocationBarColorForToolbarColor(@ColorInt int toolbarColor) {\
+        // Alice patch start 0037\
+        return ColorUtils.inNightMode(getContext()) ? 0xFF0000FF : 0xFFFFFF00;\
+        // Alice patch end 0037\
+    }' "$path12"
+sed -i '/^    private @ColorInt int getLocationBarDefaultColorForToolbarColor($/,/^    }$/c\
+    private @ColorInt int getLocationBarDefaultColorForToolbarColor(\
+            @ColorInt int toolbarColor, boolean shouldUseFocusColor) {\
+        // Alice patch start 0037\
+        return ColorUtils.inNightMode(getContext()) ? 0xFF0000FF : 0xFFFFFF00;\
+        // Alice patch end 0037\
+    }' "$path12"
+sed -i '/^    private void updateToNtpBackground() {$/,/^    }$/c\
+    private void updateToNtpBackground() {\
+        // Alice patch start 0037\
+        int aliceAddressBarColor =\
+                ColorUtils.inNightMode(getContext()) ? 0xFF0000FF : 0xFFFFFF00;\
+        mLocationBarBackground.setBackgroundColor(aliceAddressBarColor);\
+        mCurrentLocationBarColor = aliceAddressBarColor;\
+        mLocationBarBackground.setCornerRadius(\
+                getResources()\
+                        .getDimensionPixelSize(R.dimen.home_surface_search_box_background_radius));\
+        mLocationBarBackground.setHairlineBehavior(HairlineBehavior.NONE);\
+        // Alice patch end 0037\
+    }' "$path12"
+sed -i '/^    private @ColorInt int getToolbarColorForVisualState(final @VisualState int visualState) {$/,/^    }$/c\
+    private @ColorInt int getToolbarColorForVisualState(final @VisualState int visualState) {\
+        // Alice patch start 0037\
+        return ColorUtils.inNightMode(getContext()) ? 0xFF00FF00 : 0xFFFF0000;\
+        // Alice patch end 0037\
+    }' "$path12"
+
+sed -i '/^import org\.chromium\.ui\.modelutil\.PropertyModel;$/a\
+// Alice patch start 0037\
+import org.chromium.ui.util.ColorUtils;\
+// Alice patch end 0037' "$path13"
+sed -i '/^    public int getPrimaryColor() {$/,/^    }$/c\
+    public int getPrimaryColor() {\
+        // Alice patch start 0037\
+        return ColorUtils.inNightMode(mActivity) ? 0xFF00FF00 : 0xFFFF0000;\
+        // Alice patch end 0037\
+    }' "$path13"

@@ -9,6 +9,9 @@ path2="chrome/android/java/src/org/chromium/chrome/browser/messages/MessageConta
 path3="chrome/android/java/src/org/chromium/chrome/browser/ui/RootUiCoordinator.java"
 path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
+path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeControllerImpl.java"
+path7="content/public/android/java/src/org/chromium/content/browser/input/ImeAdapterImpl.java"
+path10="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0034' "$path1"; then
@@ -18,6 +21,7 @@ fi
 # 1) SnackbarView 已经使用 ViewCompat，补充 WindowInsetsCompat 类型
 sed -i '/^import androidx\.core\.view\.ViewCompat;$/a\
 // Alice patch start 0034\
+import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0034' "$path1"
 
@@ -76,39 +80,68 @@ import android.app.Activity;\
 sed -i '/^import android\.view\.ViewGroup;$/a\
 \
 // Alice patch start 0034\
+import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0034' "$path2"
 
 sed -i '/^import org\.chromium\.components\.messages\.MessageContainer;$/a\
-import org.chromium.ui.KeyboardVisibilityDelegate;' "$path2"
+// Alice patch start 0034\
+import org.chromium.ui.KeyboardVisibilityDelegate;\
+import org.chromium.ui.insets.InsetObserver;\
+// Alice patch end 0034' "$path2"
 
-sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/d' "$path2"
+sed -i '/^import org\.chromium\.chrome\.browser\.fullscreen\.BrowserControlsManager;$/a\
+// Alice patch start 0034\
+import org.chromium.chrome.browser.init.AsyncInitializationActivity;\
+// Alice patch end 0034' "$path2"
+
+sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/c\
+// Alice patch start 0034\
+import java.util.List;\
+// Alice patch end 0034\
+// Alice patch start 0034\
+// Removed unused ViewUtils import.\
+// Alice patch end 0034' "$path2"
 
 sed -i '/^public class MessageContainerCoordinator implements BrowserControlsStateProvider\.Observer {$/a\
+    // Alice patch start 0034\
     private final KeyboardVisibilityDelegate.KeyboardVisibilityListener\
             mAliceKeyboardVisibilityListener;\
+    // Alice patch end 0034\
 ' "$path2"
 
 sed -i '/^        mContainer = container;$/a\
+        // Alice patch start 0034\
         mAliceKeyboardVisibilityListener =\
                 (isShowing) -> {\
                     if (mContainer != null) updateMargins();\
                 };\
         KeyboardVisibilityDelegate.getInstance()\
                 .addKeyboardVisibilityListener(mAliceKeyboardVisibilityListener);\
+        // Alice patch end 0034\
 ' "$path2"
 
 sed -i '/^        mControlsManager\.removeObserver(this);$/a\
+        // Alice patch start 0034\
         KeyboardVisibilityDelegate.getInstance()\
                 .removeKeyboardVisibilityListener(mAliceKeyboardVisibilityListener);\
+        // Alice patch end 0034\
 ' "$path2"
 
 sed -i '/^    public void onAnimationStart() {$/,/^    }$/c\
-    public void onAnimationStart() {}' "$path2"
+    public void onAnimationStart() {\
+        // Alice patch start 0034\
+        // Snackbar animation is updated from the IME animation listener.\
+        // Alice patch end 0034\
+    }' "$path2"
 
 sed -i '/^    public void onAnimationEnd() {$/,/^    }$/c\
-    public void onAnimationEnd() {}' "$path2"
+    public void onAnimationEnd() {\
+        // Alice patch start 0034\
+        // Snackbar animation is updated from the IME animation listener.\
+        // Alice patch end 0034\
+    }' "$path2"
 
 # 4) 在 0014 已有的工具栏底部留白之上，再增加导航栏高度。
 #    优先使用 edge_to_edge_bottom_chin 的实际高度，因为 edge-to-edge 会消费
@@ -163,9 +196,12 @@ sed -i '/^        params\.bottomMargin =$/,/^                        res\.getDim
         // Alice patch end 0034' "$path2"
 
 sed -i '/^import org\.chromium\.components\.messages\.MessageContainer;$/a\
-import org.chromium.ui.KeyboardVisibilityDelegate;' "$path3"
+// Alice patch start 0034\
+import org.chromium.ui.KeyboardVisibilityDelegate;\
+// Alice patch end 0034' "$path3"
 
 sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
+                        // Alice patch start 0034\
                         animator -> {\
                             KeyboardVisibilityDelegate keyboardDelegate =\
                                     KeyboardVisibilityDelegate.getInstance();\
@@ -176,40 +212,13 @@ sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
                             } else {\
                                 mWindowAndroid.startAnimationOverContent(animator);\
                             }\
-                        },' "$path3"
-
-# 5) 搜索页通过 DeferredIMEWindowInsetApplicationCallback 在 consumer 链
-#    最前面把 IME 标记为 overlay 并消费 inset。正常网页没有这一步，导致
-#    IME inset 继续传给 edge-to-edge 和网页 sizing。为普通网页复制同一行为。
-sed -i '/^    public boolean isKeyboardInOverlayMode() {$/a\
-        // Alice patch start 0034\
-        if (mIsKeyboardInOverlayMode) return true;\
-        // Alice patch end 0034' "$path4"
-
-sed -i '/^    private WindowInsetsCompat forwardToInsetConsumers(WindowInsetsCompat insets) {$/,/^        for (WindowInsetsConsumer consumer : mInsetsConsumers) {$/c\
-    private WindowInsetsCompat forwardToInsetConsumers(WindowInsetsCompat insets) {\
-        View rootView = mRootViewReference.get();\
-        if (rootView == null) return insets;\
-\
-        // Alice patch start 0034\
-        if (!hasInsetsConsumer(\
-                InsetConsumerSource.DEFERRED_IME_WINDOW_INSET_APPLICATION_CALLBACK)) {\
-            boolean aliceImeVisible = insets.getInsets(ime()).bottom > 0;\
-            mIsKeyboardInOverlayMode = aliceImeVisible;\
-            if (aliceImeVisible) {\
-                insets =\
-                        new WindowInsetsCompat.Builder(insets)\
-                                .setInsets(ime(), Insets.NONE)\
-                                .build();\
-            }\
-        }\
-        // Alice patch end 0034\
-\
-        for (WindowInsetsConsumer consumer : mInsetsConsumers) {' "$path4"
+                        },\
+                        // Alice patch end 0034' "$path3"
 
 # 6) 底置工具栏本来就在导航栏区域绘制相同背景。把系统导航栏也固定成
 #    该颜色，避免 IME 动画第一帧早于 inset 回调时露出系统黑色默认底。
 sed -i '/^    private @ColorInt int getNavigationBarIconColor() {$/i\
+    // Alice patch start 0034\
     private @ColorInt int getAliceEdgeNavigationBarColor() {\
         if (mToolbarColorSupplier != null) {\
             int toolbarColor = mToolbarColorSupplier.get();\
@@ -219,23 +228,24 @@ sed -i '/^    private @ColorInt int getNavigationBarIconColor() {$/i\
         if (mActiveTab != null) return mActiveTab.getBackgroundColor();\
         return SemanticColorUtils.getColorSurface(mContext);\
     }\
+    // Alice patch end 0034\
 ' "$path5"
 
 sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/a\
+        // Alice patch start 0034\
         if (isDrawingToEdge() && isBottomToolbar()) {\
             return getAliceEdgeNavigationBarColor();\
-        }' "$path5"
+        }\
+        // Alice patch end 0034' "$path5"
 sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {$/a\
+        // Alice patch start 0034\
         if (isDrawingToEdge() && isBottomToolbar()) {\
             return getAliceEdgeNavigationBarColor();\
-        }' "$path5"
+        }\
+        // Alice patch end 0034' "$path5"
 
 # 7) Snackbar 直接监听 InsetObserver 的 IME 动画，逐帧更新位置。
 #    根 View 的动画派发模式是 DISPATCH_MODE_STOP，子 View 回调收不到。
-sed -i '/^import androidx\.core\.view\.WindowInsetsCompat;$/i\
-// Alice patch start 0034\
-import androidx.core.view.WindowInsetsAnimationCompat;\
-// Alice patch end 0034' "$path1"
 sed -i '/^import org\.chromium\.ui\.util\.MotionEventUtils;$/a\
 \
 // Alice patch start 0034\
@@ -281,20 +291,24 @@ sed -i '/^    private boolean mIsAnimating;$/a\
     // Alice patch end 0034' "$path1"
 
 sed -i '/^        mRootContentView = activity\.findViewById(android\.R\.id\.content);$/a\
+        // Alice patch start 0034\
         if (mWindowAndroid != null) {\
             mAliceInsetObserver = mWindowAndroid.getInsetObserver();\
             if (mAliceInsetObserver != null) {\
                 mAliceInsetObserver.addWindowInsetsAnimationListener(\
                         mAliceImeAnimationListener);\
             }\
-        }' "$path1"
+        }\
+        // Alice patch end 0034' "$path1"
 
 sed -i '/^    public void dismiss() {$/a\
+        // Alice patch start 0034\
         if (mAliceInsetObserver != null) {\
             mAliceInsetObserver.removeWindowInsetsAnimationListener(\
                     mAliceImeAnimationListener);\
             mAliceInsetObserver = null;\
-        }' "$path1"
+        }\
+        // Alice patch end 0034' "$path1"
 
 sed -i 's@^        boolean aliceImeShowing =$@        boolean aliceImeShowing = mAliceImeAnimationHeight >= 0 ||@' "$path1"
 sed -i '/^            int aliceImeHeight = keyboardHeight;$/c\
@@ -304,24 +318,6 @@ sed -i '/^            int aliceImeHeight = keyboardHeight;$/c\
                             : keyboardHeight;' "$path1"
 
 # 8) 翻译气泡直接监听同一个 InsetObserver 动画源。
-sed -i '/^import androidx\.core\.view\.WindowInsetsCompat;$/i\
-// Alice patch start 0034\
-import androidx.core.view.WindowInsetsAnimationCompat;\
-// Alice patch end 0034' "$path2"
-sed -i '/^import org\.chromium\.chrome\.browser\.fullscreen\.BrowserControlsManager;$/a\
-// Alice patch start 0034\
-import org.chromium.chrome.browser.init.AsyncInitializationActivity;\
-// Alice patch end 0034' "$path2"
-sed -i '/^import org\.chromium\.ui\.KeyboardVisibilityDelegate;$/a\
-// Alice patch start 0034\
-import org.chromium.ui.insets.InsetObserver;\
-// Alice patch end 0034
-' "$path2"
-sed -i '/^import org\.chromium\.ui\.insets\.InsetObserver;$/a\
-\
-// Alice patch start 0034\
-import java.util.List;\
-// Alice patch end 0034' "$path2"
 
 sed -i '/^    private @Nullable MessageContainer mContainer;$/a\
     // Alice patch start 0034\
@@ -361,6 +357,7 @@ sed -i '/^    private @Nullable MessageContainer mContainer;$/a\
     // Alice patch end 0034' "$path2"
 
 sed -i '/^        mContainer = container;$/a\
+        // Alice patch start 0034\
         if (mContainer.getContext() instanceof AsyncInitializationActivity) {\
             AsyncInitializationActivity activity =\
                     (AsyncInitializationActivity) mContainer.getContext();\
@@ -371,14 +368,17 @@ sed -i '/^        mContainer = container;$/a\
                             mAliceImeAnimationListener);\
                 }\
             }\
-        }' "$path2"
+        }\
+        // Alice patch end 0034' "$path2"
 
 sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0034\
         if (mAliceInsetObserver != null) {\
             mAliceInsetObserver.removeWindowInsetsAnimationListener(\
                     mAliceImeAnimationListener);\
             mAliceInsetObserver = null;\
-        }' "$path2"
+        }\
+        // Alice patch end 0034' "$path2"
 
 sed -i 's@^        boolean aliceImeShowing =$@        boolean aliceImeShowing = mAliceImeAnimationHeight >= 0 ||@' "$path2"
 sed -i '/^            if (aliceImeHeight == 0) {$/i\
@@ -406,6 +406,7 @@ sed -i '/^                public void onPrepare(WindowInsetsAnimationCompat anim
                 }' "$path2"
 
 sed -i '/^        int aliceBottomMargin = mDefaultBottomMargin;$/,/^        int targetBottomMargin = aliceBottomMargin;$/c\
+        // Alice patch start 0034\
         boolean aliceImeShowing = mAliceImeAnimationInProgress ||\
                 KeyboardVisibilityDelegate.getInstance()\
                                 .isKeyboardShowing(mContainerView)\
@@ -425,9 +426,11 @@ sed -i '/^        int aliceBottomMargin = mDefaultBottomMargin;$/,/^        int 
                 aliceImeShowing\
                         ? Math.max(aliceRestingBottomMargin, aliceImeHeight)\
                         : aliceRestingBottomMargin;\
-        int targetBottomMargin = aliceBottomMargin;' "$path1"
+        int targetBottomMargin = aliceBottomMargin;\
+        // Alice patch end 0034' "$path1"
 
 sed -i '/^        int aliceNavigationBarHeight = 0;$/,/^        params.bottomMargin = aliceBottomMargin;$/c\
+        // Alice patch start 0034\
         int aliceNavigationBarHeight = 0;\
         if (mContainer.getContext() instanceof Activity) {\
             View chin =\
@@ -466,36 +469,46 @@ sed -i '/^        int aliceNavigationBarHeight = 0;$/,/^        params.bottomMar
                 aliceImeShowing\
                         ? Math.max(aliceRestingBottomMargin, aliceImeHeight)\
                         : aliceRestingBottomMargin;\
-        params.bottomMargin = aliceBottomMargin;' "$path2"
+        params.bottomMargin = aliceBottomMargin;\
+        // Alice patch end 0034' "$path2"
 # 10) 把 IME 动画状态保存在 InsetObserver，供动画开始后才创建的
 #     气泡读取，避免它们错过 onPrepare 后直接用最终 inset 定位。
 sed -i '/^    private boolean mIsKeyboardInOverlayMode;$/a\
+    // Alice patch start 0034\
     private boolean mIsImeAnimationInProgress;\
-    private int mCurrentImeAnimationHeight = -1;' "$path4"
+    private int mCurrentImeAnimationHeight = -1;\
+    // Alice patch end 0034' "$path4"
 
 sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat animation) {$/a\
+                        // Alice patch start 0034\
                         if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
                             mIsImeAnimationInProgress = true;\
                             mCurrentImeAnimationHeight = -1;\
-                        }' "$path4"
+                        }\
+                        // Alice patch end 0034' "$path4"
 
 sed -i '/^                    public WindowInsetsCompat onProgress($/,/^                        for (WindowInsetsAnimationListener listener :$/c\
                     public WindowInsetsCompat onProgress(\
                             WindowInsetsCompat windowInsetsCompat,\
                             List<WindowInsetsAnimationCompat> list) {\
+                        // Alice patch start 0034\
                         if (mIsImeAnimationInProgress) {\
                             mCurrentImeAnimationHeight =\
                                     windowInsetsCompat.getInsets(ime()).bottom;\
                         }\
+                        // Alice patch end 0034\
                         for (WindowInsetsAnimationListener listener :' "$path4"
 
 sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat animation) {$/a\
+                        // Alice patch start 0034\
                         if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
                             mIsImeAnimationInProgress = false;\
                             mCurrentImeAnimationHeight = -1;\
-                        }' "$path4"
+                        }\
+                        // Alice patch end 0034' "$path4"
 
 sed -i '/^    public boolean isKeyboardInOverlayMode() {$/i\
+    // Alice patch start 0034\
     public boolean isImeAnimationInProgress() {\
         return mIsImeAnimationInProgress;\
     }\
@@ -503,6 +516,7 @@ sed -i '/^    public boolean isKeyboardInOverlayMode() {$/i\
     public int getCurrentImeAnimationHeight() {\
         return mCurrentImeAnimationHeight;\
     }\
+    // Alice patch end 0034\
 ' "$path4"
 
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
@@ -575,15 +589,22 @@ sed -i '/^        int aliceImeHeight = aliceImeAnimating$/,/^        int aliceRe
 
 # 12) 气泡首次显示前先完成定位，避免旧布局位置先绘制一帧。
 sed -i '/^    public void show() {$/a\
-        mContainerView.setVisibility(View.INVISIBLE);' "$path1"
+        // Alice patch start 0034\
+        mContainerView.setVisibility(View.INVISIBLE);\
+        // Alice patch end 0034' "$path1"
 sed -i '/^        addToParent();$/a\
-        adjustViewPosition();' "$path1"
+        // Alice patch start 0034\
+        adjustViewPosition();\
+        // Alice patch end 0034' "$path1"
 sed -i '/^                        mContainerView.removeOnLayoutChangeListener(this);$/a\
+                        // Alice patch start 0034\
                         adjustViewPosition();\
-                        mContainerView.setVisibility(View.VISIBLE);' "$path1"
+                        mContainerView.setVisibility(View.VISIBLE);\
+                        // Alice patch end 0034' "$path1"
 
 sed -i '/^    protected void showMessageContainer() {$/,/^    }$/c\
     protected void showMessageContainer() {\
+        // Alice patch start 0034\
         assert mContainer != null;\
         mContainer.setVisibility(View.INVISIBLE);\
         updateMargins();\
@@ -615,6 +636,7 @@ sed -i '/^    protected void showMessageContainer() {$/,/^    }$/c\
                 () -> {\
                     if (mContainer != null) mContainer.setVisibility(View.VISIBLE);\
                 });\
+        // Alice patch end 0034\
     }' "$path2"
 # 13) 所有气泡高度分支统一读取稳定 IME 高度，禁止回退到最终 raw inset。
 sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        int aliceRestingBottomMargin =$/c\
@@ -640,3 +662,61 @@ sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        
                                                 .getCurrentImeAnimationHeight()\
                                         : 0);\
         int aliceBottomMargin =' "$path2"
+
+sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
+        // Alice patch start 0034' "$path1"
+sed -i '/^        int targetBottomMargin = aliceBottomMargin;$/a\
+        // Alice patch end 0034' "$path1"
+
+sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
+        // Alice patch start 0034' "$path2"
+sed -i '/^        params.bottomMargin = aliceBottomMargin;$/a\
+        // Alice patch end 0034' "$path2"
+
+# 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
+#     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
+sed -i '/^        if (mKeyboardInsets != null && mKeyboardInsets\.bottom > bottomPadding) {$/,/^        }$/c\
+        // Alice patch start 0034\
+        // ADJUST_RESIZE already accounts for the keyboard. Do not add its height\
+        // to content padding a second time.\
+        // Alice patch end 0034' "$path6"
+
+# 15) 软件键盘漏掉 onResizeScrollableViewport 时，焦点输入框不会滚入可视区。
+#     RESULT_SHOWN 后再做一次延迟滚动，触摸导致失焦时会由现有清空逻辑取消。
+sed -i '/^            containerView\.getWindowVisibleDisplayFrame(mFocusPreOSKViewportRect);$/a\
+            // Alice patch start 0034\
+            containerView.postDelayed(\
+                    () -> {\
+                        if (!isValid() || !ViewUtils.hasFocus(containerView)) return;\
+                        mWebContents.scrollFocusedEditableNodeIntoView();\
+                    },\
+                    300);\
+            // Alice patch end 0034' "$path7"
+
+# 16) 键盘可见时底部工具栏已被 IME 覆盖，不再从 WebContents 高度中扣除
+#     工具栏高度，否则 visual viewport 会在键盘上方提前结束一个工具栏高度。
+sed -i '/^        int verticalViewportInsets =$/,/^                                + mAliceNavigationBarInset;$/c\
+        // Alice patch start 0034\
+        boolean aliceKeyboardShowing =\
+                KeyboardVisibilityDelegate.getInstance().isKeyboardShowing(this);\
+        int aliceBottomToolbarHeight =\
+                aliceKeyboardShowing ? 0 : aliceToolbarHeight + aliceToolbarHairlineHeight;\
+        int verticalViewportInsets =\
+                aliceInFullscreen\
+                        ? controlsInsets + webContentsHeightInset\
+                        : aliceTopControlsInset\
+                                + aliceBottomToolbarHeight\
+                                + mAliceNavigationBarInset;\
+        // Alice patch end 0034' "$path10"
+sed -i '/^        \/\/ Notify the compositor layout that the size has changed\.  The layout does not drive$/i\
+        // Alice patch start 0034\
+        if (mApplicationBottomInsetSupplier != null\
+                && mVirtualKeyboardMode == VirtualKeyboardMode.RESIZES_VISUAL) {\
+            updateWebContentsSize(getCurrentTab());\
+        }\
+        // Alice patch end 0034' "$path10"
+sed -i '/^            } else if (mLastStableOutsetModeWebContentsHeight != null) {$/c\
+            // Alice patch start 0034\
+            } else if (mLastStableOutsetModeWebContentsHeight != null\
+                    && !aliceKeyboardShowing) {\
+            // Alice patch end 0034' "$path10"

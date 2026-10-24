@@ -68,7 +68,10 @@ sed -i '/^        boolean shouldDrawToEdge =$/,/^                        pageOpt
                                 currentLayoutType,\
                                 mSystemInsets.bottom);\
         // Alice patch end 0032' "$path2"
-sed -i '/^                && EdgeToEdgeUtils\.doAllInsetsIndicateGestureNavigation(insets)$/d' "$path3"
+sed -i '/^                && EdgeToEdgeUtils\.doAllInsetsIndicateGestureNavigation(insets)$/c\
+// Alice patch start 0032\
+// Removed the gesture-only configuration guard.\
+// Alice patch end 0032' "$path3"
 
 # 2) 导航栏透明 + 工具栏滑动透明 + 图标明暗
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider;$/a\
@@ -344,7 +347,7 @@ sed -i '/^        super.onViewCreated(view, savedInstanceState);$/a\
 ' "$path13"
 
 # Hub 布局也保留底部 chin 高度，避免进入/退出动画高度变短
-sed -i 's|^\( *\)layoutType == LayoutType.BROWSING$|\1layoutType == LayoutType.BROWSING\n\1        \|\| layoutType == LayoutType.HUB|' "$path1"
+sed -i 's|^\( *\)layoutType == LayoutType.BROWSING$|\1layoutType == LayoutType.BROWSING\n\1// Alice patch start 0032\n\1        \|\| layoutType == LayoutType.HUB\n\1// Alice patch end 0032|' "$path1"
 
 # 导入 WindowInsetsCompat
 if ! grep -q '^import androidx.core.view.WindowInsetsCompat;' "$path14"; then
@@ -570,11 +573,12 @@ sed -i '/^        mTabStripHeightSupplier\.addSyncObserverAndPostIfNonNull(mTabS
         }\
         // Alice patch end 0032\
 ' "$path17"
-sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(LayerType\.BOTTOM_CHIN));$/a\
+sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(LayerType\.BOTTOM_CHIN));$/,/^    }$/c\
         // Alice patch start 0032\
+                mBottomControlsStacker.getHeightFromLayerToBottom(LayerType.BOTTOM_CHIN));\
         updateScrimBottomMargin();\
-        // Alice patch end 0032\
-' "$path17"
+    }\
+    // Alice patch end 0032' "$path17"
 sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     // Alice patch start 0032\
     private void updateScrimBottomMargin() {\
@@ -626,20 +630,51 @@ sed -i '/^    private boolean mControlsResizeView;$/a\
     private int mAliceNavigationBarInset;\
     private int mAliceNavigationBarWidth;\
     // Alice patch end 0032' "$path19"
-# 15) WebContents 固定按工具栏 + 导航栏留高
-sed -i 's|^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$|        // Alice patch start 0032\n        if (mAliceNavigationBarWidth != getWidth()) {\n            mAliceNavigationBarWidth = getWidth();\n            mAliceNavigationBarInset = 0;\n        }\n        View aliceRoot = getRootView();\n        android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\n        if (aliceWindowInsets != null) {\n            int aliceCurrentNavBarInset =\n                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\n                                    aliceWindowInsets, aliceRoot)\n                            .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\n                            .bottom;\n            mAliceNavigationBarInset =\n                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\n        }\n        int aliceTopControlsInset =\n                mBrowserControlsManager == null\n                        ? 0\n                        : (mControlsResizeView\n                                ? mBrowserControlsManager.getTopControlsHeight()\n                                : mBrowserControlsManager.getTopControlsMinHeight());\n        int aliceToolbarHeight =\n                (int)\n                        Math.ceil(\n                                getResources()\n                                        .getDimension(R.dimen.toolbar_height_no_shadow));\n        int aliceToolbarHairlineHeight =\n                getResources()\n                        .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\n        int verticalViewportInsets =\n                aliceTopControlsInset\n                        + aliceToolbarHeight\n                        + aliceToolbarHairlineHeight\n                        + mAliceNavigationBarInset;\n        // Alice patch end 0032|' "$path19"
 
-# 全屏时不再为隐藏的工具栏强制预留 WebContents 高度，否则视频底部会留下黑边
-sed -i '/^        int verticalViewportInsets =$/,/^                        + mAliceNavigationBarInset;$/c\
+# 15) WebContents viewport 使用真实的 top/bottom controls 高度；controls 被
+#     hiding token 隐藏时不再为空工具栏或 mini origin bar 避让。
+path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$/c\
+        // Alice patch start 0032\
+        if (mAliceNavigationBarWidth != getWidth()) {\
+            mAliceNavigationBarWidth = getWidth();\
+            mAliceNavigationBarInset = 0;\
+        }\
+        View aliceRoot = getRootView();\
+        android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\
+        if (aliceWindowInsets != null) {\
+            int aliceCurrentNavBarInset =\
+                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\
+                                    aliceWindowInsets, aliceRoot)\
+                            .getInsets(\
+                                    androidx.core.view.WindowInsetsCompat.Type\
+                                            .navigationBars())\
+                            .bottom;\
+            mAliceNavigationBarInset =\
+                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\
+        }\
         boolean aliceInFullscreen =\
                 mBrowserControlsManager != null\
                         && mBrowserControlsManager\
                                 .getFullscreenManager()\
                                 .getPersistentFullscreenMode();\
+        int aliceTopControlsInset = 0;\
+        int aliceBottomControlsInset = 0;\
+        if (!aliceInFullscreen && mBrowserControlsManager != null) {\
+            aliceTopControlsInset =\
+                    mControlsResizeView\
+                            ? mBrowserControlsManager.getTopControlsHeight()\
+                            : mBrowserControlsManager.getTopControlsMinHeight();\
+            if (!mBrowserControlsManager.hasHidingTokens()) {\
+                aliceBottomControlsInset =\
+                        mControlsResizeView\
+                                ? mBrowserControlsManager.getBottomControlsHeight()\
+                                : mBrowserControlsManager.getBottomControlsMinHeight();\
+            }\
+        }\
         int verticalViewportInsets =\
-                aliceInFullscreen\
-                        ? controlsInsets + webContentsHeightInset\
-                        : aliceTopControlsInset\
-                                + aliceToolbarHeight\
-                                + aliceToolbarHairlineHeight\
-                                + mAliceNavigationBarInset;' "$path19"
+                aliceTopControlsInset\
+                        + aliceBottomControlsInset\
+                        + webContentsHeightInset\
+                        + (aliceInFullscreen ? 0 : mAliceNavigationBarInset);\
+        // Alice patch end 0032' "$path19"
