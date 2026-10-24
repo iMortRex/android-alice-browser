@@ -588,6 +588,17 @@ sed -i '/^        int aliceImeHeight = aliceImeAnimating$/,/^        int aliceRe
         int aliceRestingBottomMargin = aliceToolbarBottomMargin + aliceNavigationBarHeight;' "$path2"
 
 # 12) 气泡首次显示前先完成定位，避免旧布局位置先绘制一帧。
+sed -i '/^        if (mContainer\.getVisibility() != View\.VISIBLE) {$/c\
+        // Alice patch start 0034\
+        if (mContainer.getVisibility() == View.GONE) {\
+        // Alice patch end 0034' "$path2"
+sed -i '/^        WindowInsetsCompat aliceInsets = ViewCompat\.getRootWindowInsets(mContainer);$/c\
+        // Alice patch start 0034\
+        WindowInsetsCompat aliceInsets = ViewCompat.getRootWindowInsets(mContainer);\
+        if (aliceInsets == null && mAliceInsetObserver != null) {\
+            aliceInsets = mAliceInsetObserver.getLastRawWindowInsets();\
+        }\
+        // Alice patch end 0034' "$path2"
 sed -i '/^    public void show() {$/a\
         // Alice patch start 0034\
         mContainerView.setVisibility(View.INVISIBLE);\
