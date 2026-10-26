@@ -52,6 +52,7 @@ echo "已签名: $SIGNED_APK"
 
 APK="$CHROMIUM/$SIGNED_APK"
 echo "=== 编译成功 ==="
+echo $(date +"%Y-%m-%d %H:%M:%S")
 echo "手动安装指令:"
 echo "adb.exe install -r "$APK""
 echo "正在安装"

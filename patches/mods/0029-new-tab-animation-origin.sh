@@ -68,9 +68,11 @@ sed -i '/^                || tabLaunchType == TabLaunchType\.FROM_LONGPRESS_FORE
 #    也就是 [0]=左上 [1]=右上 [2]=左下 [3]=右下；原来无条件把 [2] 切平，对右下角起点正好反了。
 sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch start 0029\n                // 右下角起点：切平右下角、左下角保留圆角\n                startRadii[rectStart == RectStart.BOTTOM_RIGHT ? 3 : 2] = 0;\n                // Alice patch end 0029|' "$path6"
 
-# 10) NewTabAnimationLayout：新建标签页的起点水平对准「标签管理页」（标签页）按钮
-#     rectStart 仍是 BOTTOM_CENTER（底部贴边、底部圆角等逻辑不变），只把起点矩形水平挪到按钮中心。
+# 10) NewTabAnimationLayout：新建标签页的起点对准「标签管理页」（标签页）按钮
+#     rectStart 仍是 BOTTOM_CENTER（底部圆角等逻辑不变），起点矩形水平居中、底边对齐按钮。
 sed -i 's|^        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);$|        NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);\n\n        // Alice patch start 0029\n        // 新建标签页：起点水平对准「标签管理页」按钮（按钮不在时退回底部居中）\n        if (rectStart == RectStart.BOTTOM_CENTER) {\n            View aliceSwitcher = null;\n            if (BottomBarConfigUtils.isBottomBarEnabled(getContext())) {\n                View aliceBottomBar =\n                        mAnimationHostView.findViewById(\n                                org.chromium.chrome.browser.ui.bottombar.R.id\n                                        .bottom_bar_container);\n                if (aliceBottomBar != null) {\n                    aliceSwitcher = aliceBottomBar.findViewById(R.id.tab_switcher_button);\n                }\n            } else {\n                View aliceToolbar = mAnimationHostView.findViewById(R.id.toolbar);\n                if (aliceToolbar != null) {\n                    aliceSwitcher = aliceToolbar.findViewById(R.id.tab_switcher_button);\n                }\n            }\n            Rect aliceSwitcherRect = new Rect();\n            if (aliceSwitcher != null \&\& aliceSwitcher.getGlobalVisibleRect(aliceSwitcherRect)) {\n                initialRect.offset(aliceSwitcherRect.centerX() - initialRect.centerX(), 0);\n            }\n        }\n        // Alice patch end 0029|' "$path6"
+
+sed -i 's|initialRect.offset(aliceSwitcherRect.centerX() - initialRect.centerX(), 0);|initialRect.offset(\n                    aliceSwitcherRect.centerX() - initialRect.centerX(),\n                    aliceSwitcherRect.bottom - initialRect.bottom);|' "$path6"
 
 # 11) getForegroundRectStart：新建标签页 / 历史记录 / 开发者工具统一走「底部居中」起点
 #     第 8 步里的 devtools 特判和底部工具栏分支都被这段整体替换掉（那些分支最终都是左下角）。

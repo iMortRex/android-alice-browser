@@ -12,6 +12,8 @@ set -e
 
 # 目标文件路径
 path1="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedAppMenuPropertiesDelegate.java"
+path2="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/MoreToolsItemBuilder.java"
+path3="chrome/android/chrome_java_resources.gni"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0030' "$path1"; then
@@ -69,13 +71,11 @@ EOF
 fi
 
 # 10) 把图标注册进 chrome 的资源列表（插在 ic_dock_to_right 之前，保持字母序）
-path3="chrome/android/chrome_java_resources.gni"
 if ! grep -q 'ic_dev_tools_24dp\.xml' "$path3"; then
     sed -i 's|^  "java/res/drawable/ic_dock_to_right_24dp\.xml",$|  "java/res/drawable/ic_dev_tools_24dp.xml",\n&|' "$path3"
 fi
 
 # 11) MoreToolsItemBuilder：Dev tools 条目支持图标
-path2="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/MoreToolsItemBuilder.java"
 sed -i '/^    \/\*\* Builds the "Dev tools" menu item\. \*\/$/,$d' "$path2"
 cat >> "$path2" <<'EOF'
     /**

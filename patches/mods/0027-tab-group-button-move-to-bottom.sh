@@ -24,8 +24,8 @@ sed -i '/^    <LinearLayout$/{N;/\n      android:id="@+id\/hub_pane_host_contain
 <!-- Alice patch start 0027 -->
 }' "$path1"
 sed -i 's|^\( *\)android:layout_marginTop="@dimen/toolbar_height_no_shadow">$|\1android:layout_marginBottom="@dimen/toolbar_height_no_shadow">\n\1<!-- Alice patch end 0027 -->|' "$path1"
-# 2) 底部再插一份工具栏（整元素，marker 在元素外）
-sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/i\
+# 2) 把顶部工具栏替换为唯一的底部工具栏（整元素，marker 在元素外）
+sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/c\
 <!-- Alice patch start 0027 -->\
     <FrameLayout\
         android:layout_width="match_parent"\
@@ -33,8 +33,7 @@ sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/i\
         android:layout_gravity="bottom">\
       <include layout="@layout/hub_toolbar_layout" />\
     </FrameLayout>\
-<!-- Alice patch end 0027 -->\
-' "$path1"
+<!-- Alice patch end 0027 -->' "$path1"
 
 # --- hub_toolbar_layout.xml：按钮重排（结构搬动，标签内不能放注释，故不加 marker）---
 sed -i '\|^          app:tint="@color/default_icon_color_tint_list"/>$|a\

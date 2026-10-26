@@ -10,7 +10,7 @@ path3="chrome/android/java/src/org/chromium/chrome/browser/ui/RootUiCoordinator.
 path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
 path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeControllerImpl.java"
-path7="content/public/android/java/src/org/chromium/content/browser/input/ImeAdapterImpl.java"
+path9="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path10="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 
 # 检测是否已应用
@@ -40,6 +40,72 @@ sed -i '/^    void adjustViewPosition() {$/i\
                 insets.getInsets(WindowInsetsCompat.Type.tappableElement()).bottom;\
         return Math.max(\
                 navigationBarHeight, Math.max(mandatoryGestureHeight, tappableElementHeight));\
+    }\
+\
+    private int getAliceBottomToolbarHeight() {\
+        if (mAliceBottomToolbarHeight >= 0) {\
+            return mAliceBottomToolbarHeight;\
+        }\
+        if (mAliceToolbarControlContainer == null) {\
+            mAliceToolbarControlContainer =\
+                    findAliceToolbarControlContainer(mRootContentView);\
+        }\
+        if (mAliceToolbarControlContainer != null\
+                \&\& mAliceToolbarControlContainer.getVisibility() == View.VISIBLE\
+                \&\& mAliceToolbarControlContainer.getHeight() > 0) {\
+            mAliceBottomToolbarHeight = mAliceToolbarControlContainer.getHeight();\
+            return mAliceBottomToolbarHeight;\
+        }\
+        android.content.res.Resources resources = mRootContentView.getResources();\
+        String[] packages = {\
+            mRootContentView.getContext().getPackageName(), "org.chromium.chrome"\
+        };\
+        for (String resourcePackage : packages) {\
+            int toolbarHeightId =\
+                    resources.getIdentifier(\
+                            "toolbar_height_no_shadow", "dimen", resourcePackage);\
+            if (toolbarHeightId != 0) {\
+                mAliceBottomToolbarHeight =\
+                        resources.getDimensionPixelSize(toolbarHeightId);\
+                return mAliceBottomToolbarHeight;\
+            }\
+        }\
+        for (String resourcePackage : packages) {\
+            int controlContainerId =\
+                    resources.getIdentifier(\
+                            "control_container", "id", resourcePackage);\
+            if (controlContainerId == 0) continue;\
+            View controlContainer =\
+                    mRootContentView.findViewById(controlContainerId);\
+            if (controlContainer != null \&\& controlContainer.getHeight() > 0) {\
+                mAliceBottomToolbarHeight = controlContainer.getHeight();\
+                return mAliceBottomToolbarHeight;\
+            }\
+        }\
+        return 0;\
+    }\
+\
+    private @Nullable View findAliceToolbarControlContainer(View view) {\
+        if (view.getClass().getName().endsWith(".ToolbarControlContainer")) {\
+            return view;\
+        }\
+        if (!(view instanceof ViewGroup)) return null;\
+        ViewGroup group = (ViewGroup) view;\
+        for (int i = 0; i < group.getChildCount(); i++) {\
+            View result = findAliceToolbarControlContainer(group.getChildAt(i));\
+            if (result != null) return result;\
+        }\
+        return null;\
+    }\
+\
+    private int getAliceParentBottomInset() {\
+        mRootContentView.getLocationInWindow(mAliceRootPosition);\
+        mParent.getLocationInWindow(mAliceParentPosition);\
+        int rootBottom =\
+                mAliceRootPosition[1] + mRootContentView.getHeight();\
+        int parentBottom =\
+                mAliceParentPosition[1] + mParent.getHeight();\
+        return Math.max(0, rootBottom - parentBottom);\
     }\
     // Alice patch end 0034\
 ' "$path1"
@@ -257,6 +323,10 @@ sed -i '/^    private boolean mIsAnimating;$/a\
     private @Nullable InsetObserver mAliceInsetObserver;\
     private int mAliceImeAnimationHeight = -1;\
     private boolean mAliceImeAnimationInProgress;\
+    private final int[] mAliceRootPosition = new int[2];\
+    private final int[] mAliceParentPosition = new int[2];\
+    private @Nullable View mAliceToolbarControlContainer;\
+    private int mAliceBottomToolbarHeight = -1;\
     private final InsetObserver.WindowInsetsAnimationListener mAliceImeAnimationListener =\
             new InsetObserver.WindowInsetsAnimationListener() {\
                 @Override\
@@ -684,6 +754,44 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
 sed -i '/^        params.bottomMargin = aliceBottomMargin;$/a\
         // Alice patch end 0034' "$path2"
 
+# 撤销 Snackbar 与翻译气泡共用同一个静止底部基准；IME 可见时继续共用
+# InsetObserver 的动画高度，避免两者相对键盘的间隔不同。
+sed -i '/^        int aliceRestingBottomMargin =$/,/^                        + aliceNavigationBarHeight;$/c\
+        // Alice patch start 0034\
+        int aliceRestingBottomMargin =\
+                getAliceBottomToolbarHeight() + aliceNavigationBarHeight;\
+        // Alice patch end 0034' "$path1"
+
+sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRestingBottomMargin;$/c\
+        // Alice patch start 0034\
+        int aliceNormalSpacingAdjustment =\
+                Math.round(\
+                        15f\
+                                * mRootContentView\
+                                        .getResources()\
+                                        .getDisplayMetrics()\
+                                        .density);\
+        int aliceImeSpacingAdjustment =\
+                Math.round(\
+                        16f\
+                                * mRootContentView\
+                                        .getResources()\
+                                        .getDisplayMetrics()\
+                                        .density);\
+        int aliceRestingScreenBottomTarget =\
+                aliceRestingBottomMargin + aliceNormalSpacingAdjustment;\
+        int aliceImeScreenBottomTarget =\
+                aliceImeHeight + aliceImeSpacingAdjustment;\
+        int aliceScreenBottomTarget =\
+                aliceImeShowing\
+                        ? Math.max(\
+                                aliceRestingScreenBottomTarget,\
+                                aliceImeScreenBottomTarget)\
+                        : aliceRestingScreenBottomTarget;\
+        int aliceBottomMargin =\
+                Math.max(0, aliceScreenBottomTarget - getAliceParentBottomInset());\
+        // Alice patch end 0034' "$path1"
+
 # 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
 sed -i '/^        if (mKeyboardInsets != null && mKeyboardInsets\.bottom > bottomPadding) {$/,/^        }$/c\
@@ -692,42 +800,59 @@ sed -i '/^        if (mKeyboardInsets != null && mKeyboardInsets\.bottom > botto
         // to content padding a second time.\
         // Alice patch end 0034' "$path6"
 
-# 15) 软件键盘漏掉 onResizeScrollableViewport 时，焦点输入框不会滚入可视区。
-#     RESULT_SHOWN 后再做一次延迟滚动，触摸导致失焦时会由现有清空逻辑取消。
-sed -i '/^            containerView\.getWindowVisibleDisplayFrame(mFocusPreOSKViewportRect);$/a\
-            // Alice patch start 0034\
-            containerView.postDelayed(\
-                    () -> {\
-                        if (!isValid() || !ViewUtils.hasFocus(containerView)) return;\
-                        mWebContents.scrollFocusedEditableNodeIntoView();\
-                    },\
-                    300);\
-            // Alice patch end 0034' "$path7"
+# 15) visual viewport 的高度已经基于工具栏上方的 View 高度计算，IME inset
+#     因此重复扣除了工具栏高度。键盘可见时补偿回工具栏高度。
+sed -i '/^import org\.chromium\.build\.annotations\.Nullable;$/a\
+// Alice patch start 0034\
+import org.chromium.chrome.R;\
+// Alice patch end 0034' "$path9"
 
-# 16) 键盘可见时底部工具栏已被 IME 覆盖，不再从 WebContents 高度中扣除
-#     工具栏高度，否则 visual viewport 会在键盘上方提前结束一个工具栏高度。
-sed -i '/^        int verticalViewportInsets =$/,/^                                + mAliceNavigationBarInset;$/c\
+sed -i '/^                        : mCurrentInsetSupplier\.get()\.visualViewportBottomInset;$/a\
         // Alice patch start 0034\
-        boolean aliceKeyboardShowing =\
-                KeyboardVisibilityDelegate.getInstance().isKeyboardShowing(this);\
-        int aliceBottomToolbarHeight =\
-                aliceKeyboardShowing ? 0 : aliceToolbarHeight + aliceToolbarHairlineHeight;\
-        int verticalViewportInsets =\
-                aliceInFullscreen\
-                        ? controlsInsets + webContentsHeightInset\
-                        : aliceTopControlsInset\
-                                + aliceBottomToolbarHeight\
-                                + mAliceNavigationBarInset;\
-        // Alice patch end 0034' "$path10"
-sed -i '/^        \/\/ Notify the compositor layout that the size has changed\.  The layout does not drive$/i\
-        // Alice patch start 0034\
-        if (mApplicationBottomInsetSupplier != null\
-                && mVirtualKeyboardMode == VirtualKeyboardMode.RESIZES_VISUAL) {\
-            updateWebContentsSize(getCurrentTab());\
+        if (inset > 0) {\
+            int aliceToolbarHeight =\
+                    getContentView()\
+                            .getResources()\
+                            .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
+            int aliceToolbarHairlineHeight =\
+                    getContentView()\
+                            .getResources()\
+                            .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
+            int aliceToolbarInset = aliceToolbarHeight + aliceToolbarHairlineHeight;\
+            inset = Math.max(0, inset - Math.min(inset, aliceToolbarInset));\
         }\
-        // Alice patch end 0034' "$path10"
-sed -i '/^            } else if (mLastStableOutsetModeWebContentsHeight != null) {$/c\
-            // Alice patch start 0034\
-            } else if (mLastStableOutsetModeWebContentsHeight != null\
-                    && !aliceKeyboardShowing) {\
-            // Alice patch end 0034' "$path10"
+        // Alice patch end 0034' "$path9"
+
+# 16) 底部工具栏在 IME 动画期间会从 minibar 切回完整工具栏。
+#     WebContents 如果读取动态控件高度，会跟着 minibar 重新布局并短暂绘制到底部。
+#     地址栏位于底部时固定预留 toolbar_height_no_shadow + toolbar_hairline_height；
+#     导航栏仍由后续 inset 单独叠加。
+sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
+        // Alice patch start 0034\
+        int aliceTopControlsInset = 0;\
+        int aliceBottomControlsInset = 0;\
+        if (!aliceInFullscreen && mBrowserControlsManager != null) {\
+            aliceTopControlsInset =\
+                    mControlsResizeView\
+                            ? mBrowserControlsManager.getTopControlsHeight()\
+                            : mBrowserControlsManager.getTopControlsMinHeight();\
+            boolean aliceBottomToolbar =\
+                    mBrowserControlsManager.getControlsPosition()\
+                            == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
+            if (aliceBottomToolbar) {\
+                int aliceToolbarHeight =\
+                        getResources()\
+                                .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
+                int aliceToolbarHairlineHeight =\
+                        getResources()\
+                                .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
+                aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;\
+            } else if (!mBrowserControlsManager.hasHidingTokens()) {\
+                aliceBottomControlsInset =\
+                        mControlsResizeView\
+                                ? mBrowserControlsManager.getBottomControlsHeight()\
+                                : mBrowserControlsManager.getBottomControlsMinHeight();\
+            }\
+        }\
+        // Alice patch end 0034\
+' "$path10"

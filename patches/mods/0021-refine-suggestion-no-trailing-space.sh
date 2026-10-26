@@ -19,8 +19,8 @@ sed -i 's|^import org.chromium.chrome.browser.omnibox.R;$|// Alice patch start 0
 
 sed -i 's|^        if (isSearchSuggestion) refineText = TextUtils.concat(refineText, " ").toString();$|        // Alice patch start 0021\n        // Alice: no-refine-trailing-space -- 末尾是否补空格由 设置-外观 里的开关决定（默认补）。\n        if (isSearchSuggestion\n                \&\& ChromeSharedPreferences.getInstance()\n                        .readBoolean("alice_refine_trailing_space", true)) {\n            refineText = TextUtils.concat(refineText, " ").toString();\n        }\n        // Alice patch end 0021|' "$path1"
 
-# 2) 外观设置页加开关（标题/摘要直接写在 XML 里，不新建资源文件、不动资源列表）
-sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&\n\n    <!-- Alice patch start 0021 -->\n    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\n        android:key="alice_refine_trailing_space_switch"\n        android:order="3"\n        android:title="修改搜索查询时在末尾补空格"\n        android:summary="在地址栏建议里点“修改搜索查询”后，填入搜索框的内容末尾补一个空格" />\n    <!-- Alice patch end 0021 -->|' "$path2"
+# 2) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）
+sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&\n\n    <!-- Alice patch start 0021 -->\n    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\n        android:key="alice_refine_trailing_space_switch"\n        android:order="3"\n        android:title="Add a trailing space to refined search queries"\n        android:summary="Adds a trailing space after you choose to refine a search query" />\n    <!-- Alice patch end 0021 -->|' "$path2"
 
 # 3) fragment：读/写开关（默认开，与行为默认值一致）
 sed -i 's|^import org.chromium.chrome.browser.preferences.Pref;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\nimport org.chromium.chrome.browser.preferences.Pref;\n// Alice patch end 0021|' "$path3"
@@ -35,6 +35,13 @@ sed -i '/^    private void initUiThemePref() {$/i\
     private void initAliceRefinePref() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference) findPreference(PREF_ALICE_REFINE_TRAILING_SPACE);\
+        String language =\
+                getResources().getConfiguration().getLocales().get(0).getLanguage();\
+        if ("zh".equals(language)) {\
+            switchPref.setTitle("修改搜索查询时在末尾补空格");\
+            switchPref.setSummary(\
+                    "在地址栏建议里点“修改搜索查询”后，填入搜索框的内容末尾补一个空格");\
+        }\
         switchPref.setChecked(\
                 ChromeSharedPreferences.getInstance()\
                         .readBoolean("alice_refine_trailing_space", true));\

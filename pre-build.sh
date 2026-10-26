@@ -64,6 +64,7 @@ APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
 if [ -f "$APK" ]; then
     echo ""
     echo "=== 编译成功 ==="
+    echo $(date +"%Y-%m-%d %H:%M:%S")
     echo "APK: $APK"
     echo "安装:"
     echo "adb.exe install -r $SIGNED_APK"
