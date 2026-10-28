@@ -186,8 +186,6 @@ if (content::WebContents::HasLiveWebContentsForBrowserContext(profile)) { return
 sed -i 's/|| mSupportedProfileType == SupportedProfileType.REGULAR) {/|| mSupportedProfileType == SupportedProfileType.REGULAR || mSupportedProfileType == SupportedProfileType.MIXED) {/' chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 sed -i 's/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD) {/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD || mSupportedProfileType == SupportedProfileType.MIXED) {/' chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/alice-patch.sh"
-
 # 修正 gritdeps 里 alice 条目的位置
 echo "=== 修正 gritdeps ==="
 for GRITDEPS in \
@@ -201,5 +199,14 @@ for GRITDEPS in \
     sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
     echo "Fixed: $GRITDEPS"
 done
+
+git tag -d alice-state-01
+git add -A
+git commit -m "snapshot: alice-state-01"
+git tag alice-state-01
+git reset --mixed HEAD~1     # HEAD 退回原来的提交；工作区内容不变，改动回到未暂存状态
+echo "已生成快照：alice-state-01"
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/alice-patch.sh"
 
 export PATCHED=1

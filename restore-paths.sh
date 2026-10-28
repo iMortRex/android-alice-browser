@@ -44,7 +44,7 @@ usage() {
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
 
 dry_run="${DRY_RUN:-0}"
-git_ref="${2:-alice-state-01}"
+git_ref="${2:-alice-state-02}"
 
 # 仓库根：默认 $HOME/android-alice-browser，可用 GIT_ROOT 覆盖
 DEFAULT_GIT_ROOT="${HOME:?错误: 环境变量 HOME 未设置}/android-alice-browser/chromium/src"

@@ -14,6 +14,11 @@ sed -i '/^import android\.graphics\.PorterDuff;$/a\
 import android.graphics.Rect;\
 // Alice patch end 0040' "$path1"
 
+sed -i '/^import android\.util\.AttributeSet;$/a\
+// Alice patch start 0040\
+import android.view.View;\
+// Alice patch end 0040' "$path1"
+
 sed -i '/^import androidx\.core\.view\.ViewCompat;$/a\
 // Alice patch start 0040\
 import androidx.core.view.WindowInsetsCompat;\
@@ -52,7 +57,7 @@ sed -i '/^    private void updateImage() {$/i\
         if (!(view instanceof android.view.ViewGroup)) return null;\
         android.view.ViewGroup group = (android.view.ViewGroup) view;\
         for (int i = 0; i < group.getChildCount(); i++) {\
-            View result = findAliceToolbarView(group.getChildAt(i));\
+            @Nullable View result = findAliceToolbarView(group.getChildAt(i));\
             if (result != null) return result;\
         }\
         return null;\
@@ -63,7 +68,7 @@ sed -i '/^    private void updateImage() {$/i\
         if (mAliceToolbarView == null) {\
             mAliceToolbarView = findAliceToolbarView(root);\
         }\
-        View toolbar = mAliceToolbarView;\
+        @Nullable View toolbar = mAliceToolbarView;\
         if (toolbar == null || toolbar.getWidth() <= 0 || toolbar.getHeight() <= 0) {\
             return null;\
         }\
@@ -80,7 +85,7 @@ sed -i '/^    private void updateImage() {$/i\
                         Bitmap.Config.ARGB_8888);\
         Canvas bitmapCanvas = new Canvas(bitmap);\
         ViewUtils.captureBitmap(toolbar, bitmapCanvas);\
-        Bitmap oldBitmap = mAliceToolbarBitmap;\
+        @Nullable Bitmap oldBitmap = mAliceToolbarBitmap;\
         mAliceToolbarBitmap = bitmap;\
         mAliceToolbarWidth = toolbar.getWidth();\
         mAliceToolbarHeight = toolbar.getHeight();\
@@ -89,8 +94,8 @@ sed -i '/^    private void updateImage() {$/i\
     }\
 \
     private void drawAliceBrowserUi(Canvas canvas) {\
-        Bitmap toolbarBitmap = getAliceToolbarBitmap();\
-        View toolbar = mAliceToolbarView;\
+        @Nullable Bitmap toolbarBitmap = getAliceToolbarBitmap();\
+        @Nullable View toolbar = mAliceToolbarView;\
         if (toolbarBitmap == null || toolbar == null || getWidth() <= 0) return;\
 \
         int cardWidth = getWidth();\
@@ -100,7 +105,7 @@ sed -i '/^    private void updateImage() {$/i\
         toolbar.getLocationInWindow(mAliceLocation);\
         boolean toolbarOnBottom = mAliceLocation[1] > root.getHeight() / 2;\
 \
-        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root);\
+        @Nullable WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root);\
         int navigationHeight =\
                 insets == null\
                         ? 0\

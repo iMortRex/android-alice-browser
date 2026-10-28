@@ -1,7 +1,8 @@
 #!/bin/bash
 # 触摸工具栏时预先保存工具栏和导航栏区域，聚焦后再固定显示；弹出输入法
 # 时用 IME 动画每一帧的当前 inset 驱动搜索框，并让建议列表止于搜索框
-# 上沿。顶部地址栏的搜索页背景和遮罩保持全屏，不随输入法缩短。
+# 上沿。输入法活跃时工具栏背景继续延伸到系统导航栏。顶部地址栏的搜索页
+# 背景和遮罩保持全屏，不随输入法缩短。
 
 set -e
 
@@ -12,6 +13,12 @@ path3="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/om
 path4="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarCoordinator.java"
 path5="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsContainer.java"
 path6="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListViewBinder.java"
+path7="chrome/android/java/res/layout/search_activity.xml"
+path8="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java"
+path9="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPageCoordinator.java"
+path10="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdownEmbedder.java"
+path11="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/OmniboxSuggestionsDropdownEmbedderImpl.java"
+path12="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -19,6 +26,44 @@ if grep -q 'Alice patch start 0033' "$path1"; then
 fi
 
 # 1) 从根 InsetObserver 接收 IME 动画帧。
+sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/i\
+// Alice patch start 0033\
+import org.chromium.ui.insets.InsetObserver;\
+// Alice patch end 0033' "$path10"
+
+sed -i '/^    View getAnchorView();$/a\
+    // Alice patch start 0033\
+    default @Nullable InsetObserver getInsetObserver() {\
+        return null;\
+    }\
+\
+    default int getWindowHeight() {\
+        return 0;\
+    }\
+    // Alice patch end 0033' "$path10"
+
+sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
+// Alice patch start 0033\
+import org.chromium.ui.insets.InsetObserver;\
+// Alice patch end 0033' "$path11"
+
+sed -i '/^    public View getAnchorView() {$/,/^    }$/c\
+    public View getAnchorView() {\
+        return mAnchorView;\
+    }\
+\
+    // Alice patch start 0033\
+    @Override\
+    public @Nullable InsetObserver getInsetObserver() {\
+        return mWindowAndroid.getInsetObserver();\
+    }\
+\
+    @Override\
+    public int getWindowHeight() {\
+        return mWindowAndroid.getDisplay().getDisplayHeight();\
+    }\
+    // Alice patch end 0033' "$path11"
+
 sed -i '/^import android\.content\.SharedPreferences\.OnSharedPreferenceChangeListener;$/a\
 // Alice patch start 0033\
 import android.graphics.Bitmap;\
@@ -81,8 +126,13 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
         // Alice patch start 0033\
         mIsOmniboxFocusedObserver =\
                 (focused) -> {\
+                    if (focused \&\& mSearchToolbarSnapshotBitmap == null) {\
+                        captureSearchToolbarSnapshot();\
+                    }\
                     updateCurrentPosition();\
                     updateSearchToolbarSnapshot();\
+                    mControlContainer.getView().postOnAnimation(\
+                            ToolbarPositionController.this::updateSearchToolbarSnapshot);\
                 };\
         // Alice patch end 0033' "$path1"
 
@@ -217,12 +267,12 @@ sed -i '/^            int maxHeight = windowHeight - keyboardHeight - statusBarH
 
 sed -i '/^            int maxTranslation = -(windowHeight - layer\.getHeight() - statusBarHeight);$/c\
             // Alice patch start 0033\
-            // Use the animation frame inset as an absolute bottom position.\
+            // Use the current IME frame as the minimum absolute bottom offset.\
             // Alice patch end 0033' "$path1"
 
 sed -i '/^            layerYOffset = Math\.max(layerYOffset - keyboardHeight, maxTranslation);$/c\
             // Alice patch start 0033\
-            layerYOffset = -aliceBottomInset;\
+            layerYOffset = Math.min(layerYOffset, -aliceBottomInset);\
             // Alice patch end 0033' "$path1"
 
 # 5) 搜索页位于底部时，无论 normal 或 overlay 键盘模式都由上面的 inset
@@ -234,31 +284,12 @@ sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^   
         // Alice patch end 0033\
     }' "$path1"
 
-# 6) 底置工具栏底部不越过系统导航栏 inset。
+# 6) 无论是否聚焦、键盘是否可见，底置工具栏都不能进入系统导航栏区域。
 sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
-            android.view.WindowInsets aliceInsets =\
-                    mControlContainer.getView().getRootWindowInsets();\
-            if (aliceInsets != null) {\
-                WindowInsetsCompat aliceCompatInsets =\
-                        WindowInsetsCompat.toWindowInsetsCompat(\
-                                aliceInsets,\
-                                mControlContainer.getView().getRootView());\
-                int aliceNavigationHeight =\
-                        Math.max(\
-                                aliceCompatInsets\
-                                        .getInsets(\
-                                                WindowInsetsCompat.Type.navigationBars())\
-                                        .bottom,\
-                                aliceCompatInsets\
-                                        .getInsets(\
-                                                WindowInsetsCompat.Type\
-                                                        .mandatorySystemGestures())\
-                                        .bottom);\
-                layerYOffset = Math.min(layerYOffset, -aliceNavigationHeight);\
-            }\
+            layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
         // Alice patch end 0033\
 ' "$path1"
@@ -294,8 +325,12 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
 \
     private void updateNavigationBarBackground() {\
         View aliceControlContainer = mControlContainer.getView();\
-        if (!(aliceControlContainer instanceof ViewGroup)) return;\
+        if (!(aliceControlContainer instanceof ViewGroup)\
+                || !(aliceControlContainer.getParent() instanceof ViewGroup)) {\
+            return;\
+        }\
         ViewGroup aliceContainer = (ViewGroup) aliceControlContainer;\
+        ViewGroup aliceParent = (ViewGroup) aliceControlContainer.getParent();\
         CoordinatorLayout.LayoutParams aliceToolbarParams =\
                 mControlContainer.mutateToolbarLayoutParams();\
         int aliceToolbarTopMargin = 0;\
@@ -314,41 +349,54 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             aliceBackground.setFocusable(false);\
             aliceBackground.setImportantForAccessibility(\
                     View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
-            android.widget.FrameLayout.LayoutParams aliceParams =\
-                    new android.widget.FrameLayout.LayoutParams(\
+            CoordinatorLayout.LayoutParams aliceParams =\
+                    new CoordinatorLayout.LayoutParams(\
                             ViewGroup.LayoutParams.MATCH_PARENT,\
                             aliceNavigationBarHeight);\
             aliceParams.gravity = Gravity.BOTTOM;\
-            aliceContainer.addView(aliceBackground, 0, aliceParams);\
-            aliceContainer.setClipChildren(false);\
-            aliceContainer.setClipToPadding(false);\
+            int aliceIndex = aliceParent.indexOfChild(aliceControlContainer);\
+            if (aliceIndex < 0) aliceIndex = aliceParent.getChildCount();\
+            aliceParent.addView(aliceBackground, aliceIndex, aliceParams);\
+            aliceParent.setClipChildren(false);\
+            aliceParent.setClipToPadding(false);\
             mNavigationBarBackground = aliceBackground;\
         }\
 \
         View aliceBackground = mNavigationBarBackground;\
         assert aliceBackground != null;\
-        android.widget.FrameLayout.LayoutParams aliceParams =\
-                (android.widget.FrameLayout.LayoutParams) aliceBackground.getLayoutParams();\
+        CoordinatorLayout.LayoutParams aliceParams =\
+                (CoordinatorLayout.LayoutParams) aliceBackground.getLayoutParams();\
         if (aliceParams.height != aliceNavigationBarHeight) {\
             aliceParams.height = aliceNavigationBarHeight;\
             aliceBackground.setLayoutParams(aliceParams);\
         }\
-        aliceBackground.setTranslationY(aliceNavigationBarHeight);\
+        aliceBackground.setTranslationY(0);\
         aliceBackground.setBackgroundColor(mControlContainer.getToolbarBackgroundColor());\
-        boolean aliceSearchImeActive =\
-                mIsOmniboxFocusedSupplier.get()\
-                        \&\& (mIsImeAnimationRunning\
-                                || mKeyboardVisibilityDelegate.isKeyboardShowing(\
-                                        aliceControlContainer));\
         boolean aliceVisible =\
                 mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                        \&\& mLayerVisibility != LayerVisibility.HIDDEN\
-                        \&\& !aliceSearchImeActive\
-                        \&\& aliceNavigationBarHeight > 0;\
+                        \&\& aliceNavigationBarHeight > 0\
+                        \&\& (mLayerVisibility != LayerVisibility.HIDDEN\
+                                || mIsImeAnimationRunning\
+                                || mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                                        aliceControlContainer));\
         aliceBackground.setVisibility(aliceVisible ? View.VISIBLE : View.INVISIBLE);\
-        updateSearchToolbarSnapshot();\
+        if (!mIsOmniboxFocusedSupplier.get()) {\
+            captureSearchToolbarSnapshot();\
+        } else {\
+            updateSearchToolbarSnapshot();\
+        }\
     }\
 \
+    void requestSearchToolbarSnapshotCapture() {\
+        mControlContainer\
+                .getView()\
+                .postOnAnimation(\
+                        () -> {\
+                            if (!mIsOmniboxFocusedSupplier.get()) {\
+                                captureSearchToolbarSnapshot();\
+                            }\
+                        });\
+    }\
     private void captureSearchToolbarSnapshot() {\
         View aliceControlContainer = mControlContainer.getView();\
         if (mCurrentPosition.get() != ControlsPosition.BOTTOM\
@@ -409,6 +457,7 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                                 != aliceNavigationBarHeight\
                         || mSearchToolbarSnapshotColor != aliceColor;\
         if (aliceNeedsCapture) {\
+            aliceSnapshot.setVisibility(View.INVISIBLE);\
             Bitmap aliceBitmap =\
                     Bitmap.createBitmap(\
                             aliceWidth,\
@@ -430,8 +479,7 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             aliceSnapshot.setImageBitmap(aliceBitmap);\
         }\
         aliceSnapshot.setTranslationY(0);\
-        aliceSnapshot.setVisibility(\
-                mIsOmniboxFocusedSupplier.get() ? View.VISIBLE : View.INVISIBLE);\
+        aliceSnapshot.setVisibility(View.INVISIBLE);\
     }\
 \
     private void updateSearchToolbarSnapshot() {\
@@ -448,10 +496,23 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             return;\
         }\
 \
-        if (mSearchToolbarSnapshot != null) {\
-            mSearchToolbarSnapshot.setTranslationY(0);\
+        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
+        if (aliceSnapshot != null\
+                \&\& mSearchToolbarSnapshotBitmap != null\
+                \&\& aliceSnapshot.isAttachedToWindow()\
+                \&\& (aliceSnapshot.getWidth() <= 0\
+                        || aliceSnapshot.getHeight() <= 0)) {\
+            aliceSnapshot.postOnAnimation(\
+                    ToolbarPositionController.this::updateSearchToolbarSnapshot);\
+            return;\
+        }\
+        if (aliceSnapshot != null\
+                \&\& mSearchToolbarSnapshotBitmap != null\
+                \&\& aliceSnapshot.getWidth() > 0\
+                \&\& aliceSnapshot.getHeight() > 0) {\
+            aliceSnapshot.setTranslationY(0);\
             moveSearchToolbarSnapshotBelowScrim();\
-            mSearchToolbarSnapshot.setVisibility(View.VISIBLE);\
+            aliceSnapshot.setVisibility(View.VISIBLE);\
         }\
     }\
 \
@@ -783,27 +844,364 @@ sed -i '/^    private void updateBottomContainerPosition() {$/,/^    }$/c\
         // Alice patch end 0033\
     }' "$path4"
 
-# 10) 底置工具栏时，建议列表的实际测量高度止于搜索框上沿。保留原有
-#     动画位移，只在测量阶段限制边界。
-sed -i '/^import android\.content\.Context;$/a\
+sed -i '/^        mOmniboxAlignment = omniboxAlignment;$/a\
+        // Alice patch start 0033\
+        if (mEmbedder != null \&\& mEmbedder.isToolbarOnBottom()) {\
+            adjustHorizontalPosition();\
+            if (!isWidthDifference) return;\
+        }\
+        // Alice patch end 0033' "$path5"
+
+# 10) 底置工具栏时，推荐内容从搜索框上沿向上排列；内容超出窗口后再滚动。
+#     列表保持完整视口高度，底边逐帧贴住搜索框上沿；超出的顶部由父布局裁剪。
+sed -i '/^    void onUrlFocusAnimationChanged() {$/a\
+        // Alice patch start 0033\
+        if (mToolbarOnBottom) {\
+            mModel.set(NewTabPageLayoutProperties.TRANSITION_Y, 0f);\
+            return;\
+        }\
+        // Alice patch end 0033' "$path9"
+
+sed -i '/^    void setToolbarOnBottom(boolean toolbarOnBottom) {$/,/^    }$/c\
+    void setToolbarOnBottom(boolean toolbarOnBottom) {\
+        // Alice patch start 0033\
+        if (mToolbarOnBottom == toolbarOnBottom) return;\
+        mToolbarOnBottom = toolbarOnBottom;\
+        updateToolbarInsets();\
+        onUrlFocusAnimationChanged();\
+        // Alice patch end 0033\
+    }' "$path9"
+
+sed -i 's|^        app:layout_anchor="@id/toolbar"$|        android:layout_gravity="top"|' \
+    "$path7"
+
+sed -i '/^        mBrowserControlsStateProvider\.addObserver(this);$/i\
+        // Alice patch start 0033\
+        mNewTabPageCoordinator.setToolbarOnBottom(\
+                mBrowserControlsStateProvider.getControlsPosition()\
+                        == ControlsPosition.BOTTOM);\
+        // Alice patch end 0033' "$path12"
+
+sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
 // Alice patch start 0033\
-import android.graphics.Rect;\
+import androidx.core.view.WindowInsetsAnimationCompat;\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0033' "$path5"
+
+sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
+// Alice patch start 0033\
+import org.chromium.ui.insets.InsetObserver;\
 // Alice patch end 0033' "$path5"
 
 sed -i '/^    private final int\[\] mStickPosition = new int\[2\];$/a\
     // Alice patch start 0033\
-    private final Rect mSearchClipBounds = new Rect();\
-    private int mLastSearchDropdownHeight = -1;\
-    private int mLastSearchClipBottom = -1;\
-    private int mLastSearchTranslationY;\
+    private int mAliceBottomViewportHeight = -1;\
+    private boolean mAliceImeAnimationActive;\
+    private @Nullable InsetObserver mSuggestionsInsetObserver;\
+    private final InsetObserver.WindowInsetsAnimationListener mSuggestionsImeListener =\
+            new InsetObserver.WindowInsetsAnimationListener() {\
+                @Override\
+                public void onPrepare(WindowInsetsAnimationCompat animation) {\
+                    if (mEmbedder != null\
+                            \&\& mEmbedder.isToolbarOnBottom()\
+                            \&\& (animation.getTypeMask()\
+                                            \& WindowInsetsCompat.Type.ime())\
+                                    != 0) {\
+                        mAliceImeAnimationActive = true;\
+                        prepareAliceBottomAnchoredAnimation();\
+                    }\
+                }\
+\
+                @Override\
+                public void onStart(\
+                        WindowInsetsAnimationCompat animation,\
+                        WindowInsetsAnimationCompat.BoundsCompat bounds) {}\
+\
+                @Override\
+                public void onProgress(\
+                        WindowInsetsCompat insets,\
+                        java.util.List<WindowInsetsAnimationCompat> runningAnimations) {\
+                    if (mEmbedder != null \&\& mEmbedder.isToolbarOnBottom()) {\
+                        updateAliceImeViewport(insets);\
+                    }\
+                }\
+\
+                @Override\
+                public void onEnd(WindowInsetsAnimationCompat animation) {\
+                    if (mEmbedder != null\
+                            \&\& mEmbedder.isToolbarOnBottom()\
+                            \&\& (animation.getTypeMask()\
+                                            \& WindowInsetsCompat.Type.ime())\
+                                    != 0) {\
+                        mAliceImeAnimationActive = false;\
+                        postOnAnimation(\
+                                OmniboxSuggestionsContainer.this::stickToAnchor);\
+                    }\
+                }\
+            };\
     // Alice patch end 0033' "$path5"
+
+sed -i '/^    private boolean stickToAnchor() {$/i\
+    // Alice patch start 0033\
+    private int getAliceNavigationBarHeight() {\
+        android.view.WindowInsets aliceRootInsets = getRootWindowInsets();\
+        if (aliceRootInsets == null) return 0;\
+        WindowInsetsCompat aliceInsets =\
+                WindowInsetsCompat.toWindowInsetsCompat(aliceRootInsets, getRootView());\
+        return Math.max(\
+                aliceInsets\
+                        .getInsets(WindowInsetsCompat.Type.navigationBars())\
+                        .bottom,\
+                aliceInsets\
+                        .getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())\
+                        .bottom);\
+    }\
+\
+    private void updateAliceBottomAnchoredPosition(\
+            int aliceTargetTop, int aliceContainerTop) {\
+        int aliceWindowHeight = mEmbedder.getWindowHeight();\
+        if (aliceWindowHeight <= 0) aliceWindowHeight = getRootView().getHeight();\
+        int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
+        int aliceViewportHeight =\
+                Math.max(\
+                        0,\
+                        aliceWindowHeight\
+                                - getAliceNavigationBarHeight()\
+                                - aliceAnchorHeight\
+                                - aliceContainerTop);\
+        if (aliceViewportHeight <= 0) return;\
+        mAliceBottomViewportHeight = aliceViewportHeight;\
+        setAliceDropdownStackFromEnd(true);\
+        updateAliceDropdownViewportHeight(aliceViewportHeight);\
+        float aliceTranslationY =\
+                aliceTargetTop - (aliceContainerTop + aliceViewportHeight);\
+        if (mDropdown.getTranslationY() != aliceTranslationY) {\
+            mDropdown.setTranslationY(aliceTranslationY);\
+        }\
+    }\
+\
+    private void prepareAliceBottomAnchoredAnimation() {\
+        mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
+        int aliceTargetTop = mStickPosition[1];\
+        getLocationInWindow(mStickPosition);\
+        updateAliceBottomAnchoredPosition(\
+                aliceTargetTop, mStickPosition[1]);\
+    }\
+\
+    private void updateAliceSettledViewport(\
+            int aliceTargetTop, int aliceContainerTop) {\
+        int aliceViewportHeight = Math.max(0, aliceTargetTop - aliceContainerTop);\
+        if (aliceViewportHeight <= 0) return;\
+        mAliceBottomViewportHeight = aliceViewportHeight;\
+        setAliceDropdownStackFromEnd(true);\
+        updateAliceDropdownViewportHeight(aliceViewportHeight);\
+        if (mDropdown.getTranslationY() != 0) {\
+            mDropdown.setTranslationY(0);\
+        }\
+    }\
+\
+    private void updateAliceImeViewport(WindowInsetsCompat insets) {\
+        if (mDropdown.getVisibility() != View.VISIBLE) return;\
+        int aliceImeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;\
+        int aliceBottomInset =\
+                Math.max(aliceImeHeight, getAliceNavigationBarHeight());\
+        int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
+        int aliceWindowHeight = mEmbedder.getWindowHeight();\
+        if (aliceWindowHeight <= 0) aliceWindowHeight = getRootView().getHeight();\
+        getLocationInWindow(mStickPosition);\
+        int aliceContainerTop = mStickPosition[1];\
+        int aliceViewportHeight =\
+                Math.max(\
+                        0,\
+                        aliceWindowHeight\
+                                - aliceBottomInset\
+                                - aliceAnchorHeight\
+                                - aliceContainerTop);\
+        mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
+        int aliceCurrentAnchorTop = mStickPosition[1];\
+        aliceViewportHeight =\
+                Math.min(\
+                        aliceViewportHeight,\
+                        Math.max(0, aliceCurrentAnchorTop - aliceContainerTop));\
+        updateAliceBottomAnchoredPosition(\
+                aliceCurrentAnchorTop, aliceContainerTop);\
+        int aliceBaseBottomPadding = mDropdown.getBaseBottomPadding();\
+        if (mDropdown.getPaddingBottom() != aliceBaseBottomPadding) {\
+            mDropdown.setPaddingRelative(\
+                    mDropdown.getPaddingStart(),\
+                    mDropdown.getPaddingTop(),\
+                    mDropdown.getPaddingEnd(),\
+                    aliceBaseBottomPadding);\
+        }\
+    }\
+    // Alice patch end 0033\
+' "$path5"
+
+sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener);$/a\
+            // Alice patch start 0033\
+            if (mSuggestionsInsetObserver != null) {\
+                mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
+                        mSuggestionsImeListener);\
+            }\
+            mSuggestionsInsetObserver = mEmbedder.getInsetObserver();\
+            if (mSuggestionsInsetObserver != null) {\
+                mSuggestionsInsetObserver.addWindowInsetsAnimationListener(\
+                        mSuggestionsImeListener);\
+            }\
+            // Alice patch end 0033' "$path5"
+
+sed -i '/^            getViewTreeObserver().removeOnPreDrawListener(mStickListener);$/a\
+            // Alice patch start 0033\
+            mAliceBottomViewportHeight = -1;\
+            mAliceImeAnimationActive = false;\
+            setClipBounds(null);\
+            if (mSuggestionsInsetObserver != null) {\
+                mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
+                        mSuggestionsImeListener);\
+                mSuggestionsInsetObserver = null;\
+            }\
+            // Alice patch end 0033' "$path5"
+
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0033\
+        if (mSuggestionsInsetObserver != null) {\
+            mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
+                    mSuggestionsImeListener);\
+            mSuggestionsInsetObserver = null;\
+        }\
+        // Alice patch end 0033' "$path5"
+
+sed -i '/^        private @Nullable Callback<Integer> mScrollOffsetListener;$/a\
+        // Alice patch start 0033\
+        private boolean mAliceBottomAnchored;\
+\
+        void setAliceBottomAnchored(boolean bottomAnchored) {\
+            if (mAliceBottomAnchored == bottomAnchored) return;\
+            mAliceBottomAnchored = bottomAnchored;\
+            mIsScrolledToTop = !bottomAnchored;\
+        }\
+        // Alice patch end 0033' "$path8"
+
+sed -i '/^            if (OmniboxFeatures\.sResetSuggestionsScroll\.isEnabled()) {$/c\
+            // Alice patch start 0033\
+            if (OmniboxFeatures.sResetSuggestionsScroll.isEnabled()\
+                    \&\& !mAliceBottomAnchored) {\
+            // Alice patch end 0033' "$path8"
+
+sed -i '/^    private float mChildAlpha = 1.0f;$/a\
+    // Alice patch start 0033\
+    private boolean mAliceBottomAnchored;\
+    // Alice patch end 0033' "$path8"
+
+sed -i '/^    public void resetSelection() {$/,/^    }$/c\
+    public void resetSelection() {\
+        // Alice patch start 0033\
+        if (!mAliceBottomAnchored) {\
+            mLayoutScrollListener.scrollToPositionWithOffset(0, 0);\
+        }\
+        // Alice patch end 0033\
+        mSelectionController.reset();\
+    }' "$path8"
+
+sed -i '/^            if (!mIsScrolledToTop) return;$/c\
+            // Alice patch start 0033\
+            if (!mIsScrolledToTop || mAliceBottomAnchored) return;\
+            // Alice patch end 0033' "$path8"
+
+sed -i '/^                int resultingDeltaY, int requestedDeltaY) {$/a\
+            // Alice patch start 0033\
+            if (mAliceBottomAnchored) return resultingDeltaY;\
+            // Alice patch end 0033' "$path8"
+
+sed -i '/^    public void translateChildrenVertical(float translation) {$/,/^    }$/c\
+    public void translateChildrenVertical(float translation) {\
+        mChildVerticalTranslation = translation;\
+        final int childCount = getChildCount();\
+        for (int i = 0; i < childCount; i++) {\
+            getChildAt(i).setTranslationY(translation);\
+        }\
+        invalidateItemDecorations();\
+    }\
+\
+    // Alice patch start 0033\
+    void setAliceBottomAnchored(boolean bottomAnchored) {\
+        mAliceBottomAnchored = bottomAnchored;\
+        mLayoutScrollListener.setAliceBottomAnchored(bottomAnchored);\
+    }\
+    // Alice patch end 0033' "$path8"
 
 sed -i '/^    private boolean stickToAnchor() {$/,/^    }$/c\
     // Alice patch start 0033\
+    private void setAliceDropdownStackFromEnd(boolean stackFromEnd) {\
+        mDropdown.setAliceBottomAnchored(stackFromEnd);\
+        androidx.recyclerview.widget.RecyclerView.LayoutManager aliceLayoutManager =\
+                mDropdown.getLayoutManager();\
+        if (!(aliceLayoutManager\
+                instanceof androidx.recyclerview.widget.LinearLayoutManager)) {\
+            return;\
+        }\
+        androidx.recyclerview.widget.LinearLayoutManager aliceLinearLayoutManager =\
+                (androidx.recyclerview.widget.LinearLayoutManager)\
+                        aliceLayoutManager;\
+        if (aliceLinearLayoutManager.getStackFromEnd() != stackFromEnd) {\
+            aliceLinearLayoutManager.setStackFromEnd(stackFromEnd);\
+        }\
+    }\
+\
+    private boolean updateAliceDropdownViewportHeight(int height) {\
+        if (height <= 0) return false;\
+        ViewGroup.LayoutParams aliceDropdownParams = mDropdown.getLayoutParams();\
+        if (aliceDropdownParams.height == height\
+                \&\& mDropdown.getHeight() == height) {\
+            return false;\
+        }\
+        aliceDropdownParams.height = height;\
+        int aliceWidth = mDropdown.getWidth();\
+        if (aliceWidth > 0) {\
+            // Apply the size in this traversal instead of scheduling a second layout\
+            // that can draw a different viewport for one frame.\
+            mDropdown.forceLayout();\
+            mDropdown.measure(\
+                    MeasureSpec.makeMeasureSpec(aliceWidth, MeasureSpec.EXACTLY),\
+                    MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));\
+            mDropdown.layout(\
+                    mDropdown.getLeft(),\
+                    0,\
+                    mDropdown.getLeft() + aliceWidth,\
+                    height);\
+        }\
+        return true;\
+    }\
+\
     private boolean stickToAnchor() {\
         if (mDropdown == null) return true;\
-        setTranslationY(0);\
+        if (getTranslationY() != 0) setTranslationY(0);\
         if (mEmbedder == null || !mEmbedder.isToolbarOnBottom()) {\
+            setAliceDropdownStackFromEnd(false);\
+            mAliceBottomViewportHeight = -1;\
+            mAliceImeAnimationActive = false;\
+            int aliceTopSpacing =\
+                    getResources()\
+                            .getDimensionPixelSize(R.dimen.location_bar_vertical_margin);\
+            int aliceDesiredTopPadding =\
+                    mDropdown.getBaseTopPadding()\
+                            + mOmniboxAlignment.paddingTop\
+                            + aliceTopSpacing;\
+            if (mDropdown.getPaddingTop() != aliceDesiredTopPadding) {\
+                mDropdown.setPaddingRelative(\
+                        mDropdown.getPaddingStart(),\
+                        aliceDesiredTopPadding,\
+                        mDropdown.getPaddingEnd(),\
+                        mDropdown.getPaddingBottom());\
+            }\
+            int aliceDesiredBottomPadding = mDropdown.getBaseBottomPadding();\
+            if (mDropdown.getPaddingBottom() != aliceDesiredBottomPadding) {\
+                mDropdown.setPaddingRelative(\
+                        mDropdown.getPaddingStart(),\
+                        mDropdown.getPaddingTop(),\
+                        mDropdown.getPaddingEnd(),\
+                        aliceDesiredBottomPadding);\
+            }\
             ViewGroup.LayoutParams aliceDropdownParams = mDropdown.getLayoutParams();\
             int aliceDropdownHeight = ViewGroup.LayoutParams.WRAP_CONTENT;\
             if (mEmbedder != null \&\& mOmniboxAlignment.height > 0) {\
@@ -814,15 +1212,8 @@ sed -i '/^    private boolean stickToAnchor() {$/,/^    }$/c\
                 mDropdown.setLayoutParams(aliceDropdownParams);\
             }\
             setClipBounds(null);\
-            mLastSearchClipBottom = -1;\
-            mLastSearchTranslationY = 0;\
-            mDropdown.setTranslationY(0);\
+            if (mDropdown.getTranslationY() != 0) mDropdown.setTranslationY(0);\
             return true;\
-        }\
-        ViewGroup.LayoutParams aliceDropdownParams = mDropdown.getLayoutParams();\
-        if (aliceDropdownParams.height != ViewGroup.LayoutParams.WRAP_CONTENT) {\
-            aliceDropdownParams.height = ViewGroup.LayoutParams.WRAP_CONTENT;\
-            mDropdown.setLayoutParams(aliceDropdownParams);\
         }\
         if (mDropdown.getVisibility() != View.VISIBLE) return true;\
         int aliceTopPadding = 0;\
@@ -855,38 +1246,13 @@ sed -i '/^    private boolean stickToAnchor() {$/,/^    }$/c\
         int aliceTargetTop = mStickPosition[1];\
         getLocationInWindow(mStickPosition);\
         int aliceContainerTop = mStickPosition[1];\
-        int aliceClipBottom = Math.max(0, aliceTargetTop - aliceContainerTop);\
-        mSearchClipBounds.set(\
-                0,\
-                0,\
-                getWidth(),\
-                aliceClipBottom);\
-        setClipBounds(mSearchClipBounds);\
-        int aliceDropdownHeight = mDropdown.getHeight();\
-        if (aliceDropdownHeight > 0) {\
-            mLastSearchDropdownHeight = aliceDropdownHeight;\
+        if (aliceTargetTop <= aliceContainerTop || getWidth() <= 0) return true;\
+        if (mAliceImeAnimationActive) {\
+            updateAliceBottomAnchoredPosition(aliceTargetTop, aliceContainerTop);\
+        } else {\
+            updateAliceSettledViewport(aliceTargetTop, aliceContainerTop);\
         }\
-        int aliceTranslationY =\
-                mLastSearchDropdownHeight > 0\
-                        ? Math.max(\
-                                0,\
-                                aliceClipBottom - mLastSearchDropdownHeight)\
-                        : mLastSearchTranslationY;\
-        if (mLastSearchClipBottom >= 0) {\
-            if (aliceClipBottom > mLastSearchClipBottom) {\
-                aliceTranslationY =\
-                        Math.max(aliceTranslationY, mLastSearchTranslationY);\
-            } else if (aliceClipBottom < mLastSearchClipBottom) {\
-                aliceTranslationY =\
-                        Math.min(aliceTranslationY, mLastSearchTranslationY);\
-            } else {\
-                aliceTranslationY =\
-                        Math.max(aliceTranslationY, mLastSearchTranslationY);\
-            }\
-        }\
-        mLastSearchClipBottom = aliceClipBottom;\
-        mLastSearchTranslationY = aliceTranslationY;\
-        mDropdown.setTranslationY(aliceTranslationY);\
+        setClipBounds(null);\
         return true;\
     }\
     // Alice patch end 0033' "$path5"
@@ -931,17 +1297,78 @@ sed -i '/^        } else if (propertyKey == SuggestionListProperties\.ALPHA) {$/
         // Alice patch end 0033\
         } else if (propertyKey == SuggestionListProperties.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {' "$path6"
 
+sed -i '/^    private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {$/,/^    }$/c\
+    private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {\
+        @FuseboxLayoutMode int layoutMode = model.get(SuggestionListProperties.FUSEBOX_LAYOUT_MODE);\
+        @ColorInt\
+        int backgroundColor =\
+                getResourceProvider(model)\
+                        .getSuggestionBackgroundColor(layoutMode, /* isDropdownContainer= */ true);\
+        OmniboxSuggestionsDropdownEmbedder aliceEmbedder =\
+                model.get(SuggestionListProperties.EMBEDDER);\
+        boolean aliceBottomAnchored =\
+                aliceEmbedder != null \&\& aliceEmbedder.isToolbarOnBottom();\
+\
+        holder.dropdown.setBackgroundColor(backgroundColor);\
+\
+        if (aliceBottomAnchored\
+                || (model.get(SuggestionListProperties.IS_LARGE_SCREEN)\
+                        \&\& layoutMode != FuseboxLayoutMode.SUGGESTIONS_POPOVER)) {\
+            holder.container.setBackgroundColor(Color.TRANSPARENT);\
+        } else {\
+            holder.container.setBackgroundColor(backgroundColor);\
+        }\
+    }' "$path6"
+
+sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
+// Alice patch start 0033\
+import org.chromium.build.annotations.Nullable;\
+// Alice patch end 0033' "$path6"
+
+sed -i '/^            listItems\.addObserver($/,/^                    });$/c\
+            // Alice patch start 0033\
+            listItems.addObserver(\
+                    new ListObservable.ListObserver<>() {\
+                        @Override\
+                        public void onItemRangeInserted(\
+                                ListObservable source, int index, int count) {\
+                            view.dropdown.resetSelection();\
+                            updateContainerVisibility(model, view);\
+                        }\
+\
+                        @Override\
+                        public void onItemRangeRemoved(\
+                                ListObservable source, int index, int count) {\
+                            updateContainerVisibility(model, view);\
+                        }\
+\
+                        @Override\
+                        public void onItemRangeChanged(\
+                                ListObservable<Void> source,\
+                                int index,\
+                                int count,\
+                                @Nullable Void payload) {\
+                        }\
+                    });\
+            // Alice patch end 0033' "$path6"
+
 # 12) 全屏时隐藏 compositor 工具栏层，避免底置工具栏残留在视频画面上。
 sed -i 's@^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);$@                mIsXrFsm\n                        || mIsVerticalTabsHiddenDueToNarrow\n                        || mIsUrlBarFocusedForSceneLayer\n                        || mFullscreenManager.getPersistentFullscreenMode()\n                        || mInTabSwitcherTransition\n                        || (mLayoutStateProvider != null\n                                \&\& mLayoutStateProvider.getActiveLayoutType() == LayoutType.HUB));@' "$path2"
 
 sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
                         // Alice patch start 0033\
                         updateToolbarSceneLayerSuppression();\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
+                        }\
                         // Alice patch end 0033' "$path2"
 
 sed -i '/^        mToolbar\.setContentAttached(layoutType == LayoutType\.BROWSING);$/a\
         // Alice patch start 0033\
         updateToolbarSceneLayerSuppression();\
+        if (mToolbarPositionController != null) {\
+            mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
+        }\
         // Alice patch end 0033' "$path2"
 
 # 进入全屏后立即刷新场景层抑制状态。

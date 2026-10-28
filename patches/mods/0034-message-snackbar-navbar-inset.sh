@@ -10,6 +10,7 @@ path3="chrome/android/java/src/org/chromium/chrome/browser/ui/RootUiCoordinator.
 path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
 path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeControllerImpl.java"
+path7="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/EdgeToEdgeSystemBarColorHelper.java"
 path9="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path10="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 
@@ -281,8 +282,94 @@ sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
                         },\
                         // Alice patch end 0034' "$path3"
 
-# 6) 底置工具栏本来就在导航栏区域绘制相同背景。把系统导航栏也固定成
-#    该颜色，避免 IME 动画第一帧早于 inset 回调时露出系统黑色默认底。
+# 6) 底置工具栏使用工具栏主色绘制系统导航栏，包括 IME 弹出期间。IME
+#    动画开始和结束时重新应用颜色，避免导航栏停留在页面底色。
+sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
+// Alice patch start 0034\
+import androidx.core.view.WindowInsetsAnimationCompat;\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0034' "$path5"
+
+sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
+// Alice patch start 0034\
+import java.util.List;\
+// Alice patch end 0034' "$path5"
+
+sed -i '/^    private @Nullable Supplier<Integer> mToolbarColorSupplier;$/a\
+    // Alice patch start 0034\
+    private @Nullable InsetObserver mAliceInsetObserver;\
+    private final InsetObserver.WindowInsetsAnimationListener mAliceImeAnimationListener =\
+            new InsetObserver.WindowInsetsAnimationListener() {\
+                @Override\
+                public void onPrepare(WindowInsetsAnimationCompat animation) {\
+                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
+                        updateNavigationBarColor(\
+                                /* forceShowDivider= */ false,\
+                                /* disableAnimation= */ true);\
+                        mEdgeToEdgeSystemBarColorHelper\
+                                .refreshNavigationBarColorForIme();\
+                    }\
+                }\
+\
+                @Override\
+                public void onStart(\
+                        WindowInsetsAnimationCompat animation,\
+                        WindowInsetsAnimationCompat.BoundsCompat bounds) {}\
+\
+                @Override\
+                public void onProgress(\
+                        WindowInsetsCompat insets,\
+                        List<WindowInsetsAnimationCompat> runningAnimations) {\
+                    updateNavigationBarColor(\
+                            /* forceShowDivider= */ false,\
+                            /* disableAnimation= */ true);\
+                    mEdgeToEdgeSystemBarColorHelper\
+                            .refreshNavigationBarColorForIme();\
+                }\
+\
+                @Override\
+                public void onEnd(WindowInsetsAnimationCompat animation) {\
+                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
+                        mEdgeToEdgeSystemBarColorHelper\
+                                .refreshNavigationBarColorForIme();\
+                        if (mContext instanceof Activity) {\
+                            android.view.View aliceContent =\
+                                    ((Activity) mContext)\
+                                            .findViewById(android.R.id.content);\
+                            if (aliceContent != null) {\
+                                aliceContent.postOnAnimation(\
+                                        () ->\
+                                                updateNavigationBarColor(\
+                                                        /* forceShowDivider= */ false,\
+                                                        /* disableAnimation= */ true));\
+                                return;\
+                            }\
+                        }\
+                        updateNavigationBarColor(\
+                                /* forceShowDivider= */ false,\
+                                /* disableAnimation= */ true);\
+                    }\
+                }\
+            };\
+    // Alice patch end 0034' "$path5"
+
+sed -i '/^        mBrowserControlsStateProvider\.addObserver(this);$/a\
+        // Alice patch start 0034\
+        mAliceInsetObserver = insetObserver;\
+        if (mAliceInsetObserver != null) {\
+            mAliceInsetObserver.addWindowInsetsAnimationListener(\
+                    mAliceImeAnimationListener);\
+        }\
+        // Alice patch end 0034' "$path5"
+
+sed -i '/^            mBrowserControlsStateProvider\.removeObserver(this);$/a\
+        // Alice patch start 0034\
+        if (mAliceInsetObserver != null) {\
+            mAliceInsetObserver.removeWindowInsetsAnimationListener(\
+                    mAliceImeAnimationListener);\
+            mAliceInsetObserver = null;\
+        }\
+        // Alice patch end 0034' "$path5"
 sed -i '/^    private @ColorInt int getNavigationBarIconColor() {$/i\
     // Alice patch start 0034\
     private @ColorInt int getAliceEdgeNavigationBarColor() {\
@@ -309,6 +396,60 @@ sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, b
             return getAliceEdgeNavigationBarColor();\
         }\
         // Alice patch end 0034' "$path5"
+
+sed -i '/^import androidx\.annotation\.ColorInt;$/a\
+// Alice patch start 0034\
+import androidx.core.view.ViewCompat;\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0034' "$path7"
+
+sed -i '/^    private void updateNavBarColors() {$/i\
+    // Alice patch start 0034\
+    private boolean isAliceImeVisible() {\
+        @Nullable WindowInsetsCompat aliceInsets =\
+                ViewCompat.getRootWindowInsets(mWindow.getDecorView());\
+        return aliceInsets != null\
+                \&\& aliceInsets.isVisible(WindowInsetsCompat.Type.ime())\
+                \&\& aliceInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0;\
+    }\
+\
+    public void refreshNavigationBarColorForIme() {\
+        updateNavBarColors();\
+    }\
+    // Alice patch end 0034\
+' "$path7"
+
+sed -i '/^        int windowNavColor = mIsActivityEdgeToEdge ? Color\.TRANSPARENT : mNavBarColor;$/c\
+        // Alice patch start 0034\
+        boolean aliceImeVisible = isAliceImeVisible();\
+        int windowNavColor =\
+                aliceImeVisible\
+                        ? mNavBarColor\
+                        : mIsActivityEdgeToEdge ? Color.TRANSPARENT : mNavBarColor;\
+        // Alice patch end 0034' "$path7"
+sed -i '/^        int windowNavDividerColor = mIsActivityEdgeToEdge ? Color\.TRANSPARENT : mNavBarDividerColor;$/c\
+        // Alice patch start 0034\
+        int windowNavDividerColor =\
+                aliceImeVisible\
+                        ? mNavBarDividerColor\
+                        : mIsActivityEdgeToEdge\
+                                ? Color.TRANSPARENT\
+                                : mNavBarDividerColor;\
+        // Alice patch end 0034' "$path7"
+
+
+sed -i '/^        mWindowColorHelper.setNavigationBarContrastEnforced(!mIsActivityEdgeToEdge);$/a\
+        // Alice patch start 0034\
+        if (aliceImeVisible) {\
+            mWindow.clearFlags(\
+                    android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);\
+            mWindow.addFlags(\
+                    android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);\
+            mWindow.setNavigationBarColor(windowNavColor);\
+            mWindow.setNavigationBarDividerColor(windowNavDividerColor);\
+            mWindow.setNavigationBarContrastEnforced(false);\
+        }\
+        // Alice patch end 0034' "$path7"
 
 # 7) Snackbar 直接监听 InsetObserver 的 IME 动画，逐帧更新位置。
 #    根 View 的动画派发模式是 DISPATCH_MODE_STOP，子 View 回调收不到。
