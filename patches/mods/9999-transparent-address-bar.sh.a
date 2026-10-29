@@ -1,0 +1,47 @@
+#!/bin/bash
+# 隐藏整个浏览器工具栏的视觉层，但保留其视口占位
+
+set -e
+
+path1="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
+path2="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarControlContainer.java"
+path4="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 9999' "$path1"; then
+    exit 100
+fi
+
+# 1) 浏览器控件 Android View 始终不显示，但高度仍由原有逻辑保留。
+sed -i '/^    private boolean shouldShowAndroidControls() {$/,/^    }$/c\
+    // Alice patch start 9999\
+    private boolean shouldShowAndroidControls() {\
+        return false;\
+    }\
+    // Alice patch end 9999' "$path1"
+
+# 2) 从构造开始就隐藏工具栏，并阻止后续代码重新显示。
+sed -i '/^    public ToolbarControlContainer(Context context, AttributeSet attrs) {$/,/^    }$/c\
+    // Alice patch start 9999\
+    public ToolbarControlContainer(Context context, AttributeSet attrs) {\
+        super(context, attrs);\
+        super.setVisibility(View.GONE);\
+    }\
+    // Alice patch end 9999' "$path2"
+
+sed -i '/^    public void setVisibility(int visibility) {$/,/^    }$/c\
+    // Alice patch start 9999\
+    public void setVisibility(int visibility) {\
+        mMidVisibilityToggle = true;\
+        super.setVisibility(View.GONE);\
+        mMidVisibilityToggle = false;\
+    }\
+    // Alice patch end 9999' "$path2"
+
+# 3) 同时完全抑制 compositor 的工具栏场景层，但保留 BrowserControls 高度。
+sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/,/^    }$/c\
+    // Alice patch start 9999\
+    private void updateToolbarSceneLayerSuppression() {\
+        mSuppressToolbarSceneLayerSupplier.set(true);\
+    }\
+    // Alice patch end 9999' "$path4"

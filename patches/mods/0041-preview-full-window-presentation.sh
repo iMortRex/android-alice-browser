@@ -41,6 +41,40 @@ sed -i '/^        if (inset == mVisualViewportInsetBottomPx) return;$/i\
         // Alice patch end 0041\
 ' "$path4"
 
+# 0.0.1) Pair the navigation-bar viewport inset with the extra native height
+#         added in CompositorViewHolder below. This keeps the visible height stable
+#         while making the renderer/compositor clip at the same boundary.
+sed -i '/^    private void updateVisualViewportBottomInset() {$/i\
+    // Alice patch start 0041\
+    private int getNavigationBarInset() {\
+        ViewGroup contentView = getContentView();\
+        if (contentView == null) return 0;\
+        android.view.WindowInsets insets = contentView.getRootWindowInsets();\
+        if (insets == null) return 0;\
+        return androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(insets, contentView)\
+                .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\
+                .bottom;\
+    }\
+    // Alice patch end 0041\
+\
+' "$path4"
+
+sed -i '/^        \/\/ Alice patch end 0034$/a\
+        // Alice patch start 0041\
+        if (org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
+                .FullWindowPresentationState.isActive()) {\
+            inset = Math.max(inset, getNavigationBarInset());\
+        }\
+        // Alice patch end 0041' "$path4"
+
+sed -i '/^        int webContentsHeight = height - verticalViewportInsets;$/a\
+        // Alice patch start 0041\
+        if (org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
+                .FullWindowPresentationState.isActive()) {\
+            webContentsHeight += mAliceNavigationBarInset;\
+        }\
+        // Alice patch end 0041' "$path5"
+
 # 0.1) Keep the navigation-bar background owned by the toolbar visible while the
 #     full-window preview is covering the toolbar layer.
 sed -i '/^    float MAX_HEIGHT_RATIO = 1.0f;$/a\
