@@ -284,11 +284,12 @@ sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^   
         // Alice patch end 0033\
     }' "$path1"
 
-# 6) 无论是否聚焦、键盘是否可见，底置工具栏都不能进入系统导航栏区域。
+# 6) 底部 chin 已负责导航栏避让；只有 chin 实际可见时才补二次位置钳制。
 sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
-                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
+                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                \&\& mBottomControlsStacker.isLayerVisible(LayerType.BOTTOM_CHIN)) {\
             layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
         // Alice patch end 0033\

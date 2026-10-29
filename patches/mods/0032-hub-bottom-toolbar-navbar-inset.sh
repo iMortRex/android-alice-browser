@@ -32,6 +32,9 @@ path16="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/t
 path17="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarFocusScrimHandler.java"
 path18="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
 path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+path15="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
+path20="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
+path21="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0032' "$path1"; then
@@ -440,6 +443,14 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
 ' "$path6"
 
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
+
+sed -i '/^                    viewportRectf.round(viewportRect);$/a\
+        // Alice patch start 0032\
+        if (isTopToolbar) {\
+            viewportRect.top -= viewHolder.getTopControlsHeightPixels();\
+        }\
+        // Alice patch end 0032' "$path21"
+
 sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0032\
 import android.graphics.drawable.Drawable;\

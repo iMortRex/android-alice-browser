@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# ---------- 音效 ----------
+play_sound() {
+    pactl set-sink-volume @DEFAULT_SINK@ 200% 2>/dev/null || true
+    paplay "$1" 2>/dev/null || true
+    pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null || true
+}
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHROMIUM="$SCRIPT_DIR/chromium/src"
 
@@ -15,7 +22,10 @@ source "$SCRIPT_DIR/alice-patch.sh"
 
 # 增量编译
 echo "=== 增量编译 ==="
-autoninja -C out/Default chrome_public_apk
+if ! autoninja -C out/Default chrome_public_apk; then
+    play_sound "/mnt/c/Windows/Media/Windows Critical Stop.wav"
+    exit 1
+fi
 
 # ========== 签名 ==========
 echo "=== 签名 ==="
@@ -54,6 +64,4 @@ echo "adb.exe install -r "$APK""
 echo "正在安装"
 adb.exe install -r "$APK"
 echo "安装完成"
-pactl set-sink-volume @DEFAULT_SINK@ 200% 2>/dev/null
-paplay "/mnt/c/Windows/Media/Windows Unlock.wav"
-pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null
+play_sound "/mnt/c/Windows/Media/Windows Unlock.wav"

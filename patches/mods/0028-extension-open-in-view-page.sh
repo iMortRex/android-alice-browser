@@ -164,7 +164,7 @@ sed -i '\|^            boolean inspectWithDevTools) {$|a\
                 mHandler.post(popupContents::destroy);\
                 return;\
             }\
-            mActionState = new ActionState.Idle();\
+            closePopup();\
         }' "$path1"
 sed -i '\|^        ExtensionActionPopup popup =$|i\
 // Alice patch start 0028\
@@ -226,7 +226,7 @@ sed -i '\|^    private void closePopup() {$|i\
                 /* shouldHaveContextMenu= */ true,\
                 /* initiatorOrigin= */ null,\
                 /* additionalNavigationParams= */ null,\
-                /* requestDeniedCallback= */ () -> {});\
+                /* requestDeniedCallback= */ this::closePopup);\
     }\
 \
 // Alice patch end 0028' "$path1"
@@ -256,6 +256,34 @@ sed -i '\|^        if (mActionState instanceof ActionState\.PopupPending pending
         }\
 \
 // Alice patch end 0028' "$path1"
+
+sed -i '\|^    private void onPrimaryClick(String actionId) {$|a\
+// Alice patch start 0028\
+        if (mActionState instanceof ActionState.PreviewActive previewState) {\
+            boolean closeOnly = previewState.getActionId().equals(actionId);\
+            closePopup();\
+            if (closeOnly) {\
+                return;\
+            }\
+        }\
+// Alice patch end 0028' "$path1"
+
+# 扩展启用/禁用会重建动作列表，旧预览的临时按钮必须先撤销。
+sed -i '\|^    private class ToolbarObserver implements ExtensionsToolbarBridge.Observer {$|i\
+// Alice patch start 0028\
+    /** Alice: closes a preview before an action-list update can restore its temporary icon. */\
+    private void closePreviewForActionListChange() {\
+        if (mActionState instanceof ActionState.PreviewActive) {\
+            closePopup();\
+        }\
+    }\
+\
+// Alice patch end 0028' "$path1"
+
+sed -i '\|^    private class ToolbarObserver implements ExtensionsToolbarBridge.Observer {$|,/^    }$/ s|^            reconcileActionItems();$|            // Alice patch start 0028\
+            closePreviewForActionListChange();\
+            reconcileActionItems();\
+            // Alice patch end 0028|' "$path1"
 
 sed -i '\|^            return mActionState instanceof ActionState\.PopupActive;$|i\
 // Alice patch start 0028\
