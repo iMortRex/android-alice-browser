@@ -26,6 +26,7 @@ path16="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserCo
 path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
 path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
+
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
     exit 100
@@ -1635,7 +1636,9 @@ sed -i '/^    private void updateContentViewChildrenDimension() {$/i\
 \
 ' "$path14"
 
-sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslation, bottomMargin);$/{n;c\
+sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslation, bottomMargin);$/{
+n
+c\
             // Alice patch start 0033\
             if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
                 onViewportChanged();\
@@ -1643,5 +1646,5 @@ sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslatio
             } else {\
                 tryUpdateControlsAndWebContentsSizing();\
             }\
-            // Alice patch end 0033\
+            // Alice patch end 0033
 }' "$path14"
