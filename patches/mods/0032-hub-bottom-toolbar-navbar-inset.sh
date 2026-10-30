@@ -35,12 +35,14 @@ path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/Composito
 path15="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 path20="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
 path21="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
+path22="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
+path23="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
+path24="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGridDialogView.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0032' "$path1"; then
     exit 100
 fi
-
 
 # 1) 3 键导航也启用底部 edge-to-edge
 sed -i '/^    public static boolean isEdgeToEdgeBottomChinEnabled(Activity activity) {$/,/^    }$/c\
@@ -150,13 +152,13 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
     }\
 \
     private @ColorInt int getNavigationBarIconColor() {\
-        if (!isDrawingToEdge()) return getNavigationBarColor(mForceDarkNavigationBarColor);\
         if (mOverviewMode) {\
             Integer overviewColor = mOverviewColorSupplier.get();\
             return overviewColor != null\
                     ? overviewColor\
                     : SemanticColorUtils.getColorSurface(mContext);\
         }\
+        if (!isDrawingToEdge()) return getNavigationBarColor(mForceDarkNavigationBarColor);\
         if (isBottomToolbar() && mToolbarColorSupplier != null) {\
             int toolbarColor = mToolbarColorSupplier.get();\
             if (toolbarColor != 0) return toolbarColor;\
@@ -166,42 +168,6 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
     }\
     // Alice patch end 0032\
 ' "$path4"
-sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/,/^    }$/c\
-    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {\
-        // Alice patch start 0032\
-        if (!isDrawingToEdge()) {\
-            if (mOverviewMode && mOverviewColorSupplier.get() != null) {\
-                return mOverviewColorSupplier.get();\
-            }\
-            if (useBottomAttachedUiColor()) return mBottomAttachedUiColor;\
-            if (useActiveTabColor()) return mActiveTab.getBackgroundColor();\
-            return forceDarkNavigationBar\
-                    ? mContext.getColor(R.color.toolbar_background_primary_dark)\
-                    : SemanticColorUtils.getBottomSystemNavColor(mContext);\
-        }\
-        // Keep the system navigation bar fully transparent while drawing to edge.\
-        // The toolbar/chrome background behind it provides the visible color.\
-        return Color.TRANSPARENT;\
-        // Alice patch end 0032\
-    }' "$path4"
-sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {$/,/^    }$/c\
-    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {\
-        // Alice patch start 0032\
-        if (!isDrawingToEdge()) {\
-            if (mOverviewMode && mOverviewColorSupplier.get() != null) {\
-                return mOverviewColorSupplier.get();\
-            }\
-            if (!forceShowDivider && useBottomAttachedUiColor()) return mBottomAttachedUiColor;\
-            if (!forceShowDivider && useActiveTabColor()) return mActiveTab.getBackgroundColor();\
-            return forceDarkNavigationBar\
-                    ? mContext.getColor(R.color.bottom_system_nav_divider_color_light)\
-                    : SemanticColorUtils.getBottomSystemNavDividerColor(mContext);\
-        }\
-        // Keep the divider transparent as well while drawing to edge.\
-        return Color.TRANSPARENT;\
-        // Alice patch end 0032\
-    }' "$path4"
-
 # 3) 系统栏 helper
 sed -i '/^import org\.chromium\.ui\.insets\.InsetObserver;$/a\
 // Alice patch start 0032\
@@ -212,7 +178,7 @@ sed -i '/^                        edgeToEdgeSystemBarColorHelper);$/a\
         // Alice patch start 0032\
         mNavigationBarColorController.setToolbarColorSupplier(toolbarColorSupplier);\
         // Alice patch end 0032' "$path5"
-sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0032\n                        toolbarManager::getPrimaryColor,\n                        // Alice patch end 0032\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path6"
+sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0032\n                        toolbarManager::getToolbarBackgroundColorForNavigationBar,\n                        // Alice patch end 0032\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path6"
 sed -i '/^import android\.view\.WindowManager;$/a\
 \
 // Alice patch start 0032\
@@ -406,22 +372,108 @@ sed -i '/^import android\.graphics\.Color;$/a\
 // Alice patch start 0032\
 import android.graphics.drawable.ColorDrawable;\
 // Alice patch end 0032' "$path6"
+sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider\.ControlsPosition;$/a\
+// Alice patch start 0032\
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
+// Alice patch end 0032' "$path6"
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomOverscrollHandler;$/a\
 // Alice patch start 0032\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
 // Alice patch end 0032' "$path6"
+sed -i '/^    private @Nullable TabbedSystemUiCoordinator mSystemUiCoordinator;$/a\
+    // Alice patch start 0032\
+    private int mAliceTaskDescriptionNavColor = Integer.MIN_VALUE;\
+    // Alice patch end 0032' "$path6"
 sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
         // Alice patch start 0032\
         View aliceChinView = mActivity.findViewById(R.id.edge_to_edge_bottom_chin);\
         if (aliceChinView != null) {\
-            aliceChinView.getViewTreeObserver().addOnPreDrawListener(\
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
+                mActivity.getWindow().setNavigationBarContrastEnforced(false);\
+            }\
+            mActivity.getWindow().setNavigationBarColor(Color.TRANSPARENT);\
+            mAliceChinView = aliceChinView;\
+            mAliceChinColorListener =\
                     () -> {\
-                        int aliceColor = Color.TRANSPARENT;\
-                        if (mToolbarManager != null\
-                                && mBrowserControlsManager.getControlsPosition()\
-                                        == ControlsPosition.BOTTOM) {\
-                            aliceColor = mToolbarManager.getPrimaryColor();\
+                        if (mActivity == null\
+                                || mActivity.isDestroyed()\
+                                || !aliceChinView.isAttachedToWindow()) {\
+                            return true;\
                         }\
+                        int aliceColor = Color.TRANSPARENT;\
+                        int aliceWindowNavColorBefore =\
+                                mActivity.getWindow().getNavigationBarColor();\
+                        int aliceWindowDividerColorBefore =\
+                                mActivity.getWindow().getNavigationBarDividerColor();\
+                        boolean aliceContrastBefore = false;\
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
+                            aliceContrastBefore =\
+                                    mActivity.getWindow().isNavigationBarContrastEnforced();\
+                        }\
+                        bottomChinColorHelper.setNavigationBarColor(aliceColor);\
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
+                            mActivity.getWindow().setNavigationBarContrastEnforced(false);\
+                        }\
+                        if (mActivity.getWindow().getNavigationBarColor() != aliceColor) {\
+                            mActivity.getWindow().setNavigationBarColor(aliceColor);\
+                        }\
+                        if (mActivity.getWindow().getNavigationBarDividerColor()\
+                                != Color.TRANSPARENT) {\
+                            mActivity.getWindow().setNavigationBarDividerColor(Color.TRANSPARENT);\
+                        }\
+                        final var aliceEdgeController =\
+                                mEdgeToEdgeControllerSupplier.get();\
+                        boolean aliceDrawingToEdge =\
+                                aliceEdgeController != null\
+                                        && aliceEdgeController.isDrawingToEdge();\
+                        if (android.os.Build.VERSION.SDK_INT\
+                                >= android.os.Build.VERSION_CODES.TIRAMISU\
+                                \&\& mAliceTaskDescriptionNavColor != Color.TRANSPARENT) {\
+                            mAliceTaskDescriptionNavColor = Color.TRANSPARENT;\
+                            mActivity.setTaskDescription(\
+                                    new android.app.ActivityManager.TaskDescription.Builder()\
+                                            .setNavigationBarColor(Color.TRANSPARENT)\
+                                            .build());\
+                        }\
+                        // Alice patch start 9999\
+                        int aliceTraceViewColor =\
+                                aliceChinView.getBackground()\
+                                                instanceof android.graphics.drawable.ColorDrawable\
+                                        ? ((android.graphics.drawable.ColorDrawable)\
+                                                        aliceChinView.getBackground())\
+                                                .getColor()\
+                                        : 0;\
+                        boolean aliceContrastAfter = false;\
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
+                            aliceContrastAfter =\
+                                    mActivity.getWindow().isNavigationBarContrastEnforced();\
+                        }\
+                        int aliceToolbarColor =\
+                                mToolbarManager == null\
+                                        ? 0\
+                                        : mToolbarManager\
+                                                .getToolbarBackgroundColorForNavigationBar();\
+                        org.chromium.base.Log.i(\
+                                "AliceNav",\
+                                "windowNav before=%08x after=%08x"\
+                                        + " divider=%08x/%08x contrast=%b/%b"\
+                                        + " flags=%08x toolbar=%08x chin=%08x chinH=%d"\
+                                        + " edge=%b position=%d configuredTop=%b",\
+                                aliceWindowNavColorBefore,\
+                                mActivity.getWindow().getNavigationBarColor(),\
+                                aliceWindowDividerColorBefore,\
+                                mActivity.getWindow().getNavigationBarDividerColor(),\
+                                aliceContrastBefore,\
+                                aliceContrastAfter,\
+                                mActivity.getWindow().getAttributes().flags,\
+                                aliceToolbarColor,\
+                                aliceTraceViewColor,\
+                                aliceChinView.getHeight(),\
+                                aliceDrawingToEdge,\
+                                mBrowserControlsManager.getControlsPosition(),\
+                                org.chromium.chrome.browser.toolbar.settings.AddressBarPreference\
+                                        .isToolbarConfiguredToShowOnTop());\
+                        // Alice patch end 9999\
                         if (aliceColor == Color.TRANSPARENT) {\
                             if (aliceChinView.getBackground() != null) {\
                                 aliceChinView.setBackground(null);\
@@ -437,10 +489,87 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
                             }\
                         }\
                         return true;\
-                    });\
+                    };\
+            aliceChinView\
+                    .getViewTreeObserver()\
+                    .addOnPreDrawListener(mAliceChinColorListener);\
         }\
         // Alice patch end 0032\
 ' "$path6"
+
+sed -i '/^        mGestureNavLayoutObserver =$/,/^                };$/c\
+        // Alice patch start 0032\
+        mGestureNavLayoutObserver =\
+                new LayoutStateProvider.LayoutStateObserver() {\
+                    @Override\
+                    public void onStartedShowing(int layoutType) {\
+                        if (layoutType == LayoutType.HUB) {\
+                            assert mHistoryNavigationCoordinator != null;\
+                            mHistoryNavigationCoordinator.reset();\
+                            setActivityTitle(/* tab= */ null, /* isHub= */ true);\
+                        }\
+                    }\
+                };\
+        // Alice patch end 0032' "$path6"
+
+sed -i '/^public class TabbedRootUiCoordinator extends RootUiCoordinator {$/a\
+    // Alice patch start 0032\
+    private @Nullable View mAliceChinView;\
+    private android.view.ViewTreeObserver.@Nullable OnPreDrawListener mAliceChinColorListener;\
+    // Alice patch end 0032' "$path6"
+
+sed -i '/^    public void onDestroy() {$/a\
+        // Alice patch start 0032\
+        if (mAliceChinView != null \&\& mAliceChinColorListener != null) {\
+            android.view.ViewTreeObserver aliceObserver =\
+                    mAliceChinView.getViewTreeObserver();\
+            if (aliceObserver.isAlive()) {\
+                aliceObserver.removeOnPreDrawListener(mAliceChinColorListener);\
+            }\
+        }\
+        mAliceChinView = null;\
+        mAliceChinColorListener = null;\
+        // Alice patch end 0032' "$path6"
+
+# 9.1) TaskDescription 显式携带透明导航栏色，避免 MIUI 自动取色。
+sed -i '/^    protected void setDefaultTaskDescription() {$/,/^    }$/c\
+    protected void setDefaultTaskDescription() {\
+        // Alice patch start 0032\
+        int aliceDefaultTaskDescriptionColor =\
+                getColor(R.color.default_task_description_color);\
+        if (VERSION.SDK_INT >= VERSION_CODES.TIRAMISU) {\
+            setTaskDescription(\
+                    new TaskDescription.Builder()\
+                            .setPrimaryColor(aliceDefaultTaskDescriptionColor)\
+                            .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
+                            .build());\
+        } else {\
+            setTaskDescription(\
+                    new TaskDescription(null, null, aliceDefaultTaskDescriptionColor));\
+        }\
+        // Alice patch end 0032\
+    }' "$path22"
+
+sed -i 's|^        edgeToEdgeSystemBarColorHelper\.setNavigationBarColor(defaultNavigationBarColor);$|        // Alice patch start 0032\n        edgeToEdgeSystemBarColorHelper.setNavigationBarColor(android.graphics.Color.TRANSPARENT);\n        // Alice patch end 0032|' "$path22"
+
+sed -i '/^                mActivity\.setTaskDescription($/,/^                                \.build());$/c\
+                // Alice patch start 0032\
+                mActivity.setTaskDescription(\
+                        new ActivityManager.TaskDescription.Builder()\
+                                .setBackgroundColor(opaqueBgColor)\
+                                .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
+                                .build());\
+                // Alice patch end 0032' "$path23"
+
+sed -i '/^                activity\.setTaskDescription($/,/^                                \.build());$/c\
+                // Alice patch start 0032\
+                activity.setTaskDescription(\
+                        new ActivityManager.TaskDescription.Builder()\
+                                .setPrimaryColor(opaqueColor)\
+                                .setStatusBarColor(opaqueColor)\
+                                .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
+                                .build());\
+                // Alice patch end 0032' "$path23"
 
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
 
@@ -448,6 +577,12 @@ sed -i '/^                    viewportRectf.round(viewportRect);$/a\
         // Alice patch start 0032\
         if (isTopToolbar) {\
             viewportRect.top -= viewHolder.getTopControlsHeightPixels();\
+        } else {\
+            RectF aliceWindowViewportRectf = new RectF();\
+            Rect aliceWindowViewportRect = new Rect();\
+            viewHolder.getWindowViewport(aliceWindowViewportRectf);\
+            aliceWindowViewportRectf.round(aliceWindowViewportRect);\
+            viewportRect.bottom = aliceWindowViewportRect.bottom;\
         }\
         // Alice patch end 0032' "$path21"
 
@@ -495,32 +630,45 @@ sed -i '/^            @ColorInt$/,/^            mFakeBottomControlsView\.setBack
                 mFakeBottomControlsView.setBackgroundColor(onSurfaceColor);\
             }\
             // Alice patch end 0032' "$path15"
-# 11) 地址栏聚焦、搜索框展开时隐藏工具栏上方的分割条
+
+# Thumbnail providers can recycle their source bitmap after the callback returns. Keep a private
+# copy for the draw pass so Canvas never retains a bitmap whose native storage was freed.
+sed -i '/^            view.setImageBitmap(bitmap);$/c\
+            // Alice patch start 0032\
+            Bitmap aliceAnimationBitmap = null;\
+            if (bitmap != null) {\
+                try {\
+                    Bitmap.Config aliceConfig = bitmap.getConfig();\
+                    if (aliceConfig == null || aliceConfig == Bitmap.Config.HARDWARE) {\
+                        aliceConfig = Bitmap.Config.ARGB_8888;\
+                    }\
+                    aliceAnimationBitmap =\
+                            bitmap.copy(aliceConfig, false);\
+                } catch (RuntimeException e) {\
+                    aliceAnimationBitmap = null;\
+                }\
+            }\
+            view.setImageBitmap(aliceAnimationBitmap);\
+            // Alice patch end 0032' "$path15"
+
+# 11) Hub 进入动画期间保留下方工具栏的 hairline，动画结束后再隐藏
 sed -i '/^    protected boolean shouldDrawHairline() {$/,/^    }$/c\
     protected boolean shouldDrawHairline() {\
         // Alice patch start 0032\
         // TODO(twellington): Move this hairline state information to ToolbarDataProvider and show\
         // hairline when incognito NTP is scrolled.\
-        return !urlHasFocus()\
-                && super.shouldDrawHairline()\
-                && mTabSwitcherState == STATIC_TAB\
-                && !hideHairlineForIncognitoNtp()\
-                && !hideHairlineForInterstitial()\
-                && getVisibility() == View.VISIBLE;\
+        return super.shouldDrawHairline()\
+                \&\& (mTabSwitcherState == STATIC_TAB\
+                        || (mTabSwitcherState == ENTERING_TAB_SWITCHER\
+                                \&\& mBrowserControlsStateProvider != null\
+                                \&\& mBrowserControlsStateProvider.getControlsPosition()\
+                                        == ControlsPosition.BOTTOM))\
+                \&\& !hideHairlineForIncognitoNtp()\
+                \&\& !hideHairlineForInterstitial()\
+                \&\& getVisibility() == View.VISIBLE;\
         // Alice patch end 0032\
     }' "$path16"
-sed -i '/^            if (!hideHairlineForIncognitoNtp()$/,/^            }$/c\
-            // Alice patch start 0032\
-            if (!urlHasFocus()\
-                    && !hideHairlineForIncognitoNtp()\
-                    && !hideHairlineForInterstitial()\
-                    && !hideHairlineForRegularNtpTextureCapture()\
-                    && !isToolbarHairlineSuppressed()) {\
-                getToolbarHairline().setVisibility(VISIBLE);\
-            } else {\
-                getToolbarHairline().setVisibility(INVISIBLE);\
-            }\
-            // Alice patch end 0032' "$path16"
+
 sed -i '/^        updateLayoutParamsForMultiline();$/a\
         // Alice patch start 0032\
         if (mBrowserControlsStateProvider != null\
@@ -538,7 +686,6 @@ sed -i '/^        updateLayoutParamsForMultiline();$/a\
                 setLayoutParams(aliceToolbarParams);\
             }\
         }\
-        updateHairlineVisibility();\
         // Alice patch end 0032\
 ' "$path16"
 # 12) 地址栏聚焦遮罩逐帧跟随搜索栏底部
@@ -622,6 +769,19 @@ sed -i '/^    private boolean mIsXrFsm;$/a\
     // Alice patch start 0032\
     private boolean mIsUrlBarFocusedForSceneLayer;\
     // Alice patch end 0032' "$path18"
+
+sed -i '/^    public int getPrimaryColor() {$/,/^    }$/c\
+    public int getPrimaryColor() {\
+        return mLocationBarModel.getPrimaryColor();\
+    }\
+\
+    // Alice patch start 0032\
+    public int getToolbarBackgroundColorForNavigationBar() {\
+        if (mControlContainer == null) return getPrimaryColor();\
+        return mControlContainer.getToolbarBackgroundColor();\
+    }\
+    // Alice patch end 0032' "$path18"
+
 # 13) 地址栏聚焦时抑制 compositor 工具栏场景层，避免其在键盘后方残留
 sed -i '/^        mSuppressToolbarSceneLayerSupplier\.set(mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow);$/c\
         // Alice patch start 0032\
@@ -689,3 +849,29 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
                         + webContentsHeightInset\
                         + (aliceInFullscreen ? 0 : mAliceNavigationBarInset);\
         // Alice patch end 0032' "$path19"
+
+# 16) 标签组弹窗收回动画在下一帧重新读取网格卡片位置，避免使用布局变化前的坐标。
+sed -i 's|^        assumeNonNull(mParent)\.getGlobalVisibleRect(dialogParentRect);$|        // Alice patch start 0032\n        int[] aliceDialogLocation = new int[2];\n        getLocationInWindow(aliceDialogLocation);\n        dialogParentRect.offsetTo(aliceDialogLocation[0], aliceDialogLocation[1]);\n        // Alice patch end 0032|' "$path24"
+
+sed -i 's|^        rect\.offset(-dialogParentRect\.left, -dialogParentRect\.top);$|        // Alice patch start 0032\n        int[] aliceItemLocation = new int[2];\n        mItemView.getLocationInWindow(aliceItemLocation);\n        rect.offsetTo(\n                aliceItemLocation[0] - dialogParentRect.left,\n                aliceItemLocation[1] - dialogParentRect.top);\n        // Alice patch end 0032|' "$path24"
+
+sed -i 's|^        int clipTop = itemViewParentRect\.top - dialogParentRect\.top;$|        // Alice patch start 0032\n        int[] aliceItemParentLocation = new int[2];\n        ((View) mItemView.getParent()).getLocationInWindow(aliceItemParentLocation);\n        int clipTop = aliceItemParentLocation[1] - dialogParentRect.top;\n        // Alice patch end 0032|' "$path24"
+
+sed -i '/^        mHideDialogAnimation.start();$/c\
+        // Alice patch start 0032\
+        View aliceAnimationSource = mItemView;\
+        if (aliceAnimationSource != null \&\& aliceAnimationSource.isAttachedToWindow()) {\
+            aliceAnimationSource.postOnAnimation(\
+                    () -> {\
+                        if (getVisibility() != View.VISIBLE\
+                                || mCurrentDialogAnimator != mHideDialogAnimation) {\
+                            return;\
+                        }\
+                        setupDialogAnimation(aliceAnimationSource);\
+                        mCurrentDialogAnimator = mHideDialogAnimation;\
+                        mHideDialogAnimation.start();\
+                    });\
+        } else {\
+            mHideDialogAnimation.start();\
+        }\
+        // Alice patch end 0032' "$path24"

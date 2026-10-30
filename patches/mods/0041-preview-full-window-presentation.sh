@@ -41,40 +41,6 @@ sed -i '/^        if (inset == mVisualViewportInsetBottomPx) return;$/i\
         // Alice patch end 0041\
 ' "$path4"
 
-# 0.0.1) Pair the navigation-bar viewport inset with the extra native height
-#         added in CompositorViewHolder below. This keeps the visible height stable
-#         while making the renderer/compositor clip at the same boundary.
-sed -i '/^    private void updateVisualViewportBottomInset() {$/i\
-    // Alice patch start 0041\
-    private int getNavigationBarInset() {\
-        ViewGroup contentView = getContentView();\
-        if (contentView == null) return 0;\
-        android.view.WindowInsets insets = contentView.getRootWindowInsets();\
-        if (insets == null) return 0;\
-        return androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(insets, contentView)\
-                .getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())\
-                .bottom;\
-    }\
-    // Alice patch end 0041\
-\
-' "$path4"
-
-sed -i '/^        \/\/ Alice patch end 0034$/a\
-        // Alice patch start 0041\
-        if (org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
-                .FullWindowPresentationState.isActive()) {\
-            inset = Math.max(inset, getNavigationBarInset());\
-        }\
-        // Alice patch end 0041' "$path4"
-
-sed -i '/^        int webContentsHeight = height - verticalViewportInsets;$/a\
-        // Alice patch start 0041\
-        if (org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
-                .FullWindowPresentationState.isActive()) {\
-            webContentsHeight += mAliceNavigationBarInset;\
-        }\
-        // Alice patch end 0041' "$path5"
-
 # 0.1) Keep the navigation-bar background owned by the toolbar visible while the
 #     full-window preview is covering the toolbar layer.
 sed -i '/^    float MAX_HEIGHT_RATIO = 1.0f;$/a\
@@ -93,13 +59,119 @@ sed -i '/^    float MAX_HEIGHT_RATIO = 1.0f;$/a\
     // Alice patch end 0041\
 ' "$path1"
 
+sed -i '/^        if (aliceParams.height != aliceNavigationBarHeight) {$/,/^        }$/c\
+        // Alice patch start 0041\
+        if (aliceParams.height != aliceNavigationBarHeight) {\
+            aliceParams.height = aliceNavigationBarHeight;\
+            aliceBackground.setLayoutParams(aliceParams);\
+        }\
+        // Alice patch end 0041' "$path7"
+
+sed -i '/^    private @Nullable View mNavigationBarBackground;$/a\
+    // Alice patch start 0041\
+    private @Nullable View mAliceStartupNavigationBarCover;\
+    private boolean mAliceInitialPageReady;\
+    // Alice patch end 0041' "$path7"
+
+sed -i '/^    private int getNavigationBarHeight() {$/i\
+    // Alice patch start 0041\
+    private void updateAliceStartupNavigationBarCover(int navigationBarHeight, View anchor) {\
+        if (mAliceInitialPageReady || navigationBarHeight <= 0) {\
+            removeAliceStartupNavigationBarCover();\
+            return;\
+        }\
+        View aliceContent = anchor.getRootView().findViewById(android.R.id.content);\
+        if (!(aliceContent instanceof ViewGroup)) return;\
+        ViewGroup aliceContentGroup = (ViewGroup) aliceContent;\
+        View aliceCover = mAliceStartupNavigationBarCover;\
+        if (aliceCover == null || aliceCover.getParent() != aliceContentGroup) {\
+            removeAliceStartupNavigationBarCover();\
+            aliceCover = new View(aliceContentGroup.getContext());\
+            aliceCover.setClickable(false);\
+            aliceCover.setFocusable(false);\
+            aliceCover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
+            aliceContentGroup.addView(\
+                    aliceCover,\
+                    new android.widget.FrameLayout.LayoutParams(\
+                            ViewGroup.LayoutParams.MATCH_PARENT,\
+                            navigationBarHeight,\
+                            Gravity.BOTTOM));\
+            mAliceStartupNavigationBarCover = aliceCover;\
+        }\
+        ViewGroup.LayoutParams aliceCoverParams = aliceCover.getLayoutParams();\
+        if (aliceCoverParams.height != navigationBarHeight) {\
+            aliceCoverParams.height = navigationBarHeight;\
+            aliceCover.setLayoutParams(aliceCoverParams);\
+        }\
+        aliceCover.setBackgroundColor(mControlContainer.getToolbarBackgroundColor());\
+        aliceCover.setVisibility(View.VISIBLE);\
+        final View aliceCoverForPost = aliceCover;\
+        if (aliceContentGroup.getChildAt(aliceContentGroup.getChildCount() - 1)\
+                != aliceCoverForPost) {\
+            aliceCoverForPost.post(\
+                    () -> {\
+                        if (mAliceStartupNavigationBarCover == aliceCoverForPost\
+                                \&\& aliceCoverForPost.getParent() == aliceContentGroup\
+                                \&\& aliceContentGroup.getChildAt(\
+                                                aliceContentGroup.getChildCount() - 1)\
+                                        != aliceCoverForPost) {\
+                            aliceCoverForPost.bringToFront();\
+                        }\
+                    });\
+        }\
+    }\
+\
+    private void removeAliceStartupNavigationBarCover() {\
+        View aliceCover = mAliceStartupNavigationBarCover;\
+        if (aliceCover != null && aliceCover.getParent() instanceof ViewGroup) {\
+            ViewGroup aliceCoverParent = (ViewGroup) aliceCover.getParent();\
+            aliceCover.setVisibility(View.GONE);\
+            aliceCoverParent.post(\
+                    () -> {\
+                        if (aliceCover.getParent() == aliceCoverParent) {\
+                            aliceCoverParent.removeView(aliceCover);\
+                        }\
+                    });\
+        }\
+        mAliceStartupNavigationBarCover = null;\
+    }\
+    // Alice patch end 0041\
+\
+' "$path7"
+
+sed -i '/^        mNavigationBarBackground = null;$/a\
+        // Alice patch start 0041\
+        removeAliceStartupNavigationBarCover();\
+        // Alice patch end 0041' "$path7"
+
 sed -i '/^        boolean aliceVisible =$/,/^                                        aliceControlContainer));$/c\
         // Alice patch start 0041\
         boolean aliceFullWindowPreview =\
                 BottomSheetContent.FullWindowPresentationState.isActive();\
+        Tab aliceStartupTab = mActiveTabSupplier.get();\
+        boolean aliceInitialPageLoading =\
+                aliceStartupTab == null || aliceStartupTab.isLoading();\
+        if (aliceToolbarReady \&\& !aliceInitialPageLoading) {\
+            mAliceInitialPageReady = true;\
+        }\
+        if (aliceToolbarOnBottom \&\& !mAliceInitialPageReady) {\
+            updateAliceStartupNavigationBarCover(\
+                    aliceNavigationBarHeight, aliceControlContainer);\
+        } else {\
+            removeAliceStartupNavigationBarCover();\
+        }\
+        int[] aliceParentLocation = new int[2];\
+        int[] aliceRootLocation = new int[2];\
+        aliceParent.getLocationInWindow(aliceParentLocation);\
+        View aliceRoot = aliceParent.getRootView();\
+        aliceRoot.getLocationInWindow(aliceRootLocation);\
+        boolean aliceParentReachesWindowBottom =\
+                aliceParentLocation[1] + aliceParent.getHeight()\
+                        >= aliceRootLocation[1] + aliceRoot.getHeight();\
         boolean aliceVisible =\
-                mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                aliceToolbarOnBottom\
                         \&\& aliceNavigationBarHeight > 0\
+                        \&\& aliceParentReachesWindowBottom\
                         \&\& (aliceFullWindowPreview\
                                 || mLayerVisibility != LayerVisibility.HIDDEN\
                                 || mIsImeAnimationRunning\
@@ -109,11 +181,13 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
 
 sed -i '/^        aliceBackground.setVisibility(aliceVisible ? View.VISIBLE : View.INVISIBLE);$/a\
         // Alice patch start 0041\
-        Log.i(\
+        org.chromium.base.Log.i(\
                 "AliceNav",\
-                "toolbarLayer=%d navHeight=%d backgroundVisible=%b preview=%b",\
+                "toolbarLayer=%d navHeight=%d controlsH=%d"\
+                        + " backgroundVisible=%b preview=%b",\
                 mLayerVisibility,\
                 aliceNavigationBarHeight,\
+                aliceControlContainer.getHeight(),\
                 aliceVisible,\
                 aliceFullWindowPreview);\
         // Alice patch end 0041' "$path7"
@@ -130,6 +204,117 @@ sed -i '/^        int webContentsHeight = height - verticalViewportInsets;$/a\
                 mControlsResizeView,\
                 webContentsHeight);\
         // Alice patch end 0041' "$path5"
+
+sed -i '/^            boolean controlsResizeView =$/,/^                    BrowserControlsUtils\.controlsResizeView(mBrowserControlsManager);$/c\
+        // Alice patch start 0041\
+            boolean controlsResizeView =\
+                    org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
+                                    .FullWindowPresentationState.isActive()\
+                            || BrowserControlsUtils.controlsResizeView(mBrowserControlsManager);\
+        // Alice patch end 0041' "$path5"
+
+sed -i '/^            if (controlsResizeView != mControlsResizeView) {$/i\
+            // Alice patch start 0041\
+            org.chromium.base.Log.i(\
+                    "AliceNav",\
+                    "controlsResizeView=%b forcedByPreview=%b",\
+                    controlsResizeView,\
+                    org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
+                            .FullWindowPresentationState.isActive());\
+            // Alice patch end 0041\
+' "$path5"
+
+# 0.0.1) Log the real Android/Surface bounds. The JS viewport can stay stable
+#         while either the ContentView or its SurfaceControl still draws 48px
+#         too far down.
+sed -i '/^            webContents.setSize(webContentsWidth, webContentsHeight);$/a\
+            logAlicePreviewBounds(webContents, view, webContentsWidth, webContentsHeight);\
+            int aliceLoggedWidth = webContentsWidth;\
+            int aliceLoggedHeight = webContentsHeight;\
+            view.postOnAnimationDelayed(\
+                    () -> logAlicePreviewBounds(\
+                            webContents, view, aliceLoggedWidth, aliceLoggedHeight),\
+                    64);\
+' "$path5"
+
+sed -i '/^    private static boolean isAttachedToWindow(@Nullable View view) {$/i\
+    // Alice patch start 0041\
+    private void logAlicePreviewBounds(\
+            WebContents webContents, View contentView, int webContentsWidth, int webContentsHeight) {\
+        if (webContents.isDestroyed()) return;\
+        Rect contentVisibleRect = new Rect();\
+        boolean contentVisible = contentView.getGlobalVisibleRect(contentVisibleRect);\
+        int[] contentLocation = new int[2];\
+        contentView.getLocationInWindow(contentLocation);\
+\
+        View surfaceView = getActiveSurfaceView();\
+        Rect surfaceVisibleRect = new Rect();\
+        Rect surfaceFrame = new Rect();\
+        int[] surfaceLocation = new int[2];\
+        boolean surfaceVisible = false;\
+        int surfaceWidth = -1;\
+        int surfaceHeight = -1;\
+        if (surfaceView != null) {\
+            surfaceVisible = surfaceView.getGlobalVisibleRect(surfaceVisibleRect);\
+            surfaceView.getLocationInWindow(surfaceLocation);\
+            surfaceWidth = surfaceView.getWidth();\
+            surfaceHeight = surfaceView.getHeight();\
+            if (surfaceView instanceof android.view.SurfaceView) {\
+                surfaceFrame.set(\
+                        ((android.view.SurfaceView) surfaceView)\
+                                .getHolder()\
+                                .getSurfaceFrame());\
+            }\
+        }\
+\
+        int rendererViewportHeight =\
+                org.chromium.content_public.browser.RenderCoordinates\
+                        .fromWebContents(webContents)\
+                        .getLastFrameViewportHeightPixInt();\
+        int controlsHeight =\
+                mBrowserControlsManager != null\
+                        ? mBrowserControlsManager.getBottomControlsHeight()\
+                        : -1;\
+        int controlsMinHeight =\
+                mBrowserControlsManager != null\
+                        ? mBrowserControlsManager.getBottomControlsMinHeight()\
+                        : -1;\
+        int controlsOffset =\
+                mBrowserControlsManager != null\
+                        ? mBrowserControlsManager.getBottomControlOffset()\
+                        : -1;\
+        org.chromium.base.Log.i(\
+                "AliceNav",\
+                "bounds preview=%b web=%dx%d content=%dx%d loc=%d,%d visible=%b:%s"\
+                        + " compositor=%dx%d surface=%dx%d loc=%d,%d visible=%b:%s"\
+                        + " frame=%s rendererVP=%d controls=%d/%d offset=%d",\
+                org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
+                        .FullWindowPresentationState.isActive(),\
+                webContentsWidth,\
+                webContentsHeight,\
+                contentView.getWidth(),\
+                contentView.getHeight(),\
+                contentLocation[0],\
+                contentLocation[1],\
+                contentVisible,\
+                contentVisibleRect,\
+                mCompositorView.getWidth(),\
+                mCompositorView.getHeight(),\
+                surfaceWidth,\
+                surfaceHeight,\
+                surfaceLocation[0],\
+                surfaceLocation[1],\
+                surfaceVisible,\
+                surfaceVisibleRect,\
+                surfaceFrame,\
+                rendererViewportHeight,\
+                controlsHeight,\
+                controlsMinHeight,\
+                controlsOffset);\
+    }\
+    // Alice patch end 0041\
+\
+' "$path5"
 
 # 1) 为预览面板提供“全窗口展示”能力，默认不影响其他底部面板
 sed -i '/^    default boolean coversBottomControls() {$/i\
@@ -192,6 +377,7 @@ sed -i '/^                .with(ScrimProperties.AFFECTS_STATUS_BAR, true)$/a\
 sed -i '/^        mBottomSheet.showContent(nextContent);$/a\
         // Alice patch start 0041\
         if (nextContent != null \&\& nextContent.shouldUseFullWindowPresentation()) {\
+            BottomSheetContent.FullWindowPresentationState.setActive(true);\
             showScrimForCurrentContent(/* animate= */ false);\
         }\
         // Alice patch end 0041' "$path2"
@@ -202,8 +388,10 @@ sed -i '/^    private void onScrimVisibilityChanged(boolean visible) {$/i\
         ScrimManager scrimManager = assumeNonNull(mScrimManagerSupplier.get());\
         PropertyModel scrimProperties = assumeNonNull(mScrimProperties);\
         BottomSheetContent content = getCurrentSheetContent();\
-        BottomSheetContent.FullWindowPresentationState.setActive(\
-                content != null \&\& content.shouldUseFullWindowPresentation());\
+        if (content != null) {\
+            BottomSheetContent.FullWindowPresentationState.setActive(\
+                    content.shouldUseFullWindowPresentation());\
+        }\
         // Keep the navigation bar under the existing navigation-bar color/inset controller.\
         // Applying the scrim there changes its appearance during the preview transition and\
         // exposes the 48px strip that the page already reserves.\

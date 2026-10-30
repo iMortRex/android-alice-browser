@@ -19,6 +19,15 @@ path9="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPageCoordin
 path10="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdownEmbedder.java"
 path11="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/OmniboxSuggestionsDropdownEmbedderImpl.java"
 path12="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java"
+path13="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
+path14="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+path15="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerBase.java"
+path16="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
+path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
+path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
+path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
+path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path21="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarControlContainer.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -79,6 +88,11 @@ sed -i '/^import android\.view\.View;$/i\
 import android.view.MotionEvent;\
 // Alice patch end 0033' "$path1"
 
+sed -i '/^import android\.view\.View;$/a\
+// Alice patch start 0033\
+import android.view.ViewTreeObserver;\
+// Alice patch end 0033' "$path1"
+
 sed -i '/^import org\.chromium\.components\.embedder_support\.util\.UrlUtilities;$/i\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.TouchEventObserver;\
@@ -97,6 +111,8 @@ import java.util.List;\
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
+    private final ViewTreeObserver.OnPreDrawListener mNavigationBarColorListener;\
+    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;\
     private @Nullable ImageView mSearchToolbarSnapshot;\
     private @Nullable Bitmap mSearchToolbarSnapshotBitmap;\
     private int mSearchToolbarSnapshotWidth;\
@@ -192,6 +208,41 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
         }\
         // Alice patch end 0033' "$path1"
 
+sed -i '/^        mControlContainer = controlContainer;$/a\
+        // Alice patch start 0033\
+        mNavigationBarColorListener =\
+                () -> {\
+                    int aliceColor = mControlContainer.getToolbarBackgroundColor();\
+                    if (mNavigationBarBackground != null\
+                            \&\& mNavigationBarBackgroundColor != aliceColor) {\
+                        mNavigationBarBackgroundColor = aliceColor;\
+                        mNavigationBarBackground.setBackgroundColor(aliceColor);\
+                    }\
+                    return true;\
+                };\
+        // Alice patch end 0033\
+' "$path1"
+
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
+    // Alice patch start 0033\
+    public int getToolbarBackgroundColor() {\
+        return mToolbarBackground.getColor();\
+    }\
+    // Alice patch end 0033\
+\
+' "$path20"
+
+sed -i '/^    public int getToolbarBackgroundColor() {$/,/^    }$/c\
+    public int getToolbarBackgroundColor() {\
+        // Alice patch start 0033\
+        if (mToolbarView instanceof ToolbarPhone) {\
+            return ((ToolbarPhone) mToolbarView).getToolbarBackgroundColor();\
+        }\
+        // Alice patch end 0033\
+        if (mToolbar == null) return 0;\
+        return mToolbar.getPrimaryColor();\
+    }' "$path21"
+
 sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(this);$/a\
         // Alice patch start 0033\
         mControlContainer.addTouchEventObserver(mToolbarTouchObserver);\
@@ -214,6 +265,11 @@ sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgres
         }\
         if (mNavigationBarBackground != null\
                 \&\& mNavigationBarBackground.getParent() instanceof ViewGroup) {\
+            ViewTreeObserver aliceObserver =\
+                    mNavigationBarBackground.getViewTreeObserver();\
+            if (aliceObserver.isAlive()) {\
+                aliceObserver.removeOnPreDrawListener(mNavigationBarColorListener);\
+            }\
             ((ViewGroup) mNavigationBarBackground.getParent())\
                     .removeView(mNavigationBarBackground);\
         }\
@@ -284,7 +340,7 @@ sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^   
         // Alice patch end 0033\
     }' "$path1"
 
-# 6) 底置工具栏在输入法相关状态下不能进入系统导航栏区域。
+# 6) 底置工具栏内容在输入法或地址栏聚焦时避让系统导航栏高度。
 sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
@@ -318,6 +374,9 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
         if (aliceInsets == null) return 0;\
         WindowInsetsCompat aliceCompatInsets =\
                 WindowInsetsCompat.toWindowInsetsCompat(aliceInsets, aliceRoot);\
+        if (!aliceCompatInsets.isVisible(WindowInsetsCompat.Type.navigationBars())) {\
+            return 0;\
+        }\
         return Math.max(\
                 aliceCompatInsets\
                         .getInsets(WindowInsetsCompat.Type.navigationBars())\
@@ -337,8 +396,11 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
         ViewGroup aliceParent = (ViewGroup) aliceControlContainer.getParent();\
         CoordinatorLayout.LayoutParams aliceToolbarParams =\
                 mControlContainer.mutateToolbarLayoutParams();\
+        boolean aliceToolbarOnBottom =\
+                mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                        || !isToolbarConfiguredToShowOnTop();\
         int aliceToolbarTopMargin = 0;\
-        if (mCurrentPosition.get() == ControlsPosition.BOTTOM\
+        if (aliceToolbarOnBottom\
                 \&\& !mIsOmniboxFocusedSupplier.get()) {\
             aliceToolbarTopMargin = mHairlineHeight;\
         }\
@@ -353,6 +415,30 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             aliceBackground.setFocusable(false);\
             aliceBackground.setImportantForAccessibility(\
                     View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
+            aliceBackground.setOnApplyWindowInsetsListener(\
+                    (aliceInsetView, aliceWindowInsets) -> {\
+                        int aliceBottomInset =\
+                                Math.max(\
+                                        aliceWindowInsets\
+                                                .getInsets(\
+                                                        android.view.WindowInsets.Type\
+                                                                .navigationBars())\
+                                                .bottom,\
+                                        aliceWindowInsets\
+                                                .getInsets(\
+                                                        android.view.WindowInsets.Type\
+                                                                .mandatorySystemGestures())\
+                                                .bottom);\
+                        ViewGroup.LayoutParams aliceInsetParams =\
+                                aliceInsetView.getLayoutParams();\
+                        if (aliceBottomInset > 0\
+                                \&\& aliceInsetParams != null\
+                                \&\& aliceInsetParams.height != aliceBottomInset) {\
+                            aliceInsetView.post(\
+                                    ToolbarPositionController.this::updateNavigationBarBackground);\
+                        }\
+                        return aliceWindowInsets;\
+                    });\
             CoordinatorLayout.LayoutParams aliceParams =\
                     new CoordinatorLayout.LayoutParams(\
                             ViewGroup.LayoutParams.MATCH_PARENT,\
@@ -361,6 +447,9 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             int aliceIndex = aliceParent.indexOfChild(aliceControlContainer);\
             if (aliceIndex < 0) aliceIndex = aliceParent.getChildCount();\
             aliceParent.addView(aliceBackground, aliceIndex, aliceParams);\
+            aliceBackground\
+                    .getViewTreeObserver()\
+                    .addOnPreDrawListener(mNavigationBarColorListener);\
             aliceParent.setClipChildren(false);\
             aliceParent.setClipToPadding(false);\
             mNavigationBarBackground = aliceBackground;\
@@ -376,8 +465,12 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
         }\
         aliceBackground.setTranslationY(0);\
         aliceBackground.setBackgroundColor(mControlContainer.getToolbarBackgroundColor());\
+        View aliceVisibleToolbar =\
+                aliceControlContainer.findViewById(R.id.toolbar_container);\
+        boolean aliceToolbarReady =\
+                aliceVisibleToolbar != null \&\& aliceVisibleToolbar.getHeight() > 0;\
         boolean aliceVisible =\
-                mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                aliceToolbarOnBottom\
                         \&\& aliceNavigationBarHeight > 0\
                         \&\& (mLayerVisibility != LayerVisibility.HIDDEN\
                                 || mIsImeAnimationRunning\
@@ -527,19 +620,26 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             return;\
         }\
         ViewGroup aliceParent = (ViewGroup) aliceSnapshot.getParent();\
-        int aliceScrimIndex = -1;\
-        for (int i = 0; i < aliceParent.getChildCount(); i++) {\
-            View aliceChild = aliceParent.getChildAt(i);\
-            if ("ScrimView".equals(aliceChild.getClass().getSimpleName())) {\
-                aliceScrimIndex = i;\
-                break;\
-            }\
-        }\
-        int aliceSnapshotIndex = aliceParent.indexOfChild(aliceSnapshot);\
-        if (aliceScrimIndex < 0 || aliceSnapshotIndex < aliceScrimIndex) return;\
         ViewGroup.LayoutParams aliceParams = aliceSnapshot.getLayoutParams();\
-        aliceParent.removeView(aliceSnapshot);\
-        aliceParent.addView(aliceSnapshot, aliceScrimIndex, aliceParams);\
+        aliceParent.postOnAnimation(\
+                () -> {\
+                    if (mSearchToolbarSnapshot != aliceSnapshot\
+                            || aliceSnapshot.getParent() != aliceParent) {\
+                        return;\
+                    }\
+                    int aliceScrimIndex = -1;\
+                    for (int i = 0; i < aliceParent.getChildCount(); i++) {\
+                        View aliceChild = aliceParent.getChildAt(i);\
+                        if ("ScrimView".equals(aliceChild.getClass().getSimpleName())) {\
+                            aliceScrimIndex = i;\
+                            break;\
+                        }\
+                    }\
+                    int aliceSnapshotIndex = aliceParent.indexOfChild(aliceSnapshot);\
+                    if (aliceScrimIndex < 0 || aliceSnapshotIndex < aliceScrimIndex) return;\
+                    aliceParent.removeView(aliceSnapshot);\
+                    aliceParent.addView(aliceSnapshot, aliceScrimIndex, aliceParams);\
+                });\
     }\
 \
     private void releaseSearchToolbarSnapshot() {\
@@ -1357,6 +1457,123 @@ sed -i '/^            listItems\.addObserver($/,/^                    });$/c\
             // Alice patch end 0033' "$path6"
 
 # 12) 全屏时隐藏 compositor 工具栏层，避免底置工具栏残留在视频画面上。
+sed -i '/^public interface FullscreenManager {$/a\
+    // Alice patch start 0033\
+    final class FullscreenTransitionState {\
+        private static volatile boolean sAliceExitingFullscreen;\
+\
+        public static void setExitingFullscreen(boolean exiting) {\
+            sAliceExitingFullscreen = exiting;\
+        }\
+\
+        public static boolean isExitingFullscreen() {\
+            return sAliceExitingFullscreen;\
+        }\
+    }\
+    // Alice patch end 0033\
+\
+' "$path13"
+
+sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
+                    // Alice patch start 0033\
+                    FullscreenManager.FullscreenTransitionState\
+                            .setExitingFullscreen(false);\
+                    // Alice patch end 0033\
+' "$path15"
+sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
+        // Alice patch start 0033\
+        FullscreenManager.FullscreenTransitionState.setExitingFullscreen(true);\
+        // Alice patch end 0033\
+' "$path15"
+
+# 退出全屏时直接把 controls 设为 SHOWN，明确禁止 show 动画；否则 BOTH 会让
+# renderer 在退出后的第一帧补播一次工具栏显隐动画。
+sed -i '/^    private void resetExitFullscreenLayoutChangeListener(View contentView) {$/,/^    }$/s@^                            mTab, BrowserControlsState.SHOWN, true);$@                            // Alice patch start 0033\n                            mTab, BrowserControlsState.SHOWN, false);\n                            // Alice patch end 0033@' "$path15"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
+// Alice patch end 0033\
+' "$path17"
+sed -i '/^        int constraints = getConstraints();$/a\
+        // Alice patch start 0033\
+        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
+                \&\& current == BrowserControlsState.BOTH) {\
+            constraints = BrowserControlsState.BOTH;\
+        }\
+        // Alice patch end 0033\
+' "$path17"
+sed -i '/^    private void updateEnabledState() {$/,/^    }$/s@^        update(BrowserControlsState.BOTH, getConstraints() != BrowserControlsState.HIDDEN);$@        // Alice patch start 0033\n        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\n            update(BrowserControlsState.SHOWN, false);\n        } else {\n            update(\n                    BrowserControlsState.BOTH,\n                    getConstraints() != BrowserControlsState.HIDDEN);\n        }\n        // Alice patch end 0033@' "$path17"
+
+sed -i '/^        if (constraints == BrowserControlsState.SHOWN) {$/i\
+            // Alice patch start 0033\
+            if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
+                scheduleVisibilityUpdate();\
+                return;\
+            }\
+            if (constraints == BrowserControlsState.HIDDEN) {\
+                scheduleVisibilityUpdate();\
+            }\
+            // Alice patch end 0033' "$path16"
+
+# 全屏必须优先于 offsetOverridden；否则 controls 动画留下的 overridden 状态
+# 会让 Android 工具栏在全屏中仍然被判为可见。
+sed -i '/^        if (offsetOverridden()) return true;$/i\
+        // Alice patch start 0033\
+        if (getFullscreenManager() != null\
+                \&\& getFullscreenManager().getPersistentFullscreenMode()) {\
+            return false;\
+        }\
+        // Alice patch end 0033\
+' "$path16"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsVisibilityManager;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
+// Alice patch end 0033\
+' "$path18"
+
+sed -i '/^    private void updateVisibility() {$/a\
+        // Alice patch start 0033\
+        if (mBrowserControlsVisibilityManager.getControlsPosition()\
+                        == ControlsPosition.BOTTOM\
+                || !AddressBarPreference.isToolbarConfiguredToShowOnTop()) {\
+            mModel.set(TopToolbarOverlayProperties.VISIBLE, false);\
+            return;\
+        }\
+        // Alice patch end 0033\
+' "$path18"
+
+sed -i '/^    boolean shouldBeAttachedToTree() {$/a\
+        // Alice patch start 0033\
+        if (mBrowserControlsVisibilityManager.getControlsPosition()\
+                == ControlsPosition.BOTTOM) {\
+            return false;\
+        }\
+        // Alice patch end 0033\
+' "$path18"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.toolbar\.ToolbarProgressBar;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
+// Alice patch end 0033\
+' "$path19"
+
+# 底置工具栏首次创建时直接以隐藏状态初始化 compositor 工具栏，
+# 避免它先以默认 true 绘制一帧后才被 mediator 改回 false。
+sed -i '/^                        \.with(TopToolbarOverlayProperties\.VISIBLE, true)$/c\
+                        // Alice patch start 0033\
+                        .with(TopToolbarOverlayProperties.VISIBLE, false)\
+                        // Alice patch end 0033' "$path19"
+
+sed -i '/^    public boolean isSceneOverlayTreeShowing() {$/a\
+        // Alice patch start 0033\
+        if (!AddressBarPreference.isToolbarConfiguredToShowOnTop()) {\
+            return false;\
+        }\
+        // Alice patch end 0033\
+' "$path19"
+
 sed -i 's@^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);$@                mIsXrFsm\n                        || mIsVerticalTabsHiddenDueToNarrow\n                        || mIsUrlBarFocusedForSceneLayer\n                        || mFullscreenManager.getPersistentFullscreenMode()\n                        || mInTabSwitcherTransition\n                        || (mLayoutStateProvider != null\n                                \&\& mLayoutStateProvider.getActiveLayoutType() == LayoutType.HUB));@' "$path2"
 
 sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
@@ -1378,13 +1595,16 @@ sed -i '/^        mToolbar\.setContentAttached(layoutType == LayoutType\.BROWSIN
 # 进入全屏后立即刷新场景层抑制状态。
 sed -i '/^                                        false, mFullscreenHairlineToken);$/a\
                         // Alice patch start 0033\
+                        FullscreenManager.FullscreenTransitionState\
+                                .setExitingFullscreen(false);\
                         updateToolbarSceneLayerSuppression();\
                         // Alice patch end 0033' "$path2"
 
-# 退出全屏后先应用最新系统栏 inset 并重排底部控件，再恢复工具栏场景层。
-# 否则场景层会沿用全屏时的底部位置，直到旋转结束重新布局才避让导航栏。
+# 退出全屏后等 controls 动画结束，再应用最新 inset 并恢复工具栏场景层。
 sed -i '/^                                        true, mFullscreenHairlineToken);$/a\
                         // Alice patch start 0033\
+                        FullscreenManager.FullscreenTransitionState\
+                                .setExitingFullscreen(true);\
                         refreshToolbarAfterFullscreen();\
                         // Alice patch end 0033' "$path2"
 
@@ -1392,14 +1612,53 @@ sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
     // Alice patch start 0033\
     private void refreshToolbarAfterFullscreen() {\
         View aliceControlContainer = mControlContainer.getView();\
-        aliceControlContainer.postOnAnimation(\
-                () -> {\
-                    aliceControlContainer.requestApplyInsets();\
-                    aliceControlContainer.requestLayout();\
-                    mBottomControlsStacker.requestLayerUpdate(false);\
-                    aliceControlContainer.postOnAnimation(\
-                            ToolbarManager.this::updateToolbarSceneLayerSuppression);\
-                });\
+        Runnable aliceRefresh =\
+                new Runnable() {\
+                    @Override\
+                    public void run() {\
+                        if (!BrowserControlsUtils.areBrowserControlsIdle(\
+                                mBrowserControlsSizer)) {\
+                            aliceControlContainer.postOnAnimation(this);\
+                            return;\
+                        }\
+                        aliceControlContainer.postOnAnimation(\
+                                () -> {\
+                                    ToolbarManager.this\
+                                            .updateToolbarSceneLayerSuppression();\
+                                    mCompositorViewHolder\
+                                            .finishAliceFullscreenExit();\
+                                });\
+                    }\
+                };\
+        aliceControlContainer.postOnAnimation(aliceRefresh);\
     }\
     // Alice patch end 0033\
 ' "$path2"
+
+sed -i '/^    private void updateContentViewChildrenDimension() {$/i\
+    // Alice patch start 0033\
+    public void finishAliceFullscreenExit() {\
+        onViewportChanged();\
+        tryUpdateControlsAndWebContentsSizing();\
+        updateWebContentsSize(getCurrentTab());\
+        FullscreenManager.FullscreenTransitionState.setExitingFullscreen(false);\
+        requestRender();\
+        View aliceContentView = getContentView();\
+        if (aliceContentView != null) {\
+            aliceContentView.postInvalidateOnAnimation();\
+        }\
+    }\
+    // Alice patch end 0033\
+\
+' "$path14"
+
+sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslation, bottomMargin);$/{n;c\
+            // Alice patch start 0033\
+            if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
+                onViewportChanged();\
+                requestRender();\
+            } else {\
+                tryUpdateControlsAndWebContentsSizing();\
+            }\
+            // Alice patch end 0033\
+}' "$path14"

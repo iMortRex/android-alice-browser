@@ -35,6 +35,7 @@ fi
 
 # 增量编译
 echo "=== 增量编译 ==="
+sed -i 's|^chrome_public_manifest_package = .*|chrome_public_manifest_package = "io.github.imortrex.alice.browser"|' out/Default/args.gn
 if ! autoninja -C out/Default chrome_public_apk; then
     play_sound "/mnt/c/Windows/Media/Windows Critical Stop.wav"
     exit 1

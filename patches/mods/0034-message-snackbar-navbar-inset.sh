@@ -370,33 +370,6 @@ sed -i '/^            mBrowserControlsStateProvider\.removeObserver(this);$/a\
             mAliceInsetObserver = null;\
         }\
         // Alice patch end 0034' "$path5"
-sed -i '/^    private @ColorInt int getNavigationBarIconColor() {$/i\
-    // Alice patch start 0034\
-    private @ColorInt int getAliceEdgeNavigationBarColor() {\
-        if (mToolbarColorSupplier != null) {\
-            int toolbarColor = mToolbarColorSupplier.get();\
-            if (toolbarColor != 0) return toolbarColor;\
-        }\
-        if (mBottomAttachedUiColor != null) return mBottomAttachedUiColor;\
-        if (mActiveTab != null) return mActiveTab.getBackgroundColor();\
-        return SemanticColorUtils.getColorSurface(mContext);\
-    }\
-    // Alice patch end 0034\
-' "$path5"
-
-sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/a\
-        // Alice patch start 0034\
-        if (isDrawingToEdge() && isBottomToolbar()) {\
-            return getAliceEdgeNavigationBarColor();\
-        }\
-        // Alice patch end 0034' "$path5"
-sed -i '/^    int getNavigationBarDividerColor(boolean forceDarkNavigationBar, boolean forceShowDivider) {$/a\
-        // Alice patch start 0034\
-        if (isDrawingToEdge() && isBottomToolbar()) {\
-            return getAliceEdgeNavigationBarColor();\
-        }\
-        // Alice patch end 0034' "$path5"
-
 sed -i '/^import androidx\.annotation\.ColorInt;$/a\
 // Alice patch start 0034\
 import androidx.core.view.ViewCompat;\

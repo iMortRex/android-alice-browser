@@ -71,6 +71,7 @@ sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new 
             mAlicePendingThumbnailRequests = new HashMap<>();\
     private int mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
     private @Nullable Bitmap mAliceRecentCompositedThumbnail;\
+    private @Nullable Bitmap mAliceLastToolbarBitmap;\
     // Alice patch end 0040' "$path2"
 
 # 3) TabContentManager：捕获工具栏并合成到网页 Bitmap
@@ -93,6 +94,14 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
         } catch (OutOfMemoryError ex) {\
             return null;\
         }\
+    }\
+\
+    private void rememberAliceToolbarBitmap(Bitmap bitmap) {\
+        @Nullable Bitmap copy = copyAliceCompositedThumbnail(bitmap);\
+        if (copy == null) return;\
+        @Nullable Bitmap previous = mAliceLastToolbarBitmap;\
+        mAliceLastToolbarBitmap = copy;\
+        if (previous != null) previous.recycle();\
     }\
 \
     private void finishAliceCompositedThumbnail(Tab tab, @Nullable Bitmap bitmap) {\
@@ -120,16 +129,52 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
     }\
 \
     private @Nullable View findAliceToolbarView(View view) {\
-        if (view.getClass().getName().endsWith(".ToolbarControlContainer")) {\
-            return view;\
+        @Nullable View best = null;\
+        long bestArea = 0;\
+        if (view.getClass().getName().endsWith(".ToolbarControlContainer")\
+                \&\& view.isAttachedToWindow()\
+                \&\& view.isShown()\
+                \&\& view.getWidth() > 0\
+                \&\& view.getHeight() > 0) {\
+            best = view;\
+            bestArea = (long) view.getWidth() * view.getHeight();\
         }\
-        if (!(view instanceof ViewGroup)) return null;\
+        if (!(view instanceof ViewGroup)) return best;\
         ViewGroup group = (ViewGroup) view;\
         for (int i = 0; i < group.getChildCount(); i++) {\
             @Nullable View result = findAliceToolbarView(group.getChildAt(i));\
-            if (result != null) return result;\
+            if (result == null) continue;\
+            long area = (long) result.getWidth() * result.getHeight();\
+            if (area > bestArea) {\
+                best = result;\
+                bestArea = area;\
+            }\
         }\
-        return null;\
+        return best;\
+    }\
+\
+    private boolean isAliceToolbarBitmapUsable(Bitmap bitmap) {\
+        if (bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) return false;\
+        int firstColor = 0;\
+        boolean hasFirst = false;\
+        boolean hasVisible = false;\
+        boolean hasVariation = false;\
+        for (int y = 0; y < 3; y++) {\
+            int sampleY = Math.min(bitmap.getHeight() - 1, y * bitmap.getHeight() / 2);\
+            for (int x = 0; x < 5; x++) {\
+                int sampleX = Math.min(bitmap.getWidth() - 1, x * bitmap.getWidth() / 4);\
+                int color = bitmap.getPixel(sampleX, sampleY);\
+                if (android.graphics.Color.alpha(color) == 0) continue;\
+                hasVisible = true;\
+                if (!hasFirst) {\
+                    firstColor = color;\
+                    hasFirst = true;\
+                } else if (color != firstColor) {\
+                    hasVariation = true;\
+                }\
+            }\
+        }\
+        return hasVisible \&\& hasVariation;\
     }\
 \
     private void prepareAliceToolbarForCapture(View view, List<View> pressedViews) {\
@@ -157,7 +202,6 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
     }\
 \
     private @Nullable View getAliceToolbarView(Tab tab) {\
-        if (tab.isHidden()) return null;\
         Activity activity = ContextUtils.activityFromContext(mContext);\
         if (activity == null) return null;\
         return findAliceToolbarView(activity.getWindow().getDecorView());\
@@ -179,7 +223,9 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
             prepareAliceToolbarForCapture(toolbar, pressedViews);\
             try {\
                 ViewUtils.captureBitmap(toolbar, new Canvas(bitmap));\
-                return bitmap;\
+                if (isAliceToolbarBitmapUsable(bitmap)) return bitmap;\
+                bitmap.recycle();\
+                return null;\
             } finally {\
                 restoreAliceToolbarPressState(pressedViews);\
             }\
@@ -189,11 +235,19 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
     }\
 \
     private @Nullable Bitmap addAliceToolbarToThumbnail(\
-            Bitmap thumbnail, View toolbarView, Bitmap toolbarBitmap) {\
+            Bitmap thumbnail, @Nullable View toolbarView, Bitmap toolbarBitmap) {\
         try {\
             float scale = thumbnail.getWidth() / (float) toolbarBitmap.getWidth();\
             int navigationHeight = 0;\
-            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(toolbarView.getRootView());\
+            @Nullable Activity aliceActivity = ContextUtils.activityFromContext(mContext);\
+            @Nullable View aliceInsetRoot =\
+                    toolbarView != null\
+                            ? toolbarView.getRootView()\
+                            : aliceActivity == null\
+                                    ? null\
+                                    : aliceActivity.getWindow().getDecorView();\
+            WindowInsetsCompat insets =\
+                    aliceInsetRoot == null ? null : ViewCompat.getRootWindowInsets(aliceInsetRoot);\
             if (insets != null) {\
                 navigationHeight =\
                         Math.round(\
@@ -242,8 +296,20 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
             canvas.drawBitmap(toolbarBitmap, null, destination, paint);\
 \
             if (navigationHeight > 0) {\
-                int navigationColor =\
-                        toolbarBitmap.getPixel(0, Math.max(0, toolbarBitmap.getHeight() - 1));\
+                int navigationColor = 0;\
+                if (toolbarView != null\
+                        \&\& toolbarView.getBackground()\
+                                instanceof android.graphics.drawable.ColorDrawable) {\
+                    navigationColor =\
+                            ((android.graphics.drawable.ColorDrawable)\
+                                            toolbarView.getBackground())\
+                                    .getColor();\
+                }\
+                if (android.graphics.Color.alpha(navigationColor) == 0) {\
+                    navigationColor =\
+                            toolbarBitmap.getPixel(\
+                                    0, Math.max(0, toolbarBitmap.getHeight() - 1));\
+                }\
                 paint.setColor(navigationColor);\
                 canvas.drawRect(\
                         0,\
@@ -312,6 +378,10 @@ sed -i '/^    public void destroy() {$/,/^    }$/c\
         mAlicePendingThumbnailRequests.clear();\
         mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
         mAliceRecentCompositedThumbnail = null;\
+        if (mAliceLastToolbarBitmap != null) {\
+            mAliceLastToolbarBitmap.recycle();\
+            mAliceLastToolbarBitmap = null;\
+        }\
 \
         if (mNativeTabContentManager != 0) {\
             TabContentManagerJni.get().destroy(mNativeTabContentManager);\
@@ -329,7 +399,8 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
             }\
             @Nullable View toolbarView = getAliceToolbarView(tab);\
             @Nullable Bitmap toolbarBitmap = captureAliceToolbarBitmap(toolbarView);\
-            final boolean deferCache = toolbarBitmap != null;\
+            if (toolbarBitmap != null) rememberAliceToolbarBitmap(toolbarBitmap);\
+            final boolean deferCache = toolbarView != null || mAliceLastToolbarBitmap != null;\
             if (deferCache) {\
                 mAliceCompositingTabIds.add(tab.getId());\
             }\
@@ -338,10 +409,23 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                     (@Nullable Bitmap bitmap) -> {\
                         @Nullable Bitmap finalBitmap = bitmap;\
                         // Alice patch start 0040\
-                        if (bitmap != null \&\& toolbarView != null \&\& toolbarBitmap != null) {\
+                        Bitmap aliceToolbarForComposition = toolbarBitmap;\
+                        if (aliceToolbarForComposition == null \&\& toolbarView != null) {\
+                            aliceToolbarForComposition = captureAliceToolbarBitmap(toolbarView);\
+                            if (aliceToolbarForComposition != null) {\
+                                rememberAliceToolbarBitmap(aliceToolbarForComposition);\
+                            }\
+                        }\
+                        if (aliceToolbarForComposition == null\
+                                \&\& mAliceLastToolbarBitmap != null\
+                                \&\& !mAliceLastToolbarBitmap.isRecycled()) {\
+                            aliceToolbarForComposition =\
+                                    copyAliceCompositedThumbnail(mAliceLastToolbarBitmap);\
+                        }\
+                        if (bitmap != null \&\& aliceToolbarForComposition != null) {\
                             @Nullable Bitmap composited =\
                                     addAliceToolbarToThumbnail(\
-                                            bitmap, toolbarView, toolbarBitmap);\
+                                            bitmap, toolbarView, aliceToolbarForComposition);\
                             if (composited != null) {\
                                 bitmap.recycle();\
                                 finalBitmap = composited;\
@@ -356,7 +440,9 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                                             mThumbnailScale);\
                         }\
                         if (deferCache) finishAliceCompositedThumbnail(tab, finalBitmap);\
-                        if (toolbarBitmap != null) toolbarBitmap.recycle();\
+                        if (aliceToolbarForComposition != null) {\
+                            aliceToolbarForComposition.recycle();\
+                        }\
                         // Alice patch end 0040\
                         if (finalBitmap != null) {\
                             long durationMs = SystemClock.elapsedRealtime() - startTime;\

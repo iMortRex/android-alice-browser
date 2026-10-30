@@ -39,18 +39,18 @@ sed -i '$a\
 # Alice patch end 0007' "$path2"
 
 # 冷启动首次布局时，第二排且下方仍有标签的卡片可能暂时停在底部锚定位置。
-# 动画会在这轮布局中读取缩略图矩形，因此只修正该 RecyclerView 的第一次
-# 动画目标；之后不再按位置判断，避免用户滚动后的第二排卡片被重复修正。
+# 动画会在这轮布局中读取缩略图矩形，因此只修正当前浏览器进程中的第一次
+# 动画目标；之后不再按位置判断，避免 RecyclerView 重建后重复修正。
 path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
 sed -i '/^    private boolean mBlockTouchInput;$/a\
     // Alice patch start 0007\
-    private boolean mAliceInitialTabAnimationRectRead;\
+    private static boolean sAliceInitialTabAnimationRectRead;\
     // Alice patch end 0007' "$path3"
 
 sed -i '/^        if (v != null) v\.getGlobalVisibleRect(rect);$/a\
         // Alice patch start 0007\
-        boolean aliceInitialTabAnimationRect = !mAliceInitialTabAnimationRectRead;\
-        mAliceInitialTabAnimationRectRead = true;\
+        boolean aliceInitialTabAnimationRect = !sAliceInitialTabAnimationRectRead;\
+        sAliceInitialTabAnimationRectRead = true;\
         if (getLayoutManager() instanceof GridLayoutManager) {\
             GridLayoutManager aliceLayoutManager = (GridLayoutManager) getLayoutManager();\
             int aliceSpanCount = aliceLayoutManager.getSpanCount();\

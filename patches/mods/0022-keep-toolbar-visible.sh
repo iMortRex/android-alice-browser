@@ -21,5 +21,14 @@ sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/
         // Alice patch end 0022\
     }' "$path1"
 
-# B) 不再因为 hiddenRatio > 0 把 Android 工具栏设成 INVISIBLE
-sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0022\n        // 全屏时始终隐藏 Android 工具栏；其它情况保持 Android 工具栏可见。\n        if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\n            return false;\n        }\n        return true;\n        // Alice patch end 0022|' "$path2"
+# B) 全屏时隐藏 Android 工具栏。底置工具栏固定使用 Android view，
+#    顶部工具栏继续使用 Chrome 原有的 compositor/Android 二选一逻辑。
+sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0022\n        if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\n            return false;\n        }\n        if (getControlsPosition() == ControlsPosition.BOTTOM) return true;\n        return !BrowserControlsUtils.drawControlsAsTexture(this);\n        // Alice patch end 0022|' "$path2"
+
+# C) 切 Tab 时不再 transient show browser controls。这个调用会把 constraints
+#    推到 SHOWN，并由 native 启动约 200ms 的 controls 动画。
+sed -i '/^                mBrowserVisibilityDelegate.showControlsTransient();$/c\
+                // Alice patch start 0022\
+                // Tab switches must not force controls to SHOWN.\
+                // Alice patch end 0022
+' "$path2"
