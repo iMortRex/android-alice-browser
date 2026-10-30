@@ -26,9 +26,6 @@ path16="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserCo
 path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
 path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
-path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
-path21="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarControlContainer.java"
-
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
     exit 100
@@ -88,11 +85,6 @@ sed -i '/^import android\.view\.View;$/i\
 import android.view.MotionEvent;\
 // Alice patch end 0033' "$path1"
 
-sed -i '/^import android\.view\.View;$/a\
-// Alice patch start 0033\
-import android.view.ViewTreeObserver;\
-// Alice patch end 0033' "$path1"
-
 sed -i '/^import org\.chromium\.components\.embedder_support\.util\.UrlUtilities;$/i\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.TouchEventObserver;\
@@ -111,7 +103,6 @@ import java.util.List;\
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
-    private final ViewTreeObserver.OnPreDrawListener mNavigationBarColorListener;\
     private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;\
     private @Nullable ImageView mSearchToolbarSnapshot;\
     private @Nullable Bitmap mSearchToolbarSnapshotBitmap;\
@@ -137,6 +128,18 @@ sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
                 }\
             };\
     // Alice patch end 0033' "$path1"
+
+sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
+\
+    // Alice patch start 0033\
+    public void setNavigationBarBackgroundColor(int color) {\
+        mNavigationBarBackgroundColor = color;\
+        if (mNavigationBarBackground != null) {\
+            mNavigationBarBackground.setBackgroundColor(color);\
+        }\
+    }\
+    // Alice patch end 0033\
+' "$path1"
 
 sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
@@ -208,40 +211,23 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
         }\
         // Alice patch end 0033' "$path1"
 
-sed -i '/^        mControlContainer = controlContainer;$/a\
-        // Alice patch start 0033\
-        mNavigationBarColorListener =\
-                () -> {\
-                    int aliceColor = mControlContainer.getToolbarBackgroundColor();\
-                    if (mNavigationBarBackground != null\
-                            \&\& mNavigationBarBackgroundColor != aliceColor) {\
-                        mNavigationBarBackgroundColor = aliceColor;\
-                        mNavigationBarBackground.setBackgroundColor(aliceColor);\
+sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$|        // Alice patch start 0033\
+        mToolbar.setToolbarColorObserver(\
+                new TopToolbarCoordinator.ToolbarColorObserver() {\
+                    @Override\
+                    public void onToolbarColorChanged(int color) {\
+                        statusBarColorController.onToolbarColorChanged(color);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setNavigationBarBackgroundColor(color);\
+                        }\
                     }\
-                    return true;\
-                };\
-        // Alice patch end 0033\
-' "$path1"
-
-sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
-    // Alice patch start 0033\
-    public int getToolbarBackgroundColor() {\
-        return mToolbarBackground.getColor();\
-    }\
-    // Alice patch end 0033\
 \
-' "$path20"
-
-sed -i '/^    public int getToolbarBackgroundColor() {$/,/^    }$/c\
-    public int getToolbarBackgroundColor() {\
-        // Alice patch start 0033\
-        if (mToolbarView instanceof ToolbarPhone) {\
-            return ((ToolbarPhone) mToolbarView).getToolbarBackgroundColor();\
-        }\
-        // Alice patch end 0033\
-        if (mToolbar == null) return 0;\
-        return mToolbar.getPrimaryColor();\
-    }' "$path21"
+                    @Override\
+                    public void onToolbarExpandingOnNtp(boolean isToolbarExpanding) {\
+                        statusBarColorController.onToolbarExpandingOnNtp(isToolbarExpanding);\
+                    }\
+                });\
+        // Alice patch end 0033|' "$path2"
 
 sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(this);$/a\
         // Alice patch start 0033\
@@ -265,11 +251,6 @@ sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgres
         }\
         if (mNavigationBarBackground != null\
                 \&\& mNavigationBarBackground.getParent() instanceof ViewGroup) {\
-            ViewTreeObserver aliceObserver =\
-                    mNavigationBarBackground.getViewTreeObserver();\
-            if (aliceObserver.isAlive()) {\
-                aliceObserver.removeOnPreDrawListener(mNavigationBarColorListener);\
-            }\
             ((ViewGroup) mNavigationBarBackground.getParent())\
                     .removeView(mNavigationBarBackground);\
         }\
@@ -447,9 +428,6 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             int aliceIndex = aliceParent.indexOfChild(aliceControlContainer);\
             if (aliceIndex < 0) aliceIndex = aliceParent.getChildCount();\
             aliceParent.addView(aliceBackground, aliceIndex, aliceParams);\
-            aliceBackground\
-                    .getViewTreeObserver()\
-                    .addOnPreDrawListener(mNavigationBarColorListener);\
             aliceParent.setClipChildren(false);\
             aliceParent.setClipToPadding(false);\
             mNavigationBarBackground = aliceBackground;\
@@ -464,7 +442,12 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             aliceBackground.setLayoutParams(aliceParams);\
         }\
         aliceBackground.setTranslationY(0);\
-        aliceBackground.setBackgroundColor(mControlContainer.getToolbarBackgroundColor());\
+        int aliceBackgroundColor =\
+                mNavigationBarBackgroundColor != Integer.MIN_VALUE\
+                        ? mNavigationBarBackgroundColor\
+                        : mControlContainer.getToolbarBackgroundColor();\
+        mNavigationBarBackgroundColor = aliceBackgroundColor;\
+        aliceBackground.setBackgroundColor(aliceBackgroundColor);\
         View aliceVisibleToolbar =\
                 aliceControlContainer.findViewById(R.id.toolbar_container);\
         boolean aliceToolbarReady =\

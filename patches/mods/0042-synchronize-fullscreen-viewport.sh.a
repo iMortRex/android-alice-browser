@@ -1,161 +1,123 @@
 #!/bin/bash
-# 同步全屏切换中的底部控件、导航栏避让和渲染视口，避免工具栏先出现、
-# 网页随后才更新，导致底置工具栏上方的页面元素短暂停在旧位置。
+# 全屏切换时把系统栏、browser controls 和 WebContents 视口作为一次事务提交，
+# 避免进入/退出过程中页面按不同 insets 连续重排。
 
 set -e
 
 path1="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path2="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
-path3="chrome/browser/browser_controls/android/java/src/org/chromium/chrome/browser/browser_controls/BottomControlsStacker.java"
+path3="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
+path4="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerBase.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start 0043' "$path1"; then
+if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
 
-# 1) CompositorViewHolder 记录最近一次请求的 WebContents 高度，并在全屏切换后
-#    等待 Android controls、导航栏和渲染器实际视口都进入稳定状态。
-sed -i '/^import android\.os\.Handler;$/a\
-// Alice patch start 0043\
-import android.os.SystemClock;\
-// Alice patch end 0043' "$path1"
-
+# 1) 记录全屏切换事务状态。切换期间 WebContents 保持旧视口，等 Android
+#    controls 与系统栏都稳定后只提交一次最终尺寸。
 sed -i '/^    private int mAliceNavigationBarWidth;$/a\
-    // Alice patch start 0043\
+    // Alice patch start 0042\
+    private boolean mAliceLastPersistentFullscreen;\
+    private boolean mAliceFullscreenViewportTransitionPending;\
+    private boolean mAliceFullscreenViewportExiting;\
+    private boolean mAliceFullscreenViewportCommitted;\
+    private int mAliceFullscreenViewportLockedHeight;\
     private int mAliceLastRequestedWebContentsHeight;\
-    private @Nullable Runnable mAliceFullscreenViewportSyncCallback;\
-    private boolean mAliceFullscreenViewportSyncExiting;\
-    private int mAliceFullscreenViewportSyncStableFrames;\
-    private long mAliceFullscreenViewportSyncStartTimeMs;\
-    private final Runnable mAliceFullscreenViewportSyncRunnable =\
-            this::runAliceFullscreenViewportSync;\
-    // Alice patch end 0043' "$path1"
+    private int mAliceFullscreenViewportWaitFrames;\
+    private int mAliceFullscreenViewportStableFrames;\
+    private @Nullable Runnable mAliceFullscreenViewportFinishCallback;\
+    private final Runnable mAliceFullscreenViewportStep =\
+            this::runAliceFullscreenViewportStep;\
+    // Alice patch end 0042' "$path1"
 
-# 0034 的固定 toolbar inset 会在工具栏隐藏时仍给页面保留完整高度，导致网页
-# 底部的 fixed 元素不跟 controls offset 移动。IME 状态继续使用固定高度，普通
-# 全屏切换则使用当前可见的 bottom controls 高度。
-sed -i '/^            boolean aliceBottomToolbar =$/,/^                                : mBrowserControlsManager\.getBottomControlsMinHeight();$/c\
-            // Alice patch start 0043\
-            boolean aliceBottomToolbar =\
-                    mBrowserControlsManager.getControlsPosition()\
-                            == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
-            boolean aliceKeyboardShowing =\
-                    KeyboardVisibilityDelegate.getInstance().isKeyboardShowing(this);\
-            if (aliceBottomToolbar \&\& aliceKeyboardShowing) {\
-                int aliceToolbarHeight =\
-                        getResources()\
-                                .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
-                int aliceToolbarHairlineHeight =\
-                        getResources()\
-                                .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
-                aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;\
-            } else if (!mBrowserControlsManager.hasHidingTokens()) {\
-                aliceBottomControlsInset =\
-                        Math.max(\
-                                mBrowserControlsManager.getBottomControlsMinHeight(),\
-                                BrowserControlsUtils.getBottomContentOffset(\
-                                        mBrowserControlsManager));\
-            // Alice patch end 0043
-' "$path1"
+# navigationBars 的静止 inset 保留导航栏高度。事务通过节点可见性等待系统栏
+# 真正完成切换，再用它一次性提交最终视口。
+sed -i '/^            mAliceNavigationBarInset =$/,/^                    Math\.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);$/c\
+            // Alice patch start 0042\
+            mAliceNavigationBarInset =\
+                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\
+            // Alice patch end 0042' "$path1"
 
-# 0032 把导航栏 chin 从 bottom controls 高度中剥离，再单独加到网页 viewport。
-# 工具栏层仍由 BottomControlsStacker 使用包含 chin 的总高度，两个高度源因此会
-# 分帧更新。这里恢复为单一来源，让导航栏避让变化和 bottom controls 一起通知。
-sed -i '/^        int aliceChinHeight = 0;$/,/^        int aliceBottomControlsHeight = Math\.max(0, mTotalHeight - aliceChinHeight);$/c\
+sed -i '/^        boolean aliceInFullscreen =$/,/^                                \.getPersistentFullscreenMode();$/c\
         // Alice patch start 0042\
-        int aliceBottomControlsHeight = Math.max(0, mTotalHeight);\
-        // Alice patch end 0042
-' "$path3"
+        boolean aliceInFullscreen =\
+                mBrowserControlsManager != null\
+                        \&\& mBrowserControlsManager\
+                                .getFullscreenManager()\
+                                .getPersistentFullscreenMode();\
+        if (aliceInFullscreen != mAliceLastPersistentFullscreen) {\
+            startAliceFullscreenViewportTransition(!aliceInFullscreen);\
+        }\
+        // Alice patch end 0042' "$path1"
 
-# bottom controls 已经包含导航栏 chin，网页 viewport 不再手工重复叠加 navbar。
-sed -i '/^        int verticalViewportInsets =$/,/^                        + (aliceInFullscreen ? 0 : mAliceNavigationBarInset);$/c\
-        // Alice patch start 0042\
-        int verticalViewportInsets =\
-                aliceTopControlsInset + aliceBottomControlsInset + webContentsHeightInset;\
-        // Alice patch end 0042
-' "$path1"
-
+# 0033 在退出全屏期间跳过了 controls 约束，0034 又固定了底置工具栏高度，
+# 导致系统栏先回来、WebContents 仍停在旧尺寸。这里锁定旧视口，等两部分稳定。
 sed -i '/^        if (isAttachedToWindow(view)) {$/i\
-        // Alice patch start 0043\
-        mAliceLastRequestedWebContentsHeight = webContentsHeight;\
-        // Alice patch end 0043' "$path1"
-
-sed -i '/^    private static boolean isAttachedToWindow(@Nullable View view) {$/i\
-    // Alice patch start 0043\
-    /**\
-     * Applies the final fullscreen viewport and waits until the renderer has consumed it.\
-     * The callback runs after controls and navigation-bar insets are stable, so callers can\
-     * reveal the compositor toolbar in the same frame as the resized page.\
-     */\
-    public void synchronizeAfterFullscreenTransition(boolean exiting, Runnable onReady) {\
-        mAliceFullscreenViewportSyncCallback = onReady;\
-        mAliceFullscreenViewportSyncExiting = exiting;\
-        mAliceFullscreenViewportSyncStableFrames = 0;\
-        mAliceFullscreenViewportSyncStartTimeMs = SystemClock.uptimeMillis();\
-        removeCallbacks(mAliceFullscreenViewportSyncRunnable);\
-        postOnAnimation(mAliceFullscreenViewportSyncRunnable);\
-        postDelayed(mAliceFullscreenViewportSyncRunnable, 1000);\
-    }\
-\
-    private void runAliceFullscreenViewportSync() {\
-        Runnable callback = mAliceFullscreenViewportSyncCallback;\
-        if (callback == null || mBrowserControlsManager == null) return;\
-\
-        boolean timedOut =\
-                SystemClock.uptimeMillis() - mAliceFullscreenViewportSyncStartTimeMs >= 1000;\
-        if (!timedOut && !isAliceFullscreenViewportReady()) {\
-            mAliceFullscreenViewportSyncStableFrames = 0;\
-            postOnAnimation(mAliceFullscreenViewportSyncRunnable);\
-            return;\
-        }\
-\
-        Tab tab = getCurrentTab();\
-        if (tab == null || tab.getWebContents() == null) {\
-            finishAliceFullscreenViewportSync();\
-            return;\
-        }\
-\
-        tryUpdateControlsAndWebContentsSizing();\
-        updateWebContentsSize(tab);\
-        onViewportChanged();\
-\
-        int renderedHeight =\
-                org.chromium.content_public.browser.RenderCoordinates\
-                        .fromWebContents(tab.getWebContents())\
-                        .getLastFrameViewportHeightPixInt();\
-        boolean rendererViewportApplied =\
-                mAliceLastRequestedWebContentsHeight <= 0\
-                        || renderedHeight <= 0\
-                        || Math.abs(renderedHeight - mAliceLastRequestedWebContentsHeight) <= 1;\
-        if (!timedOut && !rendererViewportApplied) {\
-            mAliceFullscreenViewportSyncStableFrames = 0;\
-            postOnAnimation(mAliceFullscreenViewportSyncRunnable);\
-            return;\
-        }\
-        if (!timedOut && ++mAliceFullscreenViewportSyncStableFrames < 2) {\
-            postOnAnimation(mAliceFullscreenViewportSyncRunnable);\
-            return;\
-        }\
-\
-        finishAliceFullscreenViewportSync();\
-    }\
-\
-    private boolean isAliceFullscreenViewportReady() {\
-        BrowserControlsManager manager = assertNonNull(mBrowserControlsManager);\
-        boolean persistentFullscreen =\
-                manager\
-                        .getFullscreenManager()\
-                        .getPersistentFullscreenMode();\
-        if (mAliceFullscreenViewportSyncExiting) {\
-            if (persistentFullscreen\
-                    || manager.getAndroidControlsVisibility() != View.VISIBLE\
-                    || !BrowserControlsUtils.areBrowserControlsIdle(manager)) {\
-                return false;\
+        // Alice patch start 0042\
+        if (mAliceFullscreenViewportTransitionPending\
+                \&\& !mAliceFullscreenViewportCommitted) {\
+            if (mAliceFullscreenViewportLockedHeight <= 0) {\
+                mAliceFullscreenViewportLockedHeight = webContentsHeight;\
             }\
-        } else if (!persistentFullscreen) {\
-            return false;\
+            webContentsHeight = mAliceFullscreenViewportLockedHeight;\
         }\
+        mAliceLastRequestedWebContentsHeight = webContentsHeight;\
+        scheduleAliceFullscreenViewportStep();\
+        // Alice patch end 0042\
 \
+' "$path1"
+
+# 替换 0033 的退出收尾：先提交最终视口，等 RenderCoordinates 连续两帧确认
+# renderer 已消费新尺寸，再恢复 Android controls、compositor 场景层和页面交互。
+sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
+    // Alice patch start 0042\
+    public void finishAliceFullscreenExit(@Nullable Runnable onReady) {\
+        mAliceFullscreenViewportFinishCallback = onReady;\
+        if (!mAliceFullscreenViewportTransitionPending\
+                \&\& FullscreenManager.FullscreenTransitionState\
+                        .isExitingFullscreen()) {\
+            startAliceFullscreenViewportTransition(/* exiting= */ true);\
+        } else if (!mAliceFullscreenViewportTransitionPending) {\
+            if (onReady != null) onReady.run();\
+            if (mBrowserControlsManager != null) {\
+                mBrowserControlsManager.showAndroidControls(/* animate= */ false);\
+            }\
+            return;\
+        }\
+        updateWebContentsSize(getCurrentTab());\
+        onViewportChanged();\
+        requestRender();\
+    }\
+\
+    private void startAliceFullscreenViewportTransition(boolean exiting) {\
+        removeCallbacks(mAliceFullscreenViewportStep);\
+        mAliceFullscreenViewportTransitionPending = true;\
+        mAliceFullscreenViewportExiting = exiting;\
+        mAliceFullscreenViewportCommitted = false;\
+        mAliceFullscreenViewportLockedHeight =\
+                mAliceLastRequestedWebContentsHeight > 0\
+                        ? mAliceLastRequestedWebContentsHeight\
+                        : getViewportSize().y;\
+        mAliceLastPersistentFullscreen = !exiting;\
+        mAliceFullscreenViewportWaitFrames = 0;\
+        mAliceFullscreenViewportStableFrames = 0;\
+        scheduleAliceFullscreenViewportStep();\
+    }\
+\
+    private void scheduleAliceFullscreenViewportStep() {\
+        if (!mAliceFullscreenViewportTransitionPending) return;\
+        removeCallbacks(mAliceFullscreenViewportStep);\
+        postOnAnimation(mAliceFullscreenViewportStep);\
+    }\
+\
+    private boolean isAliceFullscreenViewportSettled() {\
+        BrowserControlsManager manager = mBrowserControlsManager;\
+        if (manager == null) return true;\
+        boolean fullscreen =\
+                manager.getFullscreenManager().getPersistentFullscreenMode();\
+        if (fullscreen == mAliceFullscreenViewportExiting) return false;\
+        if (!BrowserControlsUtils.areBrowserControlsIdle(manager)) return false;\
         View contentView = getContentView();\
         if (contentView == null\
                 || contentView.getWidth() <= 0\
@@ -163,101 +125,131 @@ sed -i '/^    private static boolean isAttachedToWindow(@Nullable View view) {$/
                 || !contentView.isLaidOut()) {\
             return false;\
         }\
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getRootView());\
+        if (insets == null) return false;\
+        boolean navigationBarVisible =\
+                insets.isVisible(WindowInsetsCompat.Type.navigationBars());\
+        return navigationBarVisible == mAliceFullscreenViewportExiting;\
+    }\
 \
-        if (mAliceFullscreenViewportSyncExiting && mAliceNavigationBarInset > 0) {\
-            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getRootView());\
-            if (insets == null\
-                    || !insets.isVisible(WindowInsetsCompat.Type.navigationBars())\
-                    || insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom <= 0) {\
-                return false;\
+    private void runAliceFullscreenViewportStep() {\
+        if (!mAliceFullscreenViewportTransitionPending) return;\
+\
+        if (!mAliceFullscreenViewportCommitted) {\
+            if (!isAliceFullscreenViewportSettled()\
+                    \&\& mAliceFullscreenViewportWaitFrames++ < 30) {\
+                scheduleAliceFullscreenViewportStep();\
+                return;\
+            }\
+            mAliceFullscreenViewportCommitted = true;\
+            mAliceFullscreenViewportWaitFrames = 0;\
+            mAliceFullscreenViewportStableFrames = 0;\
+            updateWebContentsSize(getCurrentTab());\
+            onViewportChanged();\
+            requestRender();\
+            scheduleAliceFullscreenViewportStep();\
+            return;\
+        }\
+\
+        Tab tab = getCurrentTab();\
+        int renderedHeight =\
+                tab == null || tab.getWebContents() == null\
+                        ? 0\
+                        : org.chromium.content_public.browser.RenderCoordinates\
+                                .fromWebContents(tab.getWebContents())\
+                                .getLastFrameViewportHeightPixInt();\
+        boolean rendererApplied =\
+                renderedHeight <= 0\
+                        || mAliceLastRequestedWebContentsHeight <= 0\
+                        || Math.abs(\
+                                        renderedHeight\
+                                                - mAliceLastRequestedWebContentsHeight)\
+                                <= 1;\
+        if (rendererApplied) {\
+            ++mAliceFullscreenViewportStableFrames;\
+        } else {\
+            mAliceFullscreenViewportStableFrames = 0;\
+        }\
+        if (mAliceFullscreenViewportStableFrames < 2\
+                \&\& mAliceFullscreenViewportWaitFrames++ < 30) {\
+            scheduleAliceFullscreenViewportStep();\
+            return;\
+        }\
+        finishAliceFullscreenViewportTransition();\
+    }\
+\
+    private void finishAliceFullscreenViewportTransition() {\
+        boolean wasExiting = mAliceFullscreenViewportExiting;\
+        Runnable onReady = mAliceFullscreenViewportFinishCallback;\
+        mAliceFullscreenViewportFinishCallback = null;\
+        mAliceFullscreenViewportTransitionPending = false;\
+        mAliceFullscreenViewportExiting = false;\
+        removeCallbacks(mAliceFullscreenViewportStep);\
+\
+        if (wasExiting) {\
+            FullscreenManager.FullscreenTransitionState.setExitingFullscreen(false);\
+            if (onReady != null) onReady.run();\
+            if (mBrowserControlsManager != null) {\
+                mBrowserControlsManager.showAndroidControls(/* animate= */ false);\
             }\
         }\
-        return true;\
-    }\
-\
-    private void finishAliceFullscreenViewportSync() {\
-        Runnable callback = mAliceFullscreenViewportSyncCallback;\
-        mAliceFullscreenViewportSyncCallback = null;\
-        removeCallbacks(mAliceFullscreenViewportSyncRunnable);\
+        onViewportChanged();\
         requestRender();\
-        if (callback != null) callback.run();\
     }\
-    // Alice patch end 0043\
-\
+    // Alice patch end 0042
 ' "$path1"
 
-# 现在 bottom controls 和网页使用同一个高度源，可以在 toolbar 动画帧安全地
-# 同步 WebContents。网页 fixed 底部元素会跟 toolbar 同向移动，不再额外叠加。
-sed -i '/^    public void onControlsOffsetChanged($/,/^    }$/ {
-    /^        updateContentViewChildrenDimension();$/a\
+# 0033 在退出全屏时直接跳过了 BrowserControlsManager 的 SHOWN 约束，使控件
+# 等到最后才定位。恢复原生约束流程；事务结束前仍由 transition 状态保持隐藏。
+sed -i '/^    private void onConstraintsChanged(@BrowserControlsState int constraints) {$/,/^        if (constraints == BrowserControlsState.SHOWN) {$/c\
+    private void onConstraintsChanged(@BrowserControlsState int constraints) {\
         // Alice patch start 0042\
-        if (mBrowserControlsManager != null\
-                \&\& !mBrowserControlsManager\
-                        .getFullscreenManager()\
-                        .getPersistentFullscreenMode()\
-                \&\& mBrowserControlsManager.getControlsPosition()\
-                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM) {\
-            updateWebContentsSize(getCurrentTab());\
+        // Process SHOWN immediately; exit visibility is held by shouldShowAndroidControls().\
+        // Alice patch end 0042\
+\
+        if (constraints == BrowserControlsState.SHOWN) {' "$path3"
+
+# 退出事务完成前继续隐藏 Android controls，防止系统栏已经出现而工具栏提前
+# 覆盖网页的旧布局。
+sed -i '/^        if (offsetOverridden()) return true;$/i\
+        // Alice patch start 0042\
+        if (FullscreenManager.FullscreenTransitionState\
+                .isExitingFullscreen()) return false;\
+        // Alice patch end 0042\
+' "$path3"
+
+# 0033 在 tab 校验之前就标记“正在退出”。只有真正会通知观察者的退出才
+# 开启事务，避免错误 tab 或重复退出把控件永久留在隐藏状态。
+sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^        if (tab != mTab) return;$/c\
+    public void onExitFullscreen(Tab tab) {\
+        // Alice patch start 0042\
+        if (tab != mTab) return;\
+        // Alice patch end 0042\
+' "$path4"
+
+sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscreenMode();$/a\
+        // Alice patch start 0042\
+        if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {\
+            FullscreenManager.FullscreenTransitionState.setExitingFullscreen(true);\
         }\
-        // Alice patch end 0042
-}' "$path1"
+        // Alice patch end 0042' "$path4"
 
-# 2) ToolbarManager 在进入全屏后保持场景层抑制，退出全屏时等网页完成重排，
-#    再在额外一帧之后恢复 compositor 工具栏层。
-sed -i '/^    private int mFullscreenHairlineToken = TokenHolder\.INVALID_TOKEN;$/a\
-    // Alice patch start 0043\
-    private boolean mAliceFullscreenTransitionPending;\
-    // Alice patch end 0043' "$path2"
+# 0033 原本在退出期间跳过 WebContents sizing；事务提交阶段需要允许 controls
+# offset 与页面尺寸同步更新。
+sed -i '/^            \/\/ Alice patch start 0033$/,/^            \/\/ Alice patch end 0033$/c\
+            // Alice patch start 0042\
+            tryUpdateControlsAndWebContentsSizing();\
+            // Alice patch end 0042' "$path1"
 
-sed -i '/public void onEnterFullscreen(Tab tab, FullscreenOptions options) {/,/^                    }$/ {
-    /^                        updateToolbarSceneLayerSuppression();$/i\
-                        // Alice patch start 0043\
-                        mAliceFullscreenTransitionPending = true;\
-                        mCompositorViewHolder.synchronizeAfterFullscreenTransition(\
-                                /* exiting= */ false, () -> {});\
-                        // Alice patch end 0043
-}' "$path2"
+# 退出事务结束前，compositor 工具栏层也继续压制；等 renderer 消费最终视口后
+# 通过回调一次性恢复，避免 Android controls 与 compositor 层抢跑。
+sed -i 's|^\(\s*\)mCompositorViewHolder\.finishAliceFullscreenExit();$|\1// Alice patch start 0042\
+\1mCompositorViewHolder.finishAliceFullscreenExit(\
+\1        ToolbarManager.this::updateToolbarSceneLayerSuppression);\
+\1// Alice patch end 0042|' "$path2"
 
-sed -i '/^    private void refreshToolbarAfterFullscreen() {$/,/^    }$/c\
-    // Alice patch start 0043\
-    private void refreshToolbarAfterFullscreen() {\
-        View aliceControlContainer = mControlContainer.getView();\
-        mAliceFullscreenTransitionPending = true;\
-        aliceControlContainer.postOnAnimation(\
-                () -> {\
-                    aliceControlContainer.requestApplyInsets();\
-                    aliceControlContainer.requestLayout();\
-                    mBottomControlsStacker.requestLayerUpdate(false);\
-                    mCompositorViewHolder.synchronizeAfterFullscreenTransition(\
-                            /* exiting= */ true,\
-                            () ->\
-                                    aliceControlContainer.postOnAnimation(\
-                                            () -> {\
-                                                aliceControlContainer.requestApplyInsets();\
-                                                aliceControlContainer.requestLayout();\
-                                                mBottomControlsStacker.requestLayerUpdate(false);\
-                                                aliceControlContainer.postOnAnimation(\
-                                                        () -> {\
-                                                            mAliceFullscreenTransitionPending = false;\
-                                                            updateToolbarSceneLayerSuppression();\
-                                                        });\
-                                            }));\
-                });\
-        updateToolbarSceneLayerSuppression();\
-    }\
-    // Alice patch end 0043
-' "$path2"
-
-sed -i '/^        mSuppressToolbarSceneLayerSupplier\.set($/,/^                                \&\& mLayoutStateProvider\.getActiveLayoutType() == LayoutType\.HUB));$/c\
-        // Alice patch start 0043\
-        mSuppressToolbarSceneLayerSupplier.set(\
-                mIsXrFsm\
-                        || mIsVerticalTabsHiddenDueToNarrow\
-                        || mIsUrlBarFocusedForSceneLayer\
-                        || mFullscreenManager.getPersistentFullscreenMode()\
-                        || mAliceFullscreenTransitionPending\
-                        || mInTabSwitcherTransition\
-                        || (mLayoutStateProvider != null\
-                                \&\& mLayoutStateProvider.getActiveLayoutType() == LayoutType.HUB));\
-        // Alice patch end 0043
-' "$path2"
+sed -i '/^                        || mFullscreenManager\.getPersistentFullscreenMode()$/a\
+                        // Alice patch start 0042\
+                        || FullscreenManager.FullscreenTransitionState\
+                                .isExitingFullscreen()\
+                        // Alice patch end 0042' "$path2"
