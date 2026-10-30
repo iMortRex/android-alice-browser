@@ -24,23 +24,6 @@ sed -i '/^                mTab\.isHidden()$/c\
                                         || !getContentView().isAttachedToWindow()))\
         // Alice patch end 0041' "$path4"
 
-sed -i '/^        if (inset == mVisualViewportInsetBottomPx) return;$/i\
-        // Alice patch start 0041\
-        int aliceSupplierInset = -1;\
-        if (mCurrentInsetSupplier != null \&\& mCurrentInsetSupplier.get() != null) {\
-            aliceSupplierInset = mCurrentInsetSupplier.get().visualViewportBottomInset;\
-        }\
-        org.chromium.base.Log.i(\
-                "AliceNav",\
-                "tabHidden=%b contentAttached=%b rawSupplier=%d applied=%d previous=%d",\
-                mTab.isHidden(),\
-                getContentView() != null \&\& getContentView().isAttachedToWindow(),\
-                aliceSupplierInset,\
-                inset,\
-                mVisualViewportInsetBottomPx);\
-        // Alice patch end 0041\
-' "$path4"
-
 # 0.1) Keep the navigation-bar background owned by the toolbar visible while the
 #     full-window preview is covering the toolbar layer.
 sed -i '/^    float MAX_HEIGHT_RATIO = 1.0f;$/a\
@@ -179,32 +162,6 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
                                         aliceControlContainer));\
         // Alice patch end 0041' "$path7"
 
-sed -i '/^        aliceBackground.setVisibility(aliceVisible ? View.VISIBLE : View.INVISIBLE);$/a\
-        // Alice patch start 0041\
-        org.chromium.base.Log.i(\
-                "AliceNav",\
-                "toolbarLayer=%d navHeight=%d controlsH=%d"\
-                        + " backgroundVisible=%b preview=%b",\
-                mLayerVisibility,\
-                aliceNavigationBarHeight,\
-                aliceControlContainer.getHeight(),\
-                aliceVisible,\
-                aliceFullWindowPreview);\
-        // Alice patch end 0041' "$path7"
-
-sed -i '/^        int webContentsHeight = height - verticalViewportInsets;$/a\
-        // Alice patch start 0041\
-        org.chromium.base.Log.i(\
-                "AliceNav",\
-                "viewport height=%d controls=%d nav=%d hidingTokens=%b resizeView=%b result=%d",\
-                height,\
-                controlsInsets,\
-                mAliceNavigationBarInset,\
-                mBrowserControlsManager != null \&\& mBrowserControlsManager.hasHidingTokens(),\
-                mControlsResizeView,\
-                webContentsHeight);\
-        // Alice patch end 0041' "$path5"
-
 sed -i '/^            boolean controlsResizeView =$/,/^                    BrowserControlsUtils\.controlsResizeView(mBrowserControlsManager);$/c\
         // Alice patch start 0041\
             boolean controlsResizeView =\
@@ -212,109 +169,6 @@ sed -i '/^            boolean controlsResizeView =$/,/^                    Brows
                                     .FullWindowPresentationState.isActive()\
                             || BrowserControlsUtils.controlsResizeView(mBrowserControlsManager);\
         // Alice patch end 0041' "$path5"
-
-sed -i '/^            if (controlsResizeView != mControlsResizeView) {$/i\
-            // Alice patch start 0041\
-            org.chromium.base.Log.i(\
-                    "AliceNav",\
-                    "controlsResizeView=%b forcedByPreview=%b",\
-                    controlsResizeView,\
-                    org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
-                            .FullWindowPresentationState.isActive());\
-            // Alice patch end 0041\
-' "$path5"
-
-# 0.0.1) Log the real Android/Surface bounds. The JS viewport can stay stable
-#         while either the ContentView or its SurfaceControl still draws 48px
-#         too far down.
-sed -i '/^            webContents.setSize(webContentsWidth, webContentsHeight);$/a\
-            logAlicePreviewBounds(webContents, view, webContentsWidth, webContentsHeight);\
-            int aliceLoggedWidth = webContentsWidth;\
-            int aliceLoggedHeight = webContentsHeight;\
-            view.postOnAnimationDelayed(\
-                    () -> logAlicePreviewBounds(\
-                            webContents, view, aliceLoggedWidth, aliceLoggedHeight),\
-                    64);\
-' "$path5"
-
-sed -i '/^    private static boolean isAttachedToWindow(@Nullable View view) {$/i\
-    // Alice patch start 0041\
-    private void logAlicePreviewBounds(\
-            WebContents webContents, View contentView, int webContentsWidth, int webContentsHeight) {\
-        if (webContents.isDestroyed()) return;\
-        Rect contentVisibleRect = new Rect();\
-        boolean contentVisible = contentView.getGlobalVisibleRect(contentVisibleRect);\
-        int[] contentLocation = new int[2];\
-        contentView.getLocationInWindow(contentLocation);\
-\
-        View surfaceView = getActiveSurfaceView();\
-        Rect surfaceVisibleRect = new Rect();\
-        Rect surfaceFrame = new Rect();\
-        int[] surfaceLocation = new int[2];\
-        boolean surfaceVisible = false;\
-        int surfaceWidth = -1;\
-        int surfaceHeight = -1;\
-        if (surfaceView != null) {\
-            surfaceVisible = surfaceView.getGlobalVisibleRect(surfaceVisibleRect);\
-            surfaceView.getLocationInWindow(surfaceLocation);\
-            surfaceWidth = surfaceView.getWidth();\
-            surfaceHeight = surfaceView.getHeight();\
-            if (surfaceView instanceof android.view.SurfaceView) {\
-                surfaceFrame.set(\
-                        ((android.view.SurfaceView) surfaceView)\
-                                .getHolder()\
-                                .getSurfaceFrame());\
-            }\
-        }\
-\
-        int rendererViewportHeight =\
-                org.chromium.content_public.browser.RenderCoordinates\
-                        .fromWebContents(webContents)\
-                        .getLastFrameViewportHeightPixInt();\
-        int controlsHeight =\
-                mBrowserControlsManager != null\
-                        ? mBrowserControlsManager.getBottomControlsHeight()\
-                        : -1;\
-        int controlsMinHeight =\
-                mBrowserControlsManager != null\
-                        ? mBrowserControlsManager.getBottomControlsMinHeight()\
-                        : -1;\
-        int controlsOffset =\
-                mBrowserControlsManager != null\
-                        ? mBrowserControlsManager.getBottomControlOffset()\
-                        : -1;\
-        org.chromium.base.Log.i(\
-                "AliceNav",\
-                "bounds preview=%b web=%dx%d content=%dx%d loc=%d,%d visible=%b:%s"\
-                        + " compositor=%dx%d surface=%dx%d loc=%d,%d visible=%b:%s"\
-                        + " frame=%s rendererVP=%d controls=%d/%d offset=%d",\
-                org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
-                        .FullWindowPresentationState.isActive(),\
-                webContentsWidth,\
-                webContentsHeight,\
-                contentView.getWidth(),\
-                contentView.getHeight(),\
-                contentLocation[0],\
-                contentLocation[1],\
-                contentVisible,\
-                contentVisibleRect,\
-                mCompositorView.getWidth(),\
-                mCompositorView.getHeight(),\
-                surfaceWidth,\
-                surfaceHeight,\
-                surfaceLocation[0],\
-                surfaceLocation[1],\
-                surfaceVisible,\
-                surfaceVisibleRect,\
-                surfaceFrame,\
-                rendererViewportHeight,\
-                controlsHeight,\
-                controlsMinHeight,\
-                controlsOffset);\
-    }\
-    // Alice patch end 0041\
-\
-' "$path5"
 
 # 1) 为预览面板提供“全窗口展示”能力，默认不影响其他底部面板
 sed -i '/^    default boolean coversBottomControls() {$/i\

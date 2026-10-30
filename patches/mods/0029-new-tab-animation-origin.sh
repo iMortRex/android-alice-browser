@@ -100,19 +100,7 @@ sed -i '/^        int\[\] cornerRadii;$/,/^        }$/c\
         // Alice patch start 0029\
         int[] cornerRadii =\
                 new int[] {cornerRadius, cornerRadius, cornerRadius, cornerRadius};\
-        // Alice patch end 0029\
-        // We can assume the top toolbar exists for this animation as either we will cover the hub\
-        // toolbar with the animation (incognito) or the new tab has a dedicated top toolbar.\
-        return new ShrinkExpandAnimationData(\
-                initialRect,\
-                finalRect,\
-                cornerRadii,\
-                cornerRadii.clone(),\
-                /* thumbnailSize= */ null,\
-                /* isTopToolbar= */ true,\
-                useFallbackAnimation,\
-                bottomMargin);\
-    }' "$path10"
+        // Alice patch end 0029' "$path10"
 
 # 10) NewTabAnimationLayout：普通新标签页的起点对准底部栏的「新建标签页」按钮。
 #     必须放在 heightDifference 修正之后，否则底栏高度会再次把起点推回工具栏上方。

@@ -401,15 +401,6 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
                             return true;\
                         }\
                         int aliceColor = Color.TRANSPARENT;\
-                        int aliceWindowNavColorBefore =\
-                                mActivity.getWindow().getNavigationBarColor();\
-                        int aliceWindowDividerColorBefore =\
-                                mActivity.getWindow().getNavigationBarDividerColor();\
-                        boolean aliceContrastBefore = false;\
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
-                            aliceContrastBefore =\
-                                    mActivity.getWindow().isNavigationBarContrastEnforced();\
-                        }\
                         bottomChinColorHelper.setNavigationBarColor(aliceColor);\
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
                             mActivity.getWindow().setNavigationBarContrastEnforced(false);\
@@ -421,11 +412,6 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
                                 != Color.TRANSPARENT) {\
                             mActivity.getWindow().setNavigationBarDividerColor(Color.TRANSPARENT);\
                         }\
-                        final var aliceEdgeController =\
-                                mEdgeToEdgeControllerSupplier.get();\
-                        boolean aliceDrawingToEdge =\
-                                aliceEdgeController != null\
-                                        && aliceEdgeController.isDrawingToEdge();\
                         if (android.os.Build.VERSION.SDK_INT\
                                 >= android.os.Build.VERSION_CODES.TIRAMISU\
                                 \&\& mAliceTaskDescriptionNavColor != Color.TRANSPARENT) {\
@@ -435,45 +421,6 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
                                             .setNavigationBarColor(Color.TRANSPARENT)\
                                             .build());\
                         }\
-                        // Alice patch start 9999\
-                        int aliceTraceViewColor =\
-                                aliceChinView.getBackground()\
-                                                instanceof android.graphics.drawable.ColorDrawable\
-                                        ? ((android.graphics.drawable.ColorDrawable)\
-                                                        aliceChinView.getBackground())\
-                                                .getColor()\
-                                        : 0;\
-                        boolean aliceContrastAfter = false;\
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {\
-                            aliceContrastAfter =\
-                                    mActivity.getWindow().isNavigationBarContrastEnforced();\
-                        }\
-                        int aliceToolbarColor =\
-                                mToolbarManager == null\
-                                        ? 0\
-                                        : mToolbarManager\
-                                                .getToolbarBackgroundColorForNavigationBar();\
-                        org.chromium.base.Log.i(\
-                                "AliceNav",\
-                                "windowNav before=%08x after=%08x"\
-                                        + " divider=%08x/%08x contrast=%b/%b"\
-                                        + " flags=%08x toolbar=%08x chin=%08x chinH=%d"\
-                                        + " edge=%b position=%d configuredTop=%b",\
-                                aliceWindowNavColorBefore,\
-                                mActivity.getWindow().getNavigationBarColor(),\
-                                aliceWindowDividerColorBefore,\
-                                mActivity.getWindow().getNavigationBarDividerColor(),\
-                                aliceContrastBefore,\
-                                aliceContrastAfter,\
-                                mActivity.getWindow().getAttributes().flags,\
-                                aliceToolbarColor,\
-                                aliceTraceViewColor,\
-                                aliceChinView.getHeight(),\
-                                aliceDrawingToEdge,\
-                                mBrowserControlsManager.getControlsPosition(),\
-                                org.chromium.chrome.browser.toolbar.settings.AddressBarPreference\
-                                        .isToolbarConfiguredToShowOnTop());\
-                        // Alice patch end 9999\
                         if (aliceColor == Color.TRANSPARENT) {\
                             if (aliceChinView.getBackground() != null) {\
                                 aliceChinView.setBackground(null);\
@@ -552,24 +499,15 @@ sed -i '/^    protected void setDefaultTaskDescription() {$/,/^    }$/c\
 
 sed -i 's|^        edgeToEdgeSystemBarColorHelper\.setNavigationBarColor(defaultNavigationBarColor);$|        // Alice patch start 0032\n        edgeToEdgeSystemBarColorHelper.setNavigationBarColor(android.graphics.Color.TRANSPARENT);\n        // Alice patch end 0032|' "$path22"
 
-sed -i '/^                mActivity\.setTaskDescription($/,/^                                \.build());$/c\
-                // Alice patch start 0032\
-                mActivity.setTaskDescription(\
-                        new ActivityManager.TaskDescription.Builder()\
-                                .setBackgroundColor(opaqueBgColor)\
+sed -i '/^                                \.setBackgroundColor(opaqueBgColor)$/a\
+                                // Alice patch start 0032\
                                 .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
-                                .build());\
-                // Alice patch end 0032' "$path23"
+                                // Alice patch end 0032' "$path23"
 
-sed -i '/^                activity\.setTaskDescription($/,/^                                \.build());$/c\
-                // Alice patch start 0032\
-                activity.setTaskDescription(\
-                        new ActivityManager.TaskDescription.Builder()\
-                                .setPrimaryColor(opaqueColor)\
-                                .setStatusBarColor(opaqueColor)\
+sed -i '/^                                \.setStatusBarColor(opaqueColor)$/a\
+                                // Alice patch start 0032\
                                 .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
-                                .build());\
-                // Alice patch end 0032' "$path23"
+                                // Alice patch end 0032' "$path23"
 
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
 
