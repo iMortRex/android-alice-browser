@@ -150,6 +150,7 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
                         captureSearchToolbarSnapshot();\
                     }\
                     updateCurrentPosition();\
+                    updateNavigationBarBackground();\
                     updateSearchToolbarSnapshot();\
                     mControlContainer.getView().postOnAnimation(\
                             ToolbarPositionController.this::updateSearchToolbarSnapshot);\
@@ -456,6 +457,7 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
         boolean aliceVisible =\
                 aliceToolbarOnBottom\
                         \&\& aliceNavigationBarHeight > 0\
+                        \&\& !mIsOmniboxFocusedSupplier.get()\
                         \&\& (mLayerVisibility != LayerVisibility.HIDDEN\
                                 || mIsImeAnimationRunning\
                                 || mKeyboardVisibilityDelegate.isKeyboardShowing(\

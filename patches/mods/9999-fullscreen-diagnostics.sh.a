@@ -1,0 +1,181 @@
+#!/bin/bash
+# 临时全屏诊断日志。只读取并打印状态，不改变控件或视口逻辑。
+
+set -e
+
+path1="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+path2="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
+path3="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
+path4="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerBase.java"
+path5="chrome/browser/browser_controls/android/java/src/org/chromium/chrome/browser/browser_controls/BottomControlsStacker.java"
+path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
+
+if grep -q 'Alice patch start 9999' "$path1"; then
+    exit 100
+fi
+
+# 在进入全屏锁生效后记录真正传给 WebContents 的 viewport。
+sed -i '/^        if (isAttachedToWindow(view)) {$/i\
+        // Alice patch start 9999\
+        if (mBrowserControlsManager != null) {\
+            org.chromium.base.Log.i(\
+                    "AliceFullscreen",\
+                    "viewport view=%dx%d insets=%d result=%d top=%d bottom=%d nav=%d"\
+                            + " bottomH=%d bottomMinH=%d bottomOffset=%d resize=%b"\
+                            + " fullscreen=%b hiding=%b",\
+                    width,\
+                    height,\
+                    verticalViewportInsets,\
+                    webContentsHeight,\
+                    aliceTopControlsInset,\
+                    aliceBottomControlsInset,\
+                    mAliceNavigationBarInset,\
+                    mBrowserControlsManager.getBottomControlsHeight(),\
+                    mBrowserControlsManager.getBottomControlsMinHeight(),\
+                    mBrowserControlsManager.getBottomControlOffset(),\
+                    mControlsResizeView,\
+                    mBrowserControlsManager\
+                            .getFullscreenManager()\
+                            .getPersistentFullscreenMode(),\
+                    mBrowserControlsManager.hasHidingTokens());\
+        }\
+        // Alice patch end 9999\
+\
+' "$path1"
+
+sed -i '/^    private void onAliceFullscreenModeChanged(Boolean fullscreen) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen", "supplier fullscreen=%b", Boolean.TRUE.equals(fullscreen));\
+        // Alice patch end 9999' "$path1"
+
+sed -i '/^        long delay = layoutFullscreen ? SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS : 0;$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "systemUi fullscreen=%b layoutFullscreen=%b delay=%d",\
+                isInFullscreen,\
+                layoutFullscreen,\
+                delay);\
+        // Alice patch end 9999' "$path1"
+
+sed -i '/^    public void applyAliceFullscreenEntryViewport() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i("AliceFullscreen", "schedule entry viewport commit");\
+        // Alice patch end 9999' "$path1"
+
+sed -i '/^    private void finishAliceEntryViewport() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i("AliceFullscreen", "commit entry viewport");\
+        // Alice patch end 9999' "$path1"
+
+sed -i '/^    public void applyAliceFullscreenExitViewport() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i("AliceFullscreen", "apply exit viewport");\
+        // Alice patch end 9999' "$path1"
+
+sed -i '/^        if (!isVisibilityForced \&\& getResourceManager() != null) {$/i\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "controls offset top=%d bottom=%d newFrame=%b forced=%b",\
+                topOffset,\
+                bottomOffset,\
+                requestNewFrame,\
+                isVisibilityForced);\
+        // Alice patch end 9999\
+' "$path1"
+
+sed -i '/^    public void onAndroidControlsVisibilityChanged(int visibility) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen", "android controls visibility=%d", visibility);\
+        // Alice patch end 9999' "$path1"
+
+# 记录 controls 高度变化和 Android controls 的显示入口。
+sed -i '/^    private void updateBrowserControlsHeight(boolean animate) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "stacker height request total=%d min=%d animate=%b",\
+                mTotalHeight,\
+                mTotalMinHeight,\
+                animate);\
+        // Alice patch end 9999' "$path5"
+
+sed -i '/^                aliceBottomControlsHeight, aliceBottomControlsMinHeight);$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "stacker effective height=%d min=%d raw=%d/%d chinIncluded=%b lastChin=%d",\
+                aliceBottomControlsHeight,\
+                aliceBottomControlsMinHeight,\
+                mTotalHeight,\
+                mTotalMinHeight,\
+                mLayerVisibilities.get(LayerType.BOTTOM_CHIN),\
+                mAliceLastChinHeight);\
+        // Alice patch end 9999' "$path5"
+
+sed -i '/^    public void showAndroidControls(boolean animate) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "showAndroidControls animate=%b bottomH=%d bottomMinH=%d bottomOffset=%d",\
+                animate,\
+                getBottomControlsHeight(),\
+                getBottomControlsMinHeight(),\
+                getBottomControlOffset());\
+        // Alice patch end 9999' "$path3"
+
+sed -i '/^    private void onConstraintsChanged(@BrowserControlsState int constraints) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen", "constraints=%d", constraints);\
+        // Alice patch end 9999' "$path3"
+
+# 记录 chin 的计算结果，确认导航栏在哪一步进入 bottom controls。
+sed -i '/^    private void updateHeightAndVisibility() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "chin before height=%d canShow=%b yOffset=%d edge=%b fullscreen=%b keyboard=%b",\
+                mModel.get(HEIGHT),\
+                mModel.get(CAN_SHOW),\
+                mModel.get(Y_OFFSET),\
+                mIsDrawingToEdge,\
+                mFullscreenManager.getPersistentFullscreenMode(),\
+                mIsKeyboardVisible && mKeyboardInset > 0);\
+        // Alice patch end 9999' "$path6"
+
+# 记录进入/退出全屏两个上层入口。
+sed -i '/^                    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
+                        // Alice patch start 9999\
+                        org.chromium.base.Log.i("AliceFullscreen", "ToolbarManager enter");\
+                        // Alice patch end 9999' "$path2"
+
+sed -i '/^                    public void onExitFullscreen(Tab tab) {$/a\
+                        // Alice patch start 9999\
+                        org.chromium.base.Log.i(\
+                                "AliceFullscreen",\
+                                "ToolbarManager exit containerVis=%d",\
+                                mControlContainer.getView().getVisibility());\
+                        // Alice patch end 9999' "$path2"
+
+sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "AliceFullscreen",\
+                "toolbar suppression current=%b containerVis=%d",\
+                Boolean.TRUE.equals(mSuppressToolbarSceneLayerSupplier.get()),\
+                mControlContainer.getView().getVisibility());\
+        // Alice patch end 9999' "$path2"
+
+sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i("AliceFullscreen", "handler enter");\
+        // Alice patch end 9999' "$path4"
+
+sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i("AliceFullscreen", "handler exit");\
+        // Alice patch end 9999' "$path4"

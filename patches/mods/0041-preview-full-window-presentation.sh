@@ -137,7 +137,9 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
         if (aliceToolbarReady \&\& !aliceInitialPageLoading) {\
             mAliceInitialPageReady = true;\
         }\
-        if (aliceToolbarOnBottom \&\& !mAliceInitialPageReady) {\
+        if (aliceToolbarOnBottom\
+                \&\& !mAliceInitialPageReady\
+                \&\& !mIsOmniboxFocusedSupplier.get()) {\
             updateAliceStartupNavigationBarCover(\
                     aliceNavigationBarHeight, aliceControlContainer);\
         } else {\
@@ -154,6 +156,7 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
         boolean aliceVisible =\
                 aliceToolbarOnBottom\
                         \&\& aliceNavigationBarHeight > 0\
+                        \&\& !mIsOmniboxFocusedSupplier.get()\
                         \&\& aliceParentReachesWindowBottom\
                         \&\& (aliceFullWindowPreview\
                                 || mLayerVisibility != LayerVisibility.HIDDEN\
