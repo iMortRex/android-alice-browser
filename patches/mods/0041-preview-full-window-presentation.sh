@@ -137,6 +137,7 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
         if (aliceToolbarReady \&\& !aliceInitialPageLoading) {\
             mAliceInitialPageReady = true;\
         }\
+        // Alice: suppress the startup navigation-bar cover during search/Omnibox focus.\
         if (aliceToolbarOnBottom\
                 \&\& !mAliceInitialPageReady\
                 \&\& !mIsOmniboxFocusedSupplier.get()) {\
@@ -153,6 +154,7 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
         boolean aliceParentReachesWindowBottom =\
                 aliceParentLocation[1] + aliceParent.getHeight()\
                         >= aliceRootLocation[1] + aliceRoot.getHeight();\
+        // Alice: suppress the navigation-bar background while search/Omnibox is focused.\
         boolean aliceVisible =\
                 aliceToolbarOnBottom\
                         \&\& aliceNavigationBarHeight > 0\

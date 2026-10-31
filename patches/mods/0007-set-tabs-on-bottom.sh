@@ -1,5 +1,5 @@
 #!/bin/bash
-# 标签页网格：标签居下（LinearLayoutManager.mStackFromEnd）
+# 标签页网格：竖屏标签居下，横屏从顶部正常排列
 
 set -e
 
@@ -7,13 +7,14 @@ set -e
 path1="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
 path2="chrome/android/proguard/main.flags"
 path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
+path5="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListContainerViewBinder.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0007' "$path1"; then
     exit 100
 fi
 
-# 反射设置 mStackFromEnd
+# 恢复原有的列表末尾锚定方式，避免改变竖屏布局初始化路径。
 sed -i '/^                mRecyclerView\.setLayoutManager(gridLayoutManager);$/i\
                 // Alice patch start 0007\
                 try {\
@@ -21,14 +22,70 @@ sed -i '/^                mRecyclerView\.setLayoutManager(gridLayoutManager);$/i
                             androidx.recyclerview.widget.LinearLayoutManager.class\
                                     .getDeclaredField("mStackFromEnd");\
                     stackFromEnd.setAccessible(true);\
-                    stackFromEnd.setBoolean(gridLayoutManager, true);\
+                    boolean aliceLandscape =\
+                            activity.getResources().getConfiguration().orientation\
+                                    == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+                    stackFromEnd.setBoolean(gridLayoutManager, !aliceLandscape);\
                     gridLayoutManager.requestLayout();\
                 } catch (ReflectiveOperationException e) {\
                     throw new RuntimeException("setStackFromEnd failed", e);\
                 }\
                 // Alice patch end 0007' "$path1"
 
-# 添加 keep 规则
+# 横屏把当前标签前一排作为首个可见排，避免任何一排只显示一半。
+sed -i '/^            int offset = computeOffset(recyclerView, model);$/,/^                    \.scrollToPositionWithOffset(index, offset);$/c\
+            // Alice patch start 0007\
+            boolean aliceLandscape =\
+                    recyclerView.getContext().getResources().getConfiguration().orientation\
+                            == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+            GridLayoutManager aliceLayoutManager =\
+                    assumeNonNull((GridLayoutManager) recyclerView.getLayoutManager());\
+            int scrollIndex = index;\
+            int offset;\
+            if (aliceLandscape) {\
+                scrollIndex = Math.max(0, index - aliceLayoutManager.getSpanCount());\
+                offset = 0;\
+            } else {\
+                offset = computeOffset(recyclerView, model);\
+            }\
+            aliceLayoutManager.scrollToPositionWithOffset(scrollIndex, offset);\
+            // Alice patch end 0007' "$path5"
+
+# 横屏给标签网格保留状态栏高度，第一排不再绘制到状态栏后面。
+sed -i '/^            int paddingTop =$/,/^                    recyclerView.getPaddingBottom());$/c\
+            // Alice patch start 0007\
+            int paddingTop =\
+                    isTabletOrLandscape\
+                            ? 0\
+                            : recyclerView\
+                                    .getResources()\
+                                    .getDimensionPixelSize(R.dimen.hub_search_box_gap);\
+            if (isTabletOrLandscape\
+                    \&\& recyclerView\
+                                    .getResources()\
+                                    .getConfiguration()\
+                                    .orientation\
+                            == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {\
+                androidx.core.view.WindowInsetsCompat insets =\
+                        androidx.core.view.ViewCompat.getRootWindowInsets(recyclerView);\
+                if (insets != null) {\
+                    paddingTop =\
+                            Math.max(\
+                                    paddingTop,\
+                                    insets.getInsets(\
+                                                    androidx.core.view.WindowInsetsCompat.Type\
+                                                            .statusBars())\
+                                            .top);\
+                }\
+            }\
+            recyclerView.setPadding(\
+                    recyclerView.getPaddingLeft(),\
+                    paddingTop,\
+                    recyclerView.getPaddingRight(),\
+                    recyclerView.getPaddingBottom());\
+            // Alice patch end 0007' "$path5"
+
+# 反射读取 mStackFromEnd，保留字段名不被混淆。
 sed -i '$a\
 \
 # Alice patch start 0007\

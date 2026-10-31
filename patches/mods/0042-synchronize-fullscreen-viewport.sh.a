@@ -12,11 +12,389 @@ path5="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControl
 path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
 path7="chrome/browser/browser_controls/android/java/src/org/chromium/chrome/browser/browser_controls/BottomControlsStacker.java"
 path8="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerCompat.java"
+path9="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+path10="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
+
+sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
+    // Alice patch start 0042\
+    private @Nullable Runnable mAliceFullscreenSnapshotReleaseRunnable;\
+    // Alice patch end 0042' "$path2"
+
+sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
+                            \/\/ Alice patch start 0042\
+                            cancelAliceFullscreenSnapshotRelease();\
+                            \/\/ Alice patch end 0042/}' "$path2"
+
+sed -i '/^                    public void onStartedShowing(@LayoutType int layoutType) {$/a\
+                        // Alice patch start 0042\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceToolbarSnapshotSuppressed(\
+                                    layoutType != LayoutType.BROWSING);\
+                        }\
+                        // Alice patch end 0042\
+' "$path2"
+
+sed -i '/^                    public void onFinishedShowing(int layoutType) {$/a\
+                        // Alice patch start 0042\
+                        if (layoutType != LayoutType.BROWSING) {\
+                            releaseAliceFullscreenToolbarSnapshotNow();\
+                        } else if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceToolbarSnapshotSuppressed(false);\
+                        }\
+                        // Alice patch end 0042\
+' "$path2"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
+
+# 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
+# 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。
+sed -i '/^    final class FullscreenTransitionState {$/a\
+        // Alice patch start 0042\
+        private static volatile boolean sAliceEnteringFullscreen;\
+\
+        public static void setEnteringFullscreen(boolean entering) {\
+            sAliceEnteringFullscreen = entering;\
+        }\
+\
+        public static boolean isEnteringFullscreen() {\
+            return sAliceEnteringFullscreen;\
+        }\
+        // Alice patch end 0042\
+' "$path10"
+
+# 复用搜索工具栏快照，为 HTML 全屏切换提供独立的过渡快照。
+sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
+    // Alice patch start 0042\
+    private boolean mAliceFullscreenSnapshotVisible;\
+    private boolean mAliceFullscreenSnapshotCached;\
+    private boolean mAliceToolbarSnapshotSuppressed;\
+    private int mAliceFullscreenSnapshotAttachAttempts;\
+    private final Runnable mAliceFullscreenSnapshotEnsureRunnable =\
+            this::ensureFullscreenToolbarSnapshotVisible;\
+    // Alice patch end 0042' "$path9"
+
+sed -i 's|^                            \&\& mLayerVisibility != LayerVisibility.HIDDEN) {$|                            \&\& mLayerVisibility != LayerVisibility.HIDDEN\
+                            \&\& !mAliceFullscreenSnapshotVisible) {|' "$path9"
+
+sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
+    // Alice patch start 0042\
+    void showFullscreenToolbarSnapshot() {\
+        mAliceFullscreenSnapshotVisible = true;\
+        mAliceFullscreenSnapshotCached = true;\
+        mAliceFullscreenSnapshotAttachAttempts = 0;\
+        ensureFullscreenToolbarSnapshotVisible();\
+    }\
+\
+    void hideFullscreenToolbarSnapshot() {\
+        mControlContainer\
+                .getView()\
+                .removeCallbacks(mAliceFullscreenSnapshotEnsureRunnable);\
+        mAliceFullscreenSnapshotVisible = false;\
+        mAliceFullscreenSnapshotAttachAttempts = 0;\
+        updateSearchToolbarSnapshot();\
+    }\
+\
+    void releaseFullscreenToolbarSnapshot() {\
+        boolean aliceWasFullscreenSnapshot =\
+                mAliceFullscreenSnapshotVisible || mAliceFullscreenSnapshotCached;\
+        mAliceFullscreenSnapshotVisible = false;\
+        mAliceFullscreenSnapshotCached = false;\
+        mAliceFullscreenSnapshotAttachAttempts = 0;\
+        if (!aliceWasFullscreenSnapshot) return;\
+        View aliceControlContainer = mControlContainer.getView();\
+        aliceControlContainer.removeCallbacks(mAliceFullscreenSnapshotEnsureRunnable);\
+        discardAliceFullscreenToolbarSnapshot();\
+        aliceControlContainer.requestLayout();\
+        aliceControlContainer.invalidate();\
+        aliceControlContainer.postOnAnimationDelayed(\
+                () -> {\
+                    if (!mAliceFullscreenSnapshotVisible\
+                            \&\& !mIsOmniboxFocusedSupplier.get()\
+                            \&\& mIsTabSwitcherFinishedShowingSupplier.get()) {\
+                        discardAliceFullscreenToolbarSnapshot();\
+                        aliceControlContainer.requestLayout();\
+                        aliceControlContainer.invalidate();\
+                    }\
+                },\
+                32);\
+    }\
+\
+    void setAliceToolbarSnapshotSuppressed(boolean suppressed) {\
+        mAliceToolbarSnapshotSuppressed = suppressed;\
+    }\
+\
+    private void discardAliceFullscreenToolbarSnapshot() {\
+        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
+        if (aliceSnapshot != null) {\
+            aliceSnapshot.setVisibility(View.INVISIBLE);\
+            aliceSnapshot.setImageDrawable(null);\
+            if (aliceSnapshot.getParent() instanceof ViewGroup) {\
+                ((ViewGroup) aliceSnapshot.getParent()).removeView(aliceSnapshot);\
+            }\
+        }\
+        mSearchToolbarSnapshot = null;\
+        releaseSearchToolbarSnapshot();\
+    }\
+\
+    private @Nullable ViewGroup getFullscreenToolbarSnapshotParent() {\
+        View aliceControlContainer = mControlContainer.getView();\
+        View aliceOverlayParent =\
+                aliceControlContainer\
+                        .getRootView()\
+                        .findViewById(android.R.id.content);\
+        if (aliceOverlayParent instanceof ViewGroup) {\
+            return (ViewGroup) aliceOverlayParent;\
+        }\
+        if (aliceControlContainer.getParent() instanceof ViewGroup) {\
+            return (ViewGroup) aliceControlContainer.getParent();\
+        }\
+        return null;\
+    }\
+\
+    private void ensureFullscreenToolbarSnapshotVisible() {\
+        if (!mAliceFullscreenSnapshotVisible) return;\
+        View aliceControlContainer = mControlContainer.getView();\
+        aliceControlContainer.removeCallbacks(mAliceFullscreenSnapshotEnsureRunnable);\
+        captureSearchToolbarSnapshot();\
+        updateSearchToolbarSnapshot();\
+        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
+        ViewGroup aliceExpectedParent = getFullscreenToolbarSnapshotParent();\
+        boolean aliceReady =\
+                aliceSnapshot != null\
+                        \&\& mSearchToolbarSnapshotBitmap != null\
+                        \&\& aliceExpectedParent != null\
+                        \&\& aliceSnapshot.getParent() == aliceExpectedParent\
+                        \&\& aliceSnapshot.isAttachedToWindow()\
+                        \&\& aliceSnapshot.getWidth() > 0\
+                        \&\& aliceSnapshot.getHeight() > 0;\
+        if (aliceSnapshot != null \&\& aliceReady) {\
+            aliceSnapshot.setTranslationY(0);\
+            aliceSnapshot.setTranslationZ(1);\
+            aliceSnapshot.bringToFront();\
+            aliceSnapshot.setVisibility(View.VISIBLE);\
+        }\
+        if (mAliceFullscreenSnapshotAttachAttempts++ < 24) {\
+            aliceControlContainer.postOnAnimation(\
+                    mAliceFullscreenSnapshotEnsureRunnable);\
+        }\
+    }\
+    // Alice patch end 0042\
+\
+' "$path9"
+
+sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
+    // Alice patch start 0042\
+    private int getFullscreenSnapshotNavigationBarHeight() {\
+        View aliceRoot = mControlContainer.getView().getRootView();\
+        android.view.WindowInsets aliceInsets = aliceRoot.getRootWindowInsets();\
+        if (aliceInsets == null) return 0;\
+        WindowInsetsCompat aliceCompatInsets =\
+                WindowInsetsCompat.toWindowInsetsCompat(aliceInsets, aliceRoot);\
+        return Math.max(\
+                aliceCompatInsets\
+                        .getInsetsIgnoringVisibility(\
+                                WindowInsetsCompat.Type.navigationBars())\
+                        .bottom,\
+                aliceCompatInsets\
+                        .getInsetsIgnoringVisibility(\
+                                WindowInsetsCompat.Type.mandatorySystemGestures())\
+                        .bottom);\
+    }\
+    // Alice patch end 0042\
+\
+' "$path9"
+
+sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void updateSearchToolbarSnapshot() {$/c\
+    private void captureSearchToolbarSnapshot() {\
+        View aliceControlContainer = mControlContainer.getView();\
+        // Alice patch start 0042\
+        if (!mAliceFullscreenSnapshotVisible\
+                \&\& !mIsOmniboxFocusedSupplier.get()\
+                \&\& (mAliceToolbarSnapshotSuppressed\
+                        || mIsTabSwitcherFinishedShowingSupplier.get())) {\
+            return;\
+        }\
+        if (mCurrentPosition.get() != ControlsPosition.BOTTOM\
+                || (mLayerVisibility == LayerVisibility.HIDDEN\
+                        \&\& !mAliceFullscreenSnapshotVisible)\
+                || !(aliceControlContainer.getParent() instanceof ViewGroup)) {\
+            return;\
+        }\
+\
+        ViewGroup aliceParent;\
+        if (mAliceFullscreenSnapshotVisible) {\
+            aliceParent = getFullscreenToolbarSnapshotParent();\
+            if (aliceParent == null) return;\
+        } else if (aliceControlContainer.getParent() instanceof ViewGroup) {\
+            aliceParent = (ViewGroup) aliceControlContainer.getParent();\
+        } else {\
+            return;\
+        }\
+        // Alice patch end 0042\
+        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
+        if (aliceSnapshot != null \&\& aliceSnapshot.getParent() != aliceParent) {\
+            if (aliceSnapshot.getParent() instanceof ViewGroup) {\
+                ((ViewGroup) aliceSnapshot.getParent()).removeView(aliceSnapshot);\
+            }\
+            aliceSnapshot = null;\
+            mSearchToolbarSnapshot = null;\
+        }\
+\
+        int aliceWidth = aliceControlContainer.getWidth();\
+        int aliceToolbarHeight =\
+                mControlContainer.getToolbarHeight()\
+                        + mControlContainer.getToolbarHairlineHeight();\
+        // Alice patch start 0042\
+        int aliceNavigationBarHeight = getNavigationBarHeight();\
+        if (mAliceFullscreenSnapshotVisible \&\& aliceNavigationBarHeight == 0) {\
+            aliceNavigationBarHeight =\
+                    getFullscreenSnapshotNavigationBarHeight();\
+        }\
+        // Alice patch end 0042\
+        int aliceSnapshotHeight = aliceToolbarHeight + aliceNavigationBarHeight;\
+        int aliceColor = mControlContainer.getToolbarBackgroundColor();\
+        if (aliceWidth <= 0 || aliceToolbarHeight <= 0) return;\
+\
+        boolean aliceSnapshotCreated = false;\
+        if (aliceSnapshot == null) {\
+            aliceSnapshot = new ImageView(aliceParent.getContext());\
+            aliceSnapshot.setClickable(false);\
+            aliceSnapshot.setFocusable(false);\
+            aliceSnapshot.setImportantForAccessibility(\
+                    View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
+            aliceSnapshot.setScaleType(ImageView.ScaleType.FIT_XY);\
+            aliceSnapshot.setVisibility(View.INVISIBLE);\
+            // Alice patch start 0042\
+            ViewGroup.LayoutParams aliceSnapshotParams;\
+            if (aliceParent instanceof CoordinatorLayout) {\
+                CoordinatorLayout.LayoutParams aliceCoordinatorParams =\
+                        new CoordinatorLayout.LayoutParams(\
+                                ViewGroup.LayoutParams.MATCH_PARENT, aliceSnapshotHeight);\
+                aliceCoordinatorParams.gravity = Gravity.BOTTOM;\
+                aliceSnapshotParams = aliceCoordinatorParams;\
+            } else {\
+                android.widget.FrameLayout.LayoutParams aliceFrameParams =\
+                        new android.widget.FrameLayout.LayoutParams(\
+                                ViewGroup.LayoutParams.MATCH_PARENT, aliceSnapshotHeight);\
+                aliceFrameParams.gravity = Gravity.BOTTOM;\
+                aliceSnapshotParams = aliceFrameParams;\
+            }\
+            int aliceIndex = aliceParent.indexOfChild(aliceControlContainer);\
+            if (aliceIndex < 0) aliceIndex = aliceParent.getChildCount();\
+            aliceParent.addView(aliceSnapshot, aliceIndex, aliceSnapshotParams);\
+            // Alice patch end 0042\
+            mSearchToolbarSnapshot = aliceSnapshot;\
+            aliceSnapshotCreated = true;\
+        }\
+        assert aliceSnapshot != null;\
+\
+        if (aliceSnapshotCreated \&\& mSearchToolbarSnapshotBitmap != null) {\
+            aliceSnapshot.setImageBitmap(mSearchToolbarSnapshotBitmap);\
+        }\
+\
+        ViewGroup.LayoutParams aliceParams = aliceSnapshot.getLayoutParams();\
+        if (aliceParams.height != aliceSnapshotHeight) {\
+            aliceParams.height = aliceSnapshotHeight;\
+            aliceSnapshot.setLayoutParams(aliceParams);\
+        }\
+\
+        boolean aliceNeedsCapture =\
+                mSearchToolbarSnapshotBitmap == null\
+                        || mSearchToolbarSnapshotWidth != aliceWidth\
+                        || mSearchToolbarSnapshotHeight != aliceSnapshotHeight\
+                        || mSearchToolbarSnapshotNavigationBarHeight\
+                                != aliceNavigationBarHeight\
+                        || mSearchToolbarSnapshotColor != aliceColor;\
+        if (aliceNeedsCapture) {\
+            aliceSnapshot.setVisibility(View.INVISIBLE);\
+            Bitmap aliceBitmap =\
+                    Bitmap.createBitmap(\
+                            aliceWidth,\
+                            aliceSnapshotHeight,\
+                            Bitmap.Config.ARGB_8888);\
+            android.graphics.Canvas aliceCanvas = new android.graphics.Canvas(aliceBitmap);\
+            aliceCanvas.drawColor(aliceColor);\
+            View aliceCaptureView =\
+                    aliceControlContainer.findViewById(R.id.toolbar_container);\
+            if (aliceCaptureView == null) aliceCaptureView = aliceControlContainer;\
+            org.chromium.ui.base.ViewUtils.captureBitmap(\
+                    aliceCaptureView, aliceCanvas);\
+            releaseSearchToolbarSnapshot();\
+            mSearchToolbarSnapshotBitmap = aliceBitmap;\
+            mSearchToolbarSnapshotWidth = aliceWidth;\
+            mSearchToolbarSnapshotHeight = aliceSnapshotHeight;\
+            mSearchToolbarSnapshotNavigationBarHeight = aliceNavigationBarHeight;\
+            mSearchToolbarSnapshotColor = aliceColor;\
+            aliceSnapshot.setImageBitmap(aliceBitmap);\
+        }\
+        aliceSnapshot.setTranslationY(0);\
+        // Alice patch start 0042\
+        if (mAliceFullscreenSnapshotVisible) {\
+            aliceSnapshot.setTranslationZ(1);\
+            aliceSnapshot.bringToFront();\
+            aliceSnapshot.setVisibility(View.VISIBLE);\
+        } else {\
+            aliceSnapshot.setVisibility(View.INVISIBLE);\
+        }\
+        // Alice patch end 0042\
+    }\
+\
+    private void updateSearchToolbarSnapshot() {' "$path9"
+
+sed -i '/^    private void updateSearchToolbarSnapshot() {$/,/^    }$/c\
+    private void updateSearchToolbarSnapshot() {\
+        boolean aliceFocused = mIsOmniboxFocusedSupplier.get();\
+        boolean aliceFullscreenSnapshot = mAliceFullscreenSnapshotVisible;\
+        // Alice patch start 0042\
+        boolean aliceShouldShow =\
+                (aliceFocused || aliceFullscreenSnapshot)\
+                        \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                        \&\& (aliceFullscreenSnapshot\
+                                || mLayerVisibility != LayerVisibility.HIDDEN);\
+        if (!aliceShouldShow) {\
+            if (mSearchToolbarSnapshot != null) {\
+                mSearchToolbarSnapshot.setVisibility(View.INVISIBLE);\
+            }\
+            if (!aliceFocused\
+                    \&\& !aliceFullscreenSnapshot\
+                    \&\& !mAliceFullscreenSnapshotCached) {\
+                releaseSearchToolbarSnapshot();\
+            }\
+            return;\
+        }\
+        if (aliceFullscreenSnapshot \&\& mSearchToolbarSnapshotBitmap == null) {\
+            captureSearchToolbarSnapshot();\
+            if (mSearchToolbarSnapshotBitmap == null) return;\
+        }\
+\
+        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
+        if (aliceSnapshot != null\
+                \&\& mSearchToolbarSnapshotBitmap != null\
+                \&\& aliceSnapshot.isAttachedToWindow()\
+                \&\& (aliceSnapshot.getWidth() <= 0\
+                        || aliceSnapshot.getHeight() <= 0)) {\
+            aliceSnapshot.postOnAnimation(\
+                    ToolbarPositionController.this::updateSearchToolbarSnapshot);\
+            return;\
+        }\
+        if (aliceSnapshot != null\
+                \&\& mSearchToolbarSnapshotBitmap != null\
+                \&\& aliceSnapshot.getWidth() > 0\
+                \&\& aliceSnapshot.getHeight() > 0) {\
+            aliceSnapshot.setTranslationY(0);\
+            if (aliceFullscreenSnapshot) {\
+                aliceSnapshot.setTranslationZ(1);\
+                aliceSnapshot.bringToFront();\
+            } else {\
+                moveSearchToolbarSnapshotBelowScrim();\
+            }\
+            aliceSnapshot.setVisibility(View.VISIBLE);\
+        }\
+        // Alice patch end 0042\
+    }' "$path9"
 
 # System UI 退出动画期间，原生逻辑会延迟 500ms 再更新 viewport。日志确认
 # 导航栏避让恰好在这段延迟后才恢复；现在由显式全屏同步处理，不再等待。
@@ -28,13 +406,19 @@ sed -i 's|^    private static final long SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS = 50
 # supplier，确保进入 PENDING 阶段的第一刻就把底部避设置零。
 sed -i '/^    private int mAliceNavigationBarWidth;$/a\
     // Alice patch start 0042\
-    private static final long ALICE_ENTRY_VIEWPORT_SETTLE_MS = 150;\
+    private static final long ALICE_ENTRY_VIEWPORT_SETTLE_MS = 320;\
     private @Nullable NonNullObservableSupplier<Boolean> mAliceFullscreenModeSupplier;\
     private final Callback<Boolean> mAliceFullscreenModeObserver =\
             this::onAliceFullscreenModeChanged;\
     private boolean mAliceEntryViewportPending;\
+    private int mAliceEntryViewportLockedHeight;\
+    private int mAliceEntryViewportWaitFrames;\
+    private @Nullable Runnable mAliceEntryTransitionReadyCallback;\
+    private boolean mAliceExitViewportPending;\
+    private int mAliceExitViewportLockedHeight;\
     private int mAliceLastRequestedWebContentsHeight;\
     private final Runnable mAliceEntryViewportCommit = this::finishAliceEntryViewport;\
+    private final Runnable mAliceExitViewportCommit = this::finishAliceExitViewport;\
     // Alice patch end 0042' "$path1"
 
 # 进入 persistent fullscreen 时底部避让必须立即归零，不能读取正在隐藏的
@@ -54,19 +438,30 @@ sed -i '/^        int verticalViewportInsets =$/,/^                        + (al
         }\
         // Alice patch end 0042' "$path1"
 
-# 进入全屏后系统栏隐藏和屏幕旋转会连续改变 view 高度。锁住旧 WebContents
-# 高度，避免页面在过渡中多次 resize；150ms 后一次性提交最终全屏尺寸。
+# 进入全屏后系统栏隐藏和屏幕旋转会连续改变 view 高度。竖屏过渡期间保持旧
+# WebContents 高度；一旦 view 已横屏，立即停止锁并提交最终尺寸。
 sed -i '/^        if (isAttachedToWindow(view)) {$/i\
         // Alice patch start 0042\
         mAliceLastRequestedWebContentsHeight = webContentsHeight;\
         if (mAliceEntryViewportPending) {\
-            int aliceFullWindowHeight = getRootView().getHeight();\
-            if (getResources().getConfiguration().orientation\
-                    == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {\
-                aliceFullWindowHeight = getHeight();\
+            if (width > height) {\
+                removeCallbacks(mAliceEntryViewportCommit);\
+                postOnAnimation(mAliceEntryViewportCommit);\
+            } else {\
+                if (mAliceEntryViewportLockedHeight <= 0) {\
+                    mAliceEntryViewportLockedHeight = webContentsHeight;\
+                }\
+                webContentsHeight = mAliceEntryViewportLockedHeight;\
             }\
-            if (aliceFullWindowHeight > 0) {\
-                webContentsHeight = aliceFullWindowHeight;\
+        } else if (mAliceExitViewportPending) {\
+            if (height > width) {\
+                removeCallbacks(mAliceExitViewportCommit);\
+                postOnAnimation(mAliceExitViewportCommit);\
+            } else {\
+                if (mAliceExitViewportLockedHeight <= 0) {\
+                    mAliceExitViewportLockedHeight = webContentsHeight;\
+                }\
+                webContentsHeight = mAliceExitViewportLockedHeight;\
             }\
         }\
         // Alice patch end 0042\
@@ -78,7 +473,17 @@ sed -i '/^        if (isAttachedToWindow(view)) {$/i\
 sed -i '/^    private int mTotalMinHeight = INVALID_HEIGHT;$/a\
     // Alice patch start 0042\
     private int mAliceLastChinHeight;\
+    private boolean mAliceExitingFullscreen;\
     // Alice patch end 0042' "$path7"
+
+sed -i '/^    public BrowserControlsStateProvider getBrowserControls() {$/i\
+    // Alice patch start 0042\
+    public void setAliceExitingFullscreen(boolean exiting) {\
+        mAliceExitingFullscreen = exiting;\
+    }\
+    // Alice patch end 0042\
+\
+' "$path7"
 
 sed -i '/^    private void updateBrowserControlsHeight(boolean animate) {$/,/^    }$/c\
     private void updateBrowserControlsHeight(boolean animate) {\
@@ -101,6 +506,7 @@ sed -i '/^    private void updateBrowserControlsHeight(boolean animate) {$/,/^  
                             \&\& mLayerVisibilities.get(LayerType.BOTTOM_CHIN);\
             if (aliceChinHeight > 0\
                     \&\& aliceChin.getLayerVisibility() != LayerVisibility.HIDDEN\
+                    \&\& mAliceExitingFullscreen\
                     \&\& !aliceChinAccounted) {\
                 aliceBottomControlsHeight += aliceChinHeight;\
                 aliceBottomControlsMinHeight =\
@@ -142,7 +548,9 @@ sed -i '/^    void showSystemBars(View contentView) {$/,/^    }$/c\
 sed -i 's|^                aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;$|                // Alice patch start 0042\
                 aliceBottomControlsInset =\
                         Math.max(\
-                                aliceToolbarHeight + aliceToolbarHairlineHeight,\
+                                aliceToolbarHeight\
+                                        + aliceToolbarHairlineHeight\
+                                        + mAliceNavigationBarInset,\
                                 mBrowserControlsManager.getBottomControlsHeight());\
                 // Alice patch end 0042|' "$path1"
 
@@ -193,6 +601,11 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     public void applyAliceFullscreenEntryViewport() {\
         if (!mAliceEntryViewportPending) {\
             mAliceEntryViewportPending = true;\
+            mAliceEntryViewportWaitFrames = 0;\
+            mAliceEntryViewportLockedHeight =\
+                    mAliceLastRequestedWebContentsHeight > 0\
+                            ? mAliceLastRequestedWebContentsHeight\
+                            : getViewportSize().y;\
         }\
         removeCallbacks(mAliceEntryViewportCommit);\
         postOnAnimationDelayed(\
@@ -201,9 +614,63 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
         requestRender();\
     }\
 \
+    public void setAliceEntryTransitionReadyCallback(@Nullable Runnable callback) {\
+        mAliceEntryTransitionReadyCallback = callback;\
+    }\
+\
     private void finishAliceEntryViewport() {\
         if (!mAliceEntryViewportPending) return;\
+        View aliceEntryContentView = getContentView();\
+        boolean aliceEntryViewsLandscape =\
+                aliceEntryContentView != null\
+                        \&\& aliceEntryContentView.isAttachedToWindow()\
+                        \&\& aliceEntryContentView.getWidth()\
+                                > aliceEntryContentView.getHeight()\
+                        \&\& mCompositorView.getWidth() > mCompositorView.getHeight();\
+        int aliceRequestedOrientation =\
+                mActivity == null\
+                        ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED\
+                        : mActivity.getRequestedOrientation();\
+        boolean aliceRequestedLandscape =\
+                aliceRequestedOrientation\
+                                == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE\
+                        || aliceRequestedOrientation\
+                                == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE\
+                        || aliceRequestedOrientation\
+                                == android.content.pm.ActivityInfo\
+                                        .SCREEN_ORIENTATION_REVERSE_LANDSCAPE\
+                        || aliceRequestedOrientation\
+                                == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;\
+        boolean aliceWaitForLandscape =\
+                getResources().getConfiguration().orientation\
+                                == android.content.res.Configuration.ORIENTATION_LANDSCAPE\
+                        || aliceRequestedLandscape;\
+        if (aliceWaitForLandscape \&\& !aliceEntryViewsLandscape) {\
+            if (mAliceEntryViewportWaitFrames++ < 60) {\
+                postOnAnimationDelayed(mAliceEntryViewportCommit, 16);\
+                return;\
+            }\
+        }\
+        FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
         mAliceEntryViewportPending = false;\
+        mAliceEntryViewportLockedHeight = 0;\
+        mAliceEntryViewportWaitFrames = 0;\
+        onViewportChanged();\
+        updateWebContentsSize(getCurrentTab());\
+        onBrowserControlsHeightChanged();\
+        if (mBrowserControlsManager != null) {\
+            mBrowserControlsManager.hideAndroidControls(/* animate= */ false);\
+            mBrowserControlsManager.refreshAliceAndroidControlsVisibility();\
+        }\
+        Runnable onReady = mAliceEntryTransitionReadyCallback;\
+        mAliceEntryTransitionReadyCallback = null;\
+        requestRender(onReady);\
+    }\
+\
+    private void finishAliceExitViewport() {\
+        if (!mAliceExitViewportPending) return;\
+        mAliceExitViewportPending = false;\
+        mAliceExitViewportLockedHeight = 0;\
         onViewportChanged();\
         updateWebContentsSize(getCurrentTab());\
         onBrowserControlsHeightChanged();\
@@ -212,10 +679,25 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
 \
     private void onAliceFullscreenModeChanged(Boolean fullscreen) {\
         if (Boolean.TRUE.equals(fullscreen)) {\
+            FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(true);\
+            mAliceExitViewportPending = false;\
+            mAliceExitViewportLockedHeight = 0;\
+            removeCallbacks(mAliceExitViewportCommit);\
             applyAliceFullscreenEntryViewport();\
         } else {\
+            FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
             mAliceEntryViewportPending = false;\
+            mAliceEntryViewportLockedHeight = 0;\
+            mAliceEntryViewportWaitFrames = 0;\
+            mAliceEntryTransitionReadyCallback = null;\
             removeCallbacks(mAliceEntryViewportCommit);\
+            mAliceExitViewportPending = true;\
+            mAliceExitViewportLockedHeight =\
+                    mAliceLastRequestedWebContentsHeight > 0\
+                            ? mAliceLastRequestedWebContentsHeight\
+                            : getViewportSize().y;\
+            removeCallbacks(mAliceExitViewportCommit);\
+            postOnAnimationDelayed(mAliceExitViewportCommit, 700);\
         }\
     }\
 \
@@ -242,7 +724,25 @@ sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControl
                 mAliceFullscreenModeSupplier = null;\
             }\
             removeCallbacks(mAliceEntryViewportCommit);\
+            removeCallbacks(mAliceExitViewportCommit);\
+            FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
             // Alice patch end 0042|' "$path1"
+
+# 进入过渡期间底部工具栏继续按 shown 状态参与 renderer viewport 计算。Android
+# 控件可以不可见，但不能让页面在系统栏/旋转完成前先向上抬头一个工具栏高度。
+sed -i '/^        \/\/ This min\/max logic is here to handle changes in the browser controls height\./i\
+        // Alice patch start 0042\
+        if (FullscreenManager.FullscreenTransitionState.isEnteringFullscreen()\
+                \&\& getControlsPosition() == ControlsPosition.BOTTOM) {\
+            topControlsOffset = 0;\
+            bottomControlsOffset = 0;\
+            topContentOffset = getTopControlsHeight();\
+            topControlsMinHeightOffset = getTopControlsMinHeight();\
+            bottomControlsMinHeightOffset = getBottomControlsMinHeight();\
+        }\
+        // Alice patch end 0042\
+\
+' "$path3"
 
 # 0033 在退出全屏时直接跳过了 BrowserControlsManager 的 SHOWN 约束，使控件
 # 等到最后才定位。恢复原生约束流程，让退出时立即走正常的 SHOWN 路径。
@@ -270,6 +770,17 @@ sed -i '/^    private void scheduleVisibilityUpdate() {$/i\
 # 避让置零，不能等待正在隐藏的 browser controls 发完 offset。
 sed -i '/^                                \.setExitingFullscreen(false);$/a\
                         // Alice patch start 0042\
+                        mBottomControlsStacker.setAliceExitingFullscreen(false);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.showFullscreenToolbarSnapshot();\
+                            mCompositorViewHolder.setAliceEntryTransitionReadyCallback(\
+                                    () -> {\
+                                        if (mToolbarPositionController != null) {\
+                                            mToolbarPositionController\
+                                                    .hideFullscreenToolbarSnapshot();\
+                                        }\
+                                    });\
+                        }\
                         mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
                         // Alice patch end 0042\
 ' "$path2"
@@ -433,10 +944,47 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch end 0042
 ' "$path2"
 
+sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
+    // Alice patch start 0042\
+    private void scheduleAliceFullscreenSnapshotRelease() {\
+        cancelAliceFullscreenSnapshotRelease();\
+        mAliceFullscreenSnapshotReleaseRunnable =\
+                () -> releaseAliceFullscreenToolbarSnapshotNow();\
+        mControlContainer\
+                .getView()\
+                .postOnAnimationDelayed(\
+                        mAliceFullscreenSnapshotReleaseRunnable, 700);\
+    }\
+\
+    private void cancelAliceFullscreenSnapshotRelease() {\
+        if (mAliceFullscreenSnapshotReleaseRunnable == null) return;\
+        mControlContainer\
+                .getView()\
+                .removeCallbacks(mAliceFullscreenSnapshotReleaseRunnable);\
+        mAliceFullscreenSnapshotReleaseRunnable = null;\
+    }\
+\
+    private void releaseAliceFullscreenToolbarSnapshotNow() {\
+        cancelAliceFullscreenSnapshotRelease();\
+        if (mToolbarPositionController != null) {\
+            mToolbarPositionController.releaseFullscreenToolbarSnapshot();\
+        }\
+        mBottomControlsStacker.setAliceExitingFullscreen(false);\
+        mBottomControlsStacker.requestLayerUpdate(false);\
+    }\
+    // Alice patch end 0042\
+\
+' "$path2"
+
 # persistent fullscreen 刚变为 false 就立即按已恢复的导航栏停止避让高度更新，
 # 不等待 refreshToolbarAfterFullscreen() 的下一动画帧。
 sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
                         // Alice patch start 0042\
+                        mBottomControlsStacker.setAliceExitingFullscreen(true);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.showFullscreenToolbarSnapshot();\
+                        }\
+                        scheduleAliceFullscreenSnapshotRelease();\
                         updateToolbarSceneLayerSuppression();\
                         mControlContainer.getView().post(\
                                 () -> {\
