@@ -23,26 +23,8 @@ sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
 sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
                             \/\/ Alice patch start 0042\
                             cancelAliceFullscreenSnapshotRelease();\
-                            \/\/ Alice patch end 0042/}' "$path2"
-
-sed -i '/^                    public void onStartedShowing(@LayoutType int layoutType) {$/a\
-                        // Alice patch start 0042\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.setAliceToolbarSnapshotSuppressed(\
-                                    layoutType != LayoutType.BROWSING);\
-                        }\
-                        // Alice patch end 0042\
-' "$path2"
-
-sed -i '/^                    public void onFinishedShowing(int layoutType) {$/a\
-                        // Alice patch start 0042\
-                        if (layoutType != LayoutType.BROWSING) {\
                             releaseAliceFullscreenToolbarSnapshotNow();\
-                        } else if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.setAliceToolbarSnapshotSuppressed(false);\
-                        }\
-                        // Alice patch end 0042\
-' "$path2"
+                            \/\/ Alice patch end 0042/}' "$path2"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0042' "$path1"; then
@@ -62,15 +44,20 @@ sed -i '/^    final class FullscreenTransitionState {$/a\
         public static boolean isEnteringFullscreen() {\
             return sAliceEnteringFullscreen;\
         }\
+\
         // Alice patch end 0042\
 ' "$path10"
+
+# Hub 转场开始释放快照后，updateForLayout 不能再立刻重新捕获一份。
+sed -i '/^    private void updateForLayout(@LayoutType int layoutType) {$/,/^    }$/s|            mToolbarPositionController.requestSearchToolbarSnapshotCapture();|            if (layoutType != LayoutType.HUB) {\
+                mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
+            }|' "$path2"
 
 # 复用搜索工具栏快照，为 HTML 全屏切换提供独立的过渡快照。
 sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
     // Alice patch start 0042\
     private boolean mAliceFullscreenSnapshotVisible;\
     private boolean mAliceFullscreenSnapshotCached;\
-    private boolean mAliceToolbarSnapshotSuppressed;\
     private int mAliceFullscreenSnapshotAttachAttempts;\
     private final Runnable mAliceFullscreenSnapshotEnsureRunnable =\
             this::ensureFullscreenToolbarSnapshotVisible;\
@@ -109,21 +96,6 @@ sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
         discardAliceFullscreenToolbarSnapshot();\
         aliceControlContainer.requestLayout();\
         aliceControlContainer.invalidate();\
-        aliceControlContainer.postOnAnimationDelayed(\
-                () -> {\
-                    if (!mAliceFullscreenSnapshotVisible\
-                            \&\& !mIsOmniboxFocusedSupplier.get()\
-                            \&\& mIsTabSwitcherFinishedShowingSupplier.get()) {\
-                        discardAliceFullscreenToolbarSnapshot();\
-                        aliceControlContainer.requestLayout();\
-                        aliceControlContainer.invalidate();\
-                    }\
-                },\
-                32);\
-    }\
-\
-    void setAliceToolbarSnapshotSuppressed(boolean suppressed) {\
-        mAliceToolbarSnapshotSuppressed = suppressed;\
     }\
 \
     private void discardAliceFullscreenToolbarSnapshot() {\
@@ -213,8 +185,7 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void
         // Alice patch start 0042\
         if (!mAliceFullscreenSnapshotVisible\
                 \&\& !mIsOmniboxFocusedSupplier.get()\
-                \&\& (mAliceToolbarSnapshotSuppressed\
-                        || mIsTabSwitcherFinishedShowingSupplier.get())) {\
+                \&\& mIsTabSwitcherFinishedShowingSupplier.get()) {\
             return;\
         }\
         if (mCurrentPosition.get() != ControlsPosition.BOTTOM\
@@ -411,11 +382,16 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
     private final Callback<Boolean> mAliceFullscreenModeObserver =\
             this::onAliceFullscreenModeChanged;\
     private boolean mAliceEntryViewportPending;\
+    private int mAliceEntryViewportLockedWidth;\
     private int mAliceEntryViewportLockedHeight;\
     private int mAliceEntryViewportWaitFrames;\
+    private int mAliceEntryViewportStableFrames;\
+    private boolean mAliceEntryControlsHiddenRequested;\
+    private int mAliceEntrySystemBarsWaitFrames;\
     private @Nullable Runnable mAliceEntryTransitionReadyCallback;\
     private boolean mAliceExitViewportPending;\
     private int mAliceExitViewportLockedHeight;\
+    private int mAliceLastRequestedWebContentsWidth;\
     private int mAliceLastRequestedWebContentsHeight;\
     private final Runnable mAliceEntryViewportCommit = this::finishAliceEntryViewport;\
     private final Runnable mAliceExitViewportCommit = this::finishAliceExitViewport;\
@@ -438,20 +414,34 @@ sed -i '/^        int verticalViewportInsets =$/,/^                        + (al
         }\
         // Alice patch end 0042' "$path1"
 
-# 进入全屏后系统栏隐藏和屏幕旋转会连续改变 view 高度。竖屏过渡期间保持旧
-# WebContents 高度；一旦 view 已横屏，立即停止锁并提交最终尺寸。
+# 进入全屏后系统栏隐藏和屏幕旋转会连续改变 view 高度。过渡期间保持旧
+# WebContents 高度；横屏、系统栏隐藏和连续稳定帧全部就绪后，再一次性提交。
 sed -i '/^        if (isAttachedToWindow(view)) {$/i\
         // Alice patch start 0042\
+        mAliceLastRequestedWebContentsWidth = webContentsWidth;\
         mAliceLastRequestedWebContentsHeight = webContentsHeight;\
         if (mAliceEntryViewportPending) {\
-            if (width > height) {\
+            View alicePendingContentView = getContentView();\
+            boolean alicePendingViewsLandscape =\
+                    alicePendingContentView != null\
+                            \&\& alicePendingContentView.isAttachedToWindow()\
+                            \&\& alicePendingContentView.getWidth()\
+                                    > alicePendingContentView.getHeight()\
+                            \&\& mCompositorView.getWidth() > mCompositorView.getHeight();\
+            if (alicePendingViewsLandscape) {\
                 removeCallbacks(mAliceEntryViewportCommit);\
                 postOnAnimation(mAliceEntryViewportCommit);\
+                return;\
             } else {\
+                if (mAliceEntryViewportLockedWidth <= 0) {\
+                    mAliceEntryViewportLockedWidth = webContentsWidth;\
+                }\
                 if (mAliceEntryViewportLockedHeight <= 0) {\
                     mAliceEntryViewportLockedHeight = webContentsHeight;\
                 }\
+                webContentsWidth = mAliceEntryViewportLockedWidth;\
                 webContentsHeight = mAliceEntryViewportLockedHeight;\
+                return;\
             }\
         } else if (mAliceExitViewportPending) {\
             if (height > width) {\
@@ -602,6 +592,13 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
         if (!mAliceEntryViewportPending) {\
             mAliceEntryViewportPending = true;\
             mAliceEntryViewportWaitFrames = 0;\
+            mAliceEntryViewportStableFrames = 0;\
+            mAliceEntryControlsHiddenRequested = false;\
+            mAliceEntrySystemBarsWaitFrames = 0;\
+            mAliceEntryViewportLockedWidth =\
+                    mAliceLastRequestedWebContentsWidth > 0\
+                            ? mAliceLastRequestedWebContentsWidth\
+                            : getViewportSize().x;\
             mAliceEntryViewportLockedHeight =\
                     mAliceLastRequestedWebContentsHeight > 0\
                             ? mAliceLastRequestedWebContentsHeight\
@@ -645,23 +642,51 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                 getResources().getConfiguration().orientation\
                                 == android.content.res.Configuration.ORIENTATION_LANDSCAPE\
                         || aliceRequestedLandscape;\
+        if (aliceEntryViewsLandscape\
+                \&\& mAliceEntryViewportStableFrames++ < 1) {\
+            postOnAnimationDelayed(mAliceEntryViewportCommit, 16);\
+            return;\
+        }\
         if (aliceWaitForLandscape \&\& !aliceEntryViewsLandscape) {\
             if (mAliceEntryViewportWaitFrames++ < 60) {\
                 postOnAnimationDelayed(mAliceEntryViewportCommit, 16);\
                 return;\
             }\
         }\
+        if (!mAliceEntryControlsHiddenRequested) {\
+            FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
+            mAliceEntryControlsHiddenRequested = true;\
+            if (mBrowserControlsManager != null) {\
+                mBrowserControlsManager.hideAndroidControls(/* animate= */ false);\
+                mBrowserControlsManager.refreshAliceAndroidControlsVisibility();\
+            }\
+            postOnAnimationDelayed(mAliceEntryViewportCommit, 16);\
+            return;\
+        }\
+        WindowInsetsCompat aliceEntryInsets =\
+                ViewCompat.getRootWindowInsets(getRootView());\
+        boolean aliceEntrySystemBarsHidden =\
+                aliceEntryInsets != null\
+                        \&\& !aliceEntryInsets.isVisible(\
+                                WindowInsetsCompat.Type.statusBars())\
+                        \&\& !aliceEntryInsets.isVisible(\
+                                WindowInsetsCompat.Type.navigationBars());\
+        if (!aliceEntrySystemBarsHidden\
+                \&\& mAliceEntrySystemBarsWaitFrames++ < 90) {\
+            postOnAnimationDelayed(mAliceEntryViewportCommit, 16);\
+            return;\
+        }\
         FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
         mAliceEntryViewportPending = false;\
+        mAliceEntryViewportLockedWidth = 0;\
         mAliceEntryViewportLockedHeight = 0;\
         mAliceEntryViewportWaitFrames = 0;\
+        mAliceEntryViewportStableFrames = 0;\
+        mAliceEntryControlsHiddenRequested = false;\
+        mAliceEntrySystemBarsWaitFrames = 0;\
         onViewportChanged();\
-        updateWebContentsSize(getCurrentTab());\
         onBrowserControlsHeightChanged();\
-        if (mBrowserControlsManager != null) {\
-            mBrowserControlsManager.hideAndroidControls(/* animate= */ false);\
-            mBrowserControlsManager.refreshAliceAndroidControlsVisibility();\
-        }\
+        updateWebContentsSize(getCurrentTab());\
         Runnable onReady = mAliceEntryTransitionReadyCallback;\
         mAliceEntryTransitionReadyCallback = null;\
         requestRender(onReady);\
@@ -687,8 +712,12 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
         } else {\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
             mAliceEntryViewportPending = false;\
+            mAliceEntryViewportLockedWidth = 0;\
             mAliceEntryViewportLockedHeight = 0;\
             mAliceEntryViewportWaitFrames = 0;\
+            mAliceEntryViewportStableFrames = 0;\
+            mAliceEntryControlsHiddenRequested = false;\
+            mAliceEntrySystemBarsWaitFrames = 0;\
             mAliceEntryTransitionReadyCallback = null;\
             removeCallbacks(mAliceEntryViewportCommit);\
             mAliceExitViewportPending = true;\
@@ -726,6 +755,8 @@ sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControl
             removeCallbacks(mAliceEntryViewportCommit);\
             removeCallbacks(mAliceExitViewportCommit);\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
+            mAliceEntryControlsHiddenRequested = false;\
+            mAliceEntrySystemBarsWaitFrames = 0;\
             // Alice patch end 0042|' "$path1"
 
 # 进入过渡期间底部工具栏继续按 shown 状态参与 renderer viewport 计算。Android
@@ -784,13 +815,26 @@ sed -i '/^                                \.setExitingFullscreen(false);$/a\
                         mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
                         // Alice patch end 0042\
 ' "$path2"
-
 # 0033 在 tab 校验之前就标记“正在退出”。只有真正会通知观察者的退出才
 # 开启退出同步，避免错误 tab 或重复退出把控件永久留在隐藏状态。
+sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
+        // Alice patch start 0042\
+        FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(true);\
+        // Alice patch end 0042\
+' "$path4"
+
+sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|        if (shouldSkipEnterFullscreenRequest(options)) {\
+            // Alice patch start 0042\
+            FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
+            // Alice patch end 0042\
+            return;\
+        }|' "$path4"
+
 sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^        if (tab != mTab) return;$/c\
     public void onExitFullscreen(Tab tab) {\
         // Alice patch start 0042\
         if (tab != mTab) return;\
+        FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
         // Alice patch end 0042\
 ' "$path4"
 
@@ -993,4 +1037,3 @@ sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
                                 });\
                         // Alice patch end 0042\
 ' "$path2"
-
