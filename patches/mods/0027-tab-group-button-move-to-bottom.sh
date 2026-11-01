@@ -12,6 +12,7 @@ path5="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/Shrin
 path6="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
 path7="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubContainerView.java"
 path8="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubCoordinator.java"
+path9="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarMediator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0027' "$path1"; then
@@ -35,7 +36,7 @@ sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/c\
     </FrameLayout>\
 <!-- Alice patch end 0027 -->' "$path1"
 
-# --- hub_toolbar_layout.xml：按钮重排（结构搬动，标签内不能放注释，故不加 marker）---
+# --- hub_toolbar_layout.xml：按钮重排 ---
 sed -i '\|^          app:tint="@color/default_icon_color_tint_list"/>$|a\
       </LinearLayout>' "$path2"
 sed -i '\|^        <Button$|i\
@@ -91,6 +92,18 @@ sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0027\
         mActivity.unregisterComponentCallbacks(mComponentCallbacks);\
         // Alice patch end 0027' "$path4"
+
+# Hub 搜索框和搜索入口全部禁用。
+sed -i '/^                        mPropertyModel\.set(SEARCH_LOUPE_VISIBLE, isTablet);$/a\
+                        // Alice patch start 0027\
+                        mPropertyModel.set(SEARCH_BOX_VISIBLE, false);\
+                        mPropertyModel.set(SEARCH_LOUPE_VISIBLE, false);\
+                        // Alice patch end 0027' "$path9"
+sed -i '/^    private void onSearchBoxVisibilityChange(Boolean shouldShow) {$/a\
+        // Alice patch start 0027\
+        shouldShow = false;\
+        // Alice patch end 0027' "$path9"
+sed -i 's|^        mPropertyModel\.set(SEARCH_LISTENER, this::onSearchClicked);$|        // Alice patch start 0027\n        mPropertyModel.set(SEARCH_LISTENER, () -> {});\n        // Alice patch end 0027|' "$path9"
 
 # --- ShrinkExpandAnimator.java ---
 sed -i '/^                        - Math\.round(mInitialRect\.top + (1\.0 - scaleY) \* initialRectHeight \/ 2\.0));$/a\
