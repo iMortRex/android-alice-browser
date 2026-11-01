@@ -64,6 +64,10 @@ sed -i '/^    protected void onStart() {$/i\
     // Alice patch end 0001\
 ' "$path2"
 
+# `onStart()` 上方原本带有 @Override；在新方法前插入后，该注解会错误地
+# 作用于 private 的 updateAliceDisplayCutoutMode()。
+sed -i '/^    @Override$/{N;/^    @Override\n    \/\/ Alice patch start 0001$/s/^    @Override\n//}' "$path2"
+
 sed -i '/^        super\.onConfigurationChanged(newConfig);$/a\
         // Alice patch start 0001\
         updateAliceDisplayCutoutMode(newConfig);\
