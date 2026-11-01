@@ -300,7 +300,10 @@ sed -i '/^            int maxHeight = windowHeight - keyboardHeight - statusBarH
                                     .getInsets(\
                                             WindowInsetsCompat.Type.mandatorySystemGestures())\
                                     .bottom);\
-            int aliceBottomInset = Math.max(keyboardHeight, aliceNavigationBarHeight);\
+            int aliceBottomInset =\
+                    mIsImeAnimationRunning\
+                            ? keyboardHeight\
+                            : Math.max(keyboardHeight, aliceNavigationBarHeight);\
             int maxHeight = windowHeight - aliceBottomInset - statusBarHeight;\
             // Alice patch end 0033' "$path1"
 
@@ -328,10 +331,10 @@ sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                \&\& (mIsImeAnimationRunning\
-                        || mKeyboardVisibilityDelegate.isKeyboardShowing(\
-                                mControlContainer.getView())\
-                        || mIsOmniboxFocusedSupplier.get())) {\
+                \&\& mIsOmniboxFocusedSupplier.get()\
+                \&\& !mIsImeAnimationRunning\
+                \&\& !mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                        mControlContainer.getView())) {\
             layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
         // Alice patch end 0033\
@@ -1049,8 +1052,8 @@ sed -i '/^    private boolean stickToAnchor() {$/i\
 \
     private void updateAliceBottomAnchoredPosition(\
             int aliceTargetTop, int aliceContainerTop) {\
-        int aliceWindowHeight = mEmbedder.getWindowHeight();\
-        if (aliceWindowHeight <= 0) aliceWindowHeight = getRootView().getHeight();\
+        int aliceWindowHeight = getRootView().getHeight();\
+        if (aliceWindowHeight <= 0) aliceWindowHeight = mEmbedder.getWindowHeight();\
         int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
         int aliceViewportHeight =\
                 Math.max(\
@@ -1093,11 +1096,10 @@ sed -i '/^    private boolean stickToAnchor() {$/i\
     private void updateAliceImeViewport(WindowInsetsCompat insets) {\
         if (mDropdown.getVisibility() != View.VISIBLE) return;\
         int aliceImeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;\
-        int aliceBottomInset =\
-                Math.max(aliceImeHeight, getAliceNavigationBarHeight());\
+        int aliceBottomInset = aliceImeHeight;\
         int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
-        int aliceWindowHeight = mEmbedder.getWindowHeight();\
-        if (aliceWindowHeight <= 0) aliceWindowHeight = getRootView().getHeight();\
+        int aliceWindowHeight = getRootView().getHeight();\
+        if (aliceWindowHeight <= 0) aliceWindowHeight = mEmbedder.getWindowHeight();\
         getLocationInWindow(mStickPosition);\
         int aliceContainerTop = mStickPosition[1];\
         int aliceViewportHeight =\
@@ -1126,6 +1128,22 @@ sed -i '/^    private boolean stickToAnchor() {$/i\
     }\
     // Alice patch end 0033\
 ' "$path5"
+
+sed -i '/^    protected void onFinishInflate() {$/,/^    }$/c\
+    // Alice patch start 0033\
+    protected void onFinishInflate() {\
+        super.onFinishInflate();\
+        mDropdown = findViewById(R.id.omnibox_suggestions_dropdown);\
+    }\
+\
+    @Override\
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {\
+        super.onSizeChanged(width, height, oldWidth, oldHeight);\
+        if (width == oldWidth \&\& height == oldHeight) return;\
+        mAliceBottomViewportHeight = -1;\
+        postOnAnimation(OmniboxSuggestionsContainer.this::stickToAnchor);\
+    }\
+    // Alice patch end 0033' "$path5"
 
 sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener);$/a\
             // Alice patch start 0033\
@@ -1349,14 +1367,9 @@ sed -i '/^    private boolean stickToAnchor() {$/,/^    }$/c\
 
 sed -i '/^            int availableViewportHeight = mOmniboxAlignment\.height;$/c\
             // Alice patch start 0033\
-            int availableViewportHeight = mOmniboxAlignment.height;\
-            if (mEmbedder != null) {\
-                int aliceRootHeight = getRootView().getHeight();\
-                int aliceTopMargin = Math.max(0, mOmniboxAlignment.top);\
-                int aliceFullHeight = aliceRootHeight - aliceTopMargin;\
-                if (aliceFullHeight > 0) {\
-                    availableViewportHeight = aliceFullHeight;\
-                }\
+            int availableViewportHeight = MeasureSpec.getSize(heightMeasureSpec);\
+            if (availableViewportHeight <= 0) {\
+                availableViewportHeight = mOmniboxAlignment.height;\
             }\
             // Alice patch end 0033' "$path5"
 

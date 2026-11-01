@@ -742,7 +742,6 @@ sed -i '/^    private boolean mControlsResizeView;$/a\
 
 # 15) WebContents viewport 使用真实的 top/bottom controls 高度；controls 被
 #     hiding token 隐藏时不再为空工具栏或 mini origin bar 避让。
-path19="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$/c\
         // Alice patch start 0032\
         if (mAliceNavigationBarWidth != getWidth()) {\
@@ -759,8 +758,16 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
                                     androidx.core.view.WindowInsetsCompat.Type\
                                             .navigationBars())\
                             .bottom;\
-            mAliceNavigationBarInset =\
-                    Math.max(mAliceNavigationBarInset, aliceCurrentNavBarInset);\
+            boolean alicePreserveNavigationBarInset =\
+                    FullscreenManager.FullscreenTransitionState\
+                            .isExitingFullscreen()\
+                            || (mBrowserControlsManager != null\
+                                    \&\& mBrowserControlsManager\
+                                            .getFullscreenManager()\
+                                            .getPersistentFullscreenMode());\
+            if (!alicePreserveNavigationBarInset || aliceCurrentNavBarInset > 0) {\
+                mAliceNavigationBarInset = aliceCurrentNavBarInset;\
+            }\
         }\
         boolean aliceInFullscreen =\
                 mBrowserControlsManager != null\

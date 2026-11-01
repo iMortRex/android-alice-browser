@@ -86,22 +86,9 @@ sed -i '/^    private int getNavigationBarHeight() {$/i\
             aliceCoverParams.height = navigationBarHeight;\
             aliceCover.setLayoutParams(aliceCoverParams);\
         }\
+        aliceCover.setTranslationZ(-1f);\
         aliceCover.setBackgroundColor(mControlContainer.getToolbarBackgroundColor());\
         aliceCover.setVisibility(View.VISIBLE);\
-        final View aliceCoverForPost = aliceCover;\
-        if (aliceContentGroup.getChildAt(aliceContentGroup.getChildCount() - 1)\
-                != aliceCoverForPost) {\
-            aliceCoverForPost.post(\
-                    () -> {\
-                        if (mAliceStartupNavigationBarCover == aliceCoverForPost\
-                                \&\& aliceCoverForPost.getParent() == aliceContentGroup\
-                                \&\& aliceContentGroup.getChildAt(\
-                                                aliceContentGroup.getChildCount() - 1)\
-                                        != aliceCoverForPost) {\
-                            aliceCoverForPost.bringToFront();\
-                        }\
-                    });\
-        }\
     }\
 \
     private void removeAliceStartupNavigationBarCover() {\

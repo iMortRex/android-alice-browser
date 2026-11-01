@@ -15,6 +15,11 @@ path8="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/Fullscreen
 path9="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 path10="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
 
+# 检测是否已应用
+if grep -q 'Alice patch start 0042' "$path1"; then
+    exit 100
+fi
+
 sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
     // Alice patch start 0042\
     private @Nullable Runnable mAliceFullscreenSnapshotReleaseRunnable;\
@@ -25,11 +30,6 @@ sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//  
                             cancelAliceFullscreenSnapshotRelease();\
                             releaseAliceFullscreenToolbarSnapshotNow();\
                             \/\/ Alice patch end 0042/}' "$path2"
-
-# 检测是否已应用
-if grep -q 'Alice patch start 0042' "$path1"; then
-    exit 100
-fi
 
 # 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
 # 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。

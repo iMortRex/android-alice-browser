@@ -223,6 +223,10 @@ sed -i '/^    private @RectStart int getForegroundRectStart(@Nullable Tab oldTab
         if (tabLaunchType == TabLaunchType.FROM_TAB_SWITCHER_UI) {\
             return RectStart.BOTTOM_CENTER;\
         }\
+        if (tabLaunchType == TabLaunchType.FROM_RECENT_TABS\
+                || tabLaunchType == TabLaunchType.FROM_RECENT_TABS_FOREGROUND) {\
+            return RectStart.BOTTOM_RIGHT;\
+        }\
         if (tabLaunchType == TabLaunchType.FROM_HISTORY_NAVIGATION_FOREGROUND) {\
             return RectStart.BOTTOM_RIGHT;\
         }\
