@@ -74,7 +74,7 @@ sed -i '/^    public void setThumbnailSizeForOffset(@Nullable Size thumbnailSize
     // Alice patch end 0029\
 ' "$path4"
 
-sed -i 's|^\( *\)mView.setTranslationY(translationY + searchBoxGap);$|\1// Alice patch start 0029\n\1mView.setTranslationY(\n\1        translationY + (mSearchBoxGapEnabled ? searchBoxGap : 0));\n\1// Alice patch end 0029|' "$path4"
+sed -i 's|^\( *\)mView.setTranslationY(translationY + searchBoxGap);$|\1// Alice patch start 0029\n\1boolean aliceLandscape =\n\1        mView.getRootView().getWidth() > mView.getRootView().getHeight();\n\1int aliceSearchBoxGap =\n\1        mSearchBoxGapEnabled \&\& !aliceLandscape ? searchBoxGap : 0;\n\1mView.setTranslationY(translationY + aliceSearchBoxGap);\n\1// Alice patch end 0029|' "$path4"
 
 sed -i '/^                        mRectView, mInitialRect, finalRect, \/\* searchBoxHeight= \*\/ 0);$/a\
         // Alice patch start 0029\

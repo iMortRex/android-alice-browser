@@ -62,8 +62,35 @@ sed -i '/^import android\.view\.View;$/a\
 import android.view.ViewGroup;\
 import android.view.ViewParent;\
 // Alice patch end 0027' "$path4"
-sed -i 's|^\( *\)params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn ? 0 : mAppHeaderHeight);$|\1// Alice patch start 0027\n\1int searchBoxGap =\n\1        mHubContainerView\n\1                .getResources()\n\1                .getDimensionPixelSize(R.dimen.hub_search_box_gap);\n\1params.topMargin = mStatusIndicatorHeight - searchBoxGap;\n\1// Alice patch end 0027|' "$path4"
+sed -i 's|^\( *\)params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn ? 0 : mAppHeaderHeight);$|\1// Alice patch start 0027\n\1int searchBoxGap =\n\1        mHubContainerView\n\1                .getResources()\n\1                .getDimensionPixelSize(R.dimen.hub_search_box_gap);\n\1boolean aliceLandscape;\n\1if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {\n\1    android.graphics.Rect bounds =\n\1            mActivity\n\1                    .getWindowManager()\n\1                    .getCurrentWindowMetrics()\n\1                    .getBounds();\n\1    aliceLandscape = bounds.width() > bounds.height();\n\1} else {\n\1    android.content.res.Configuration configuration =\n\1            mHubContainerView.getResources().getConfiguration();\n\1    aliceLandscape = configuration.screenWidthDp > configuration.screenHeightDp;\n\1}\n\1params.topMargin =\n\1        aliceLandscape ? mStatusIndicatorHeight : mStatusIndicatorHeight - searchBoxGap;\n\1// Alice patch end 0027|' "$path4"
 sed -i 's|^\( *\)mHubContainerView\.setPadding(0, isVerticalTabsOn ? mAppHeaderHeight : 0, 0, 0);$|\1// Alice patch start 0027\n\1mHubContainerView.setPadding(0, 0, 0, 0);\n\n\1ViewParent parent = mHubContainerView.getParent();\n\1if (parent instanceof ViewGroup) {\n\1    ((ViewGroup) parent).setClipChildren(false);\n\1    ((ViewGroup) parent).setClipToPadding(false);\n\1}\n\1// Alice patch end 0027|' "$path4"
+
+# 配置变化时主动重算 Hub 容器 margin，避免旋转后沿用旧方向的 padding。
+sed -i '/^    private int mAppHeaderHeight;$/a\
+    // Alice patch start 0027\
+    private final android.content.ComponentCallbacks mComponentCallbacks =\
+            new android.content.ComponentCallbacks() {\
+                @Override\
+                public void onConfigurationChanged(\
+                        android.content.res.Configuration newConfig) {\
+                    mHubContainerView.post(\
+                            HubManagerImpl.this::updateContainerLayoutParams);\
+                }\
+\
+                @Override\
+                public void onLowMemory() {}\
+            };\
+    // Alice patch end 0027' "$path4"
+
+sed -i '/^        mDefaultPaneId = defaultPaneId;$/a\
+        // Alice patch start 0027\
+        mActivity.registerComponentCallbacks(mComponentCallbacks);\
+        // Alice patch end 0027' "$path4"
+
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0027\
+        mActivity.unregisterComponentCallbacks(mComponentCallbacks);\
+        // Alice patch end 0027' "$path4"
 
 # --- ShrinkExpandAnimator.java ---
 sed -i '/^                        - Math\.round(mInitialRect\.top + (1\.0 - scaleY) \* initialRectHeight \/ 2\.0));$/a\
