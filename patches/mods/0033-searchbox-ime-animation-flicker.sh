@@ -291,15 +291,7 @@ sed -i '/^        if (mIsOmniboxFocusedSupplier.get() \&\& mCurrentPosition.get(
 #    延伸层覆盖，工具栏本身不再为了填背景而永久上移。
 sed -i '/^            int maxHeight = windowHeight - keyboardHeight - statusBarHeight;$/c\
             // Alice patch start 0033\
-            int aliceNavigationBarHeight =\
-                    Math.max(\
-                            windowInsetsCompat\
-                                    .getInsets(WindowInsetsCompat.Type.navigationBars())\
-                                    .bottom,\
-                            windowInsetsCompat\
-                                    .getInsets(\
-                                            WindowInsetsCompat.Type.mandatorySystemGestures())\
-                                    .bottom);\
+            int aliceNavigationBarHeight = getNavigationBarHeight();\
             int aliceBottomInset =\
                     mIsImeAnimationRunning\
                             ? keyboardHeight\
@@ -356,6 +348,11 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
 \
     private int getNavigationBarHeight() {\
         View aliceRoot = mControlContainer.getView().getRootView();\
+        if (aliceRoot.getContext() instanceof android.app.Activity\
+                \&\& ((android.app.Activity) aliceRoot.getContext())\
+                        .isInMultiWindowMode()) {\
+            return 0;\
+        }\
         android.view.WindowInsets aliceInsets = aliceRoot.getRootWindowInsets();\
         if (aliceInsets == null) return 0;\
         WindowInsetsCompat aliceCompatInsets =\
@@ -1037,6 +1034,10 @@ sed -i '/^    private final int\[\] mStickPosition = new int\[2\];$/a\
 sed -i '/^    private boolean stickToAnchor() {$/i\
     // Alice patch start 0033\
     private int getAliceNavigationBarHeight() {\
+        if (getContext() instanceof android.app.Activity\
+                \&\& ((android.app.Activity) getContext()).isInMultiWindowMode()) {\
+            return 0;\
+        }\
         android.view.WindowInsets aliceRootInsets = getRootWindowInsets();\
         if (aliceRootInsets == null) return 0;\
         WindowInsetsCompat aliceInsets =\
