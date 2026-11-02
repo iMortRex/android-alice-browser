@@ -27,6 +27,7 @@ path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserContro
 path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
 path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path21="chrome/android/java/AndroidManifest.xml"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -1159,6 +1160,44 @@ sed -i '/^    protected void onFinishInflate() {$/,/^    }$/c\
         postOnAnimation(OmniboxSuggestionsContainer.this::stickToAnchor);\
     }\
     // Alice patch end 0033' "$path5"
+
+# 对齐信息变化时同步保留顶部工具栏的额外间距，避免预绘制监听器下一帧才补回，
+# 从而出现建议列表向上抖动一帧。
+sed -i '/^        mDropdown\.setPaddingRelative($/,/^                mDropdown\.getBaseBottomPadding() + mOmniboxAlignment\.paddingBottom);$/c\
+        // Alice patch start 0033\
+        int aliceTopPadding =\
+                mDropdown.getBaseTopPadding() + mOmniboxAlignment.paddingTop;\
+        if (mEmbedder != null \&\& !mEmbedder.isToolbarOnBottom()) {\
+            aliceTopPadding +=\
+                    getResources()\
+                            .getDimensionPixelSize(\
+                                    R.dimen.location_bar_vertical_margin);\
+        }\
+        mDropdown.setPaddingRelative(\
+                mDropdown.getPaddingStart(),\
+                aliceTopPadding,\
+                mDropdown.getPaddingEnd(),\
+                mDropdown.getBaseBottomPadding()\
+                        + mOmniboxAlignment.paddingBottom);\
+        // Alice patch end 0033' "$path5"
+
+# 搜索页窗口保持全屏高度；输入法只通过 inset 限制建议列表的可见区域。
+# 这样顶部地址栏的纯色背景不会在键盘动画结束后缩到输入法上沿。
+sed -i '/^        <activity android:name="org\.chromium\.chrome\.browser\.searchwidget\.SearchActivity"$/,/^            android:hardwareAccelerated="false">$/c\
+        <!-- Alice patch start 0033 -->\
+        <activity\
+            android:name="org.chromium.chrome.browser.searchwidget.SearchActivity"\
+            android:theme="@style/Theme.Chromium.SearchActivity"\
+            android:label="Search"\
+            android:exported="true"\
+            android:launchMode="singleTask"\
+            android:taskAffinity=""\
+            android:clearTaskOnLaunch="true"\
+            android:excludeFromRecents="true"\
+            android:windowSoftInputMode="adjustNothing"\
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode"\
+            android:hardwareAccelerated="false">\
+        <!-- Alice patch end 0033 -->' "$path21"
 
 sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener);$/a\
             // Alice patch start 0033\
