@@ -68,7 +68,7 @@ sed -i '$i\
                 mActivity.getResources().getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
         mModel.set(\
                 NewTabPageLayoutProperties.TOP_INSET_PX,\
-                mToolbarOnBottom ? mTopInset : toolbarHeightNoShadow + mTopInset);\
+                toolbarHeightNoShadow + mTopInset);\
         mModel.set(\
                 NewTabPageLayoutProperties.BOTTOM_INSET_PX,\
                 mToolbarOnBottom ? toolbarHeightNoShadow : 0);\

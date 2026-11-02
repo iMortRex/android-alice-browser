@@ -26,6 +26,7 @@ path16="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserCo
 path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
 path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
+path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -308,6 +309,19 @@ sed -i '/^            layerYOffset = Math\.max(layerYOffset - keyboardHeight, ma
             // Alice patch start 0033\
             layerYOffset = Math.min(layerYOffset, -aliceBottomInset);\
             // Alice patch end 0033' "$path1"
+
+# 底置工具栏显示真实搜索框，不经过顶部 fakebox 的纵向过渡。
+sed -i '/^    private float getLocationBarTranslationY() {$/a\
+        // Alice patch start 0033\
+        if (urlHasFocus()\
+                \&\& isLocationBarShownInGeneralNtp()\
+                \&\& isLocationBarShownInNtp()\
+                \&\& mBrowserControlsStateProvider != null\
+                \&\& mBrowserControlsStateProvider.getControlsPosition()\
+                        == ControlsPosition.BOTTOM) {\
+            return 0.f;\
+        }\
+        // Alice patch end 0033' "$path20"
 
 # 5) 搜索页位于底部时，无论 normal 或 overlay 键盘模式都由上面的 inset
 #    驱动，避免 resize mode 功能开关把键盘高度清零后产生跳位。
@@ -1574,7 +1588,18 @@ sed -i '/^    public boolean isSceneOverlayTreeShowing() {$/a\
         // Alice patch end 0033\
 ' "$path19"
 
-sed -i 's@^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);$@                mIsXrFsm\n                        || mIsVerticalTabsHiddenDueToNarrow\n                        || mIsUrlBarFocusedForSceneLayer\n                        || mFullscreenManager.getPersistentFullscreenMode()\n                        || mInTabSwitcherTransition\n                        || (mLayoutStateProvider != null\n                                \&\& mLayoutStateProvider.getActiveLayoutType() == LayoutType.HUB));@' "$path2"
+sed -i '/^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);$/c\
+                mIsXrFsm\
+                        || mIsVerticalTabsHiddenDueToNarrow\
+                        // Alice patch start 0033\
+                        || (mIsUrlBarFocusedForSceneLayer\
+                                \&\& !isAliceDefaultNtpBottomOmniboxFocused())\
+                        || mFullscreenManager.getPersistentFullscreenMode()\
+                        || mInTabSwitcherTransition\
+                        || (mLayoutStateProvider != null\
+                                \&\& mLayoutStateProvider.getActiveLayoutType()\
+                                        == LayoutType.HUB));\
+                        // Alice patch end 0033' "$path2"
 
 sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
                         // Alice patch start 0033\

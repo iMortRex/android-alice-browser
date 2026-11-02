@@ -12,6 +12,7 @@ path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/to
 path6="chrome/browser/ui/prefs/prefs_tab_helper.cc"
 path7="third_party/search_engines_data/resources/definitions/prepopulated_engines.json"
 path8="third_party/search_engines_data/resources/definitions/regional_settings.json"
+path9="components/search_engines/template_url_prepopulate_data.cc"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0004' "$path1"; then
@@ -37,15 +38,23 @@ sed -i 's|^\( *\)\(\.readBoolean(ADAPTIVE_TOOLBAR_CUSTOMIZATION_ENABLED, true);\
 # 需要先 grep kForceEnableZoom 拿到整行原文才能改成整行锚点 + marker。
 sed -i '/^  registry->RegisterBooleanPref(prefs::kAccessibilityForceEnableZoom,$/{n;s|^\( *\)pref_defaults\.force_enable_zoom);$|\1// Alice patch start 0004\n\1true);\n\1// Alice patch end 0004|}' "$path6"
 
-# --- 搜索引擎：添加必应并设为默认 ---
-sed -i '/^  "elements": {$/a\
+# --- 搜索引擎：添加必应并设为默认；重复执行时不再追加副本 ---
+if ! grep -q '^[[:space:]]*"cnbing":[[:space:]]' "$path7"; then
+    sed -i '/^  "elements": {$/a\
 // Alice patch start 0004\
     "cnbing": {"name": "必应", "keyword": "cn.bing.com", "favicon_url": "https://cn.bing.com/favicon.ico", "search_url": "https://cn.bing.com/search?q={searchTerms}", "suggest_url": "https://cn.bing.com/osjson.aspx?query={searchTerms}\&language={language}", "type": "SEARCH_ENGINE_BING", "id": 118},\
 // Alice patch end 0004' "$path7"
+fi
 
-sed -i 's|^\( *\)"kMaxPrepopulatedEngineID": 117,$|\1// Alice patch start 0004\n\1"kMaxPrepopulatedEngineID": 118,\n\1// Alice patch end 0004|' "$path7"
+if ! grep -q '^[[:space:]]*"kMaxPrepopulatedEngineID": 118,$' "$path7"; then
+    sed -i 's|^\( *\)"kMaxPrepopulatedEngineID": 117,$|\1// Alice patch start 0004\n\1"kMaxPrepopulatedEngineID": 118,\n\1// Alice patch end 0004|' "$path7"
+fi
 
-sed -i '/^    "CN": {/,/^    },/ s|^\( *\)"search_engines": \[$|\1// Alice patch start 0004\n\1"search_engines": [\n\1"\&cnbing",\n\1// Alice patch end 0004|' "$path8"
+if ! grep -q '^[[:space:]]*"\&cnbing",[[:space:]]*$' "$path8"; then
+    sed -i '/^    "CN": {/,/^    },/ s|^\( *\)"search_engines": \[$|\1// Alice patch start 0004\n\1"search_engines": [\n\1"\&cnbing",\n\1// Alice patch end 0004|' "$path8"
+fi
+
+sed -i '/^std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(/,/^}$/ s|^  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,$|  // Alice patch start 0004\n  for (const auto\& engine : regional_prepopulated_engines) {\n    if (engine->id == 118) {\n      return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,\n                                            118,\n                                            /*use_first_as_fallback=*/false);\n    }\n  }\n  // Alice patch end 0004\n\n  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,|' "$path9"
 
 # --- 地址栏默认底部（这里有两条互相牵制的替换，保持原样加 TODO 注释） ---
 sed -i '0,/^            ToolbarPositionAndSource\.TOP_SETTINGS;$/{s|^\( *\)ToolbarPositionAndSource\.TOP_SETTINGS;$|\1// Alice patch start 0004\n\1ToolbarPositionAndSource.BOTTOM_SETTINGS;\n\1// Alice patch end 0004|}' "$path2"

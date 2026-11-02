@@ -721,6 +721,20 @@ sed -i '/^    public int getPrimaryColor() {$/,/^    }$/c\
     // Alice patch end 0032' "$path18"
 
 # 13) 地址栏聚焦时抑制 compositor 工具栏场景层，避免其在键盘后方残留
+sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
+    // Alice patch start 0032\
+    private boolean isAliceDefaultNtpBottomOmniboxFocused() {\
+        Tab aliceSceneTab = mActivityTabProvider.get();\
+        return mIsUrlBarFocusedForSceneLayer\
+                \&\& mBrowserControlsSizer.getControlsPosition()\
+                        == ControlsPosition.BOTTOM\
+                \&\& aliceSceneTab != null\
+                \&\& !aliceSceneTab.isIncognito()\
+                \&\& UrlUtilities.isNtpUrl(aliceSceneTab.getUrl());\
+    }\
+    // Alice patch end 0032\
+\
+' "$path18"
 sed -i '/^        mSuppressToolbarSceneLayerSupplier\.set(mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow);$/c\
         // Alice patch start 0032\
         mSuppressToolbarSceneLayerSupplier.set(\
