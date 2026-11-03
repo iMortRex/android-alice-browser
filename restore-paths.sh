@@ -8,12 +8,12 @@
 #
 # 参数:
 #   patch.sh    包含 path1="..." path2="..." 等变量定义的补丁脚本
-#   git-ref     要恢复的 ref（默认: alice-state-01）
+#   git-ref     要恢复的 ref（默认: alice-state-02）
 #
 # 环境变量:
 #   GIT_ROOT=...       手动指定 git 仓库根（默认: $HOME/android-alice-browser）
 #   DRY_RUN=1          只打印将执行的命令，不实际执行
-#   ARP_BASE_REF=...   无参数重置时使用的基准 ref（默认: alice-state-01）
+#   ARP_BASE_REF=...   无参数重置时使用的基准 ref（默认: alice-state-02）
 #   BATCH_SIZE=...     每次 git checkout 传入的路径数（默认: 500）
 #
 # 说明:
@@ -86,7 +86,7 @@ find_git_root() {
 #   ⚠️ clean -fd 会删除未跟踪文件，补丁文件请先 git add 或用 DRY_RUN=1 预演
 # ---------------------------------------------------------------------------
 if [[ $# -lt 1 ]]; then
-    base_ref="${ARP_BASE_REF:-alice-state-01}"
+    base_ref="${ARP_BASE_REF:-alice-state-02}"
     git_ref="$base_ref"
     git_root=$(find_git_root) || exit 1
 

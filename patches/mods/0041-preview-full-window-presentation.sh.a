@@ -9,6 +9,7 @@ path3="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/brows
 path4="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path7="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+path8="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
@@ -269,6 +270,11 @@ sed -i '/^        boolean shouldCover =$/,/^                        || (content 
         // Alice patch end 0041' "$path2"
 
 # 3) 预览网页强制使用可参与普通 View 合成的 TextureView
+sed -i '/^import androidx\.annotation\.StringRes;$/a\
+// Alice patch start 0041\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0041' "$path3"
+
 sed -i '/^        mThinWebView =$/i\
         // Alice patch start 0041\
         ThinWebViewConstraints constraints = new ThinWebViewConstraints();\
@@ -280,6 +286,8 @@ sed -i '/^        mThinWebView =$/i\
 sed -i '/^    private ViewGroup mSheetContentView;$/a\
     // Alice patch start 0041\
     private FrameLayout mContentViewport;\
+    private int mKeyboardInsetPx;\
+    private int mCurrentMaxViewHeight;\
     // Alice patch end 0041' "$path3"
 
 sed -i '/^    @EnsuresNonNull({"mThinWebView", "mSheetContentView"})$/c\
@@ -324,9 +332,15 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     void updateContentHeight(int maxViewHeight) {\
         if (maxViewHeight == 0) return;\
 \
+        mCurrentMaxViewHeight = maxViewHeight;\
         int aliceSheetHeight = getMaxSheetHeight(maxViewHeight);\
         int aliceToolbarHeight = getToolbarHeight();\
-        int aliceContentHeight = Math.max(0, aliceSheetHeight - aliceToolbarHeight);\
+        int aliceContentHeight =\
+                Math.max(\
+                        0,\
+                        aliceSheetHeight\
+                                - aliceToolbarHeight\
+                                - Math.max(getNavigationBarInset(), mKeyboardInsetPx));\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
             aliceWidth = mContext.getResources().getDisplayMetrics().widthPixels;\
@@ -357,6 +371,24 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     }\
     // Alice patch end 0041' "$path3"
 
+sed -i '/^    private int getToolbarHeight() {$/i\
+    // Alice patch start 0041\
+    private int getNavigationBarInset() {\
+        android.view.WindowInsets aliceRootInsets = mSheetContentView.getRootWindowInsets();\
+        if (aliceRootInsets == null) return 0;\
+        return WindowInsetsCompat.toWindowInsetsCompat(aliceRootInsets, mSheetContentView)\
+                .getInsets(WindowInsetsCompat.Type.navigationBars())\
+                .bottom;\
+    }\
+\
+    void setKeyboardInsetPx(int inset) {\
+        mKeyboardInsetPx = Math.max(0, inset);\
+        if (mCurrentMaxViewHeight > 0) updateContentHeight(mCurrentMaxViewHeight);\
+    }\
+    // Alice patch end 0041\
+\
+' "$path3"
+
 sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
     // Alice patch start 0041\
     private int getToolbarHeight() {\
@@ -383,6 +415,112 @@ sed -i '/^        mOnToolbarCreatedCallback\.onResult(mToolbarView);$/a\
         updateContentHeight(maxViewHeight);\
         // Alice patch end 0041\
 ' "$path3"
+
+sed -i '/^    public int getVerticalScrollOffset() {$/,/^    }$/c\
+    // Alice patch start 0041\
+    public int getVerticalScrollOffset() {\
+        int aliceScrollOffset =\
+                mWebContents == null\
+                        ? 0\
+                        : org.chromium.content_public.browser.RenderCoordinates.fromWebContents(\
+                                        mWebContents)\
+                                .getScrollYPixInt();\
+        // Extension pages may scroll an inner element while RenderCoordinates stays at 0.\
+        return Math.max(1, aliceScrollOffset);\
+    }\
+    // Alice patch end 0041' "$path3"
+
+# 7) 预览面板跟随根 IME inset；只缩短 WebContents 视口，不移动窗口。
+sed -i '/^import org\.chromium\.base\.Callback;$/i\
+// Alice patch start 0041\
+import androidx.core.view.WindowInsetsAnimationCompat;\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0041\
+' "$path8"
+
+sed -i '/^import org\.chromium\.ui\.base\.ViewAndroidDelegate;$/a\
+// Alice patch start 0041\
+import org.chromium.ui.insets.InsetObserver;\
+// Alice patch end 0041' "$path8"
+
+sed -i '/^import java\.util\.function\.Supplier;$/i\
+// Alice patch start 0041\
+import java.util.List;\
+// Alice patch end 0041\
+' "$path8"
+
+sed -i '/^    private int mCurrentMaxViewHeight;$/a\
+    // Alice patch start 0041\
+    private int mKeyboardInsetPx;\
+    private boolean mImeAnimationRunning;\
+    private @Nullable InsetObserver mInsetObserver;\
+    private final InsetObserver.WindowInsetsAnimationListener mImeAnimationListener =\
+            new InsetObserver.WindowInsetsAnimationListener() {\
+                @Override\
+                public void onPrepare(WindowInsetsAnimationCompat animation) {\
+                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
+                        mImeAnimationRunning = true;\
+                    }\
+                }\
+\
+                @Override\
+                public void onStart(\
+                        WindowInsetsAnimationCompat animation,\
+                        WindowInsetsAnimationCompat.BoundsCompat bounds) {}\
+\
+                @Override\
+                public void onProgress(\
+                        WindowInsetsCompat insets,\
+                        List<WindowInsetsAnimationCompat> runningAnimations) {\
+                    if (!mImeAnimationRunning) return;\
+                    updateKeyboardInset(\
+                            insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);\
+                }\
+\
+                @Override\
+                public void onEnd(WindowInsetsAnimationCompat animation) {\
+                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) == 0) {\
+                        return;\
+                    }\
+                    mImeAnimationRunning = false;\
+                    if (mInsetObserver != null) {\
+                        updateKeyboardInset(\
+                                mInsetObserver.getSupplierForKeyboardInset().get());\
+                    }\
+                }\
+            };\
+    // Alice patch end 0041' "$path8"
+
+sed -i '/^            mMediator\.init(mWebContents, mContentView, mSheetContent, profile);$/i\
+            // Alice patch start 0041\
+            mInsetObserver = mWindow.getInsetObserver();\
+            if (mInsetObserver != null) {\
+                mInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
+                mKeyboardInsetPx = mInsetObserver.getSupplierForKeyboardInset().get();\
+                mInsetObserver.addWindowInsetsAnimationListener(mImeAnimationListener);\
+            }\
+            mSheetContent.setKeyboardInsetPx(mKeyboardInsetPx);\
+            // Alice patch end 0041' "$path8"
+
+sed -i '/^    private void destroyWebContents() {$/a\
+        // Alice patch start 0041\
+        if (mInsetObserver != null) {\
+            mInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
+            mInsetObserver = null;\
+        }\
+        mKeyboardInsetPx = 0;\
+        mImeAnimationRunning = false;\
+        // Alice patch end 0041' "$path8"
+
+sed -i '/^    private int getMaxViewHeight() {$/i\
+    // Alice patch start 0041\
+    private void updateKeyboardInset(int inset) {\
+        mKeyboardInsetPx = Math.max(0, inset);\
+        if (mSheetContent != null) mSheetContent.setKeyboardInsetPx(mKeyboardInsetPx);\
+    }\
+    // Alice patch end 0041\
+\
+' "$path8"
 
 sed -i '/^    @Nullable$/i\
     // Alice patch start 0041\

@@ -38,6 +38,7 @@ path21="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/task
 path22="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
 path23="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
 path24="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGridDialogView.java"
+path25="chrome/android/java/src/org/chromium/chrome/browser/hub/HubLayout.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0032' "$path1"; then
@@ -512,17 +513,15 @@ sed -i '/^                                \.setStatusBarColor(opaqueColor)$/a\
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
 
 sed -i '/^                    viewportRectf.round(viewportRect);$/a\
-        // Alice patch start 0032\
-        if (isTopToolbar) {\
-            viewportRect.top -= viewHolder.getTopControlsHeightPixels();\
-        } else {\
-            RectF aliceWindowViewportRectf = new RectF();\
-            Rect aliceWindowViewportRect = new Rect();\
-            viewHolder.getWindowViewport(aliceWindowViewportRectf);\
-            aliceWindowViewportRectf.round(aliceWindowViewportRect);\
-            viewportRect.bottom = aliceWindowViewportRect.bottom;\
-        }\
-        // Alice patch end 0032' "$path21"
+                    // Alice patch start 0032\
+                    if (!isTopToolbar) {\
+                        RectF aliceWindowViewportRectf = new RectF();\
+                        Rect aliceWindowViewportRect = new Rect();\
+                        viewHolder.getWindowViewport(aliceWindowViewportRectf);\
+                        aliceWindowViewportRectf.round(aliceWindowViewportRect);\
+                        viewportRect.bottom = aliceWindowViewportRect.bottom;\
+                    }\
+                    // Alice patch end 0032' "$path21"
 
 sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0032\
@@ -834,3 +833,17 @@ sed -i '/^        mHideDialogAnimation.start();$/c\
             mHideDialogAnimation.start();\
         }\
         // Alice patch end 0032' "$path24"
+
+# Hub 转场期间顶部控件可能处于隐藏状态，contentOffset 会短暂变成 0。
+# 顶部地址栏时使用稳定的 top controls 高度，避免临时 tab scene layer 在最后一帧
+# 把网页绘制到屏幕底部。
+sed -i '/^        layoutTab.set(LayoutTab.CONTENT_OFFSET_Y, browserControls.getContentOffset());$/c\
+        // Alice patch start 0032\
+        int aliceContentOffsetY = browserControls.getContentOffset();\
+        if (browserControls.getControlsPosition()\
+                == BrowserControlsStateProvider.ControlsPosition.TOP) {\
+            aliceContentOffsetY =\
+                    Math.max(aliceContentOffsetY, browserControls.getTopControlsHeight());\
+        }\
+        layoutTab.set(LayoutTab.CONTENT_OFFSET_Y, aliceContentOffsetY);\
+        // Alice patch end 0032' "$path25"

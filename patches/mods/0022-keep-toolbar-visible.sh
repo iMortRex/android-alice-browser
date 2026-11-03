@@ -12,6 +12,56 @@ if grep -q 'Alice patch start 0022' "$path1"; then
     exit 100
 fi
 
+# A0) 默认 NTP 滑动时 Android 工具栏保持可见，不叠加 compositor 工具栏层。
+sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRightTab or null if undetermined.$/a\
+    // Alice patch start 0022\
+    private boolean mAliceDisableCompositorToolbar;\
+    // Alice patch end 0022' "$path1"
+
+sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getNativePage() : null;$/i\
+        // Alice patch start 0022\
+        mAliceDisableCompositorToolbar =\
+                currentTab != null\
+                        \&\& !currentTab.isIncognito()\
+                        \&\& UrlUtilities.isNtpUrl(currentTab.getUrl());\
+        if (mAliceDisableCompositorToolbar) {\
+            if (mLeftToolbarOverlay != null) {\
+                mLeftToolbarOverlay.setManualVisibility(false);\
+            }\
+            if (mRightToolbarOverlay != null) {\
+                mRightToolbarOverlay.setManualVisibility(false);\
+            }\
+        }\
+        // Alice patch end 0022' "$path1"
+
+sed -i 's|^        layoutTab\.setShowToolbar(mMoveToolbar);$|        // Alice patch start 0022\n        layoutTab.setShowToolbar(mMoveToolbar \&\& !mAliceDisableCompositorToolbar);\n        // Alice patch end 0022|' "$path1"
+
+sed -i '/^        if (mLeftToolbarOverlay != null) {$/,/^        } else if (mLeftToolbarOverlay != null) {$/c\
+        // Alice patch start 0022\
+        if (mLeftToolbarOverlay != null) {\
+            if (mAliceDisableCompositorToolbar) {\
+                mLeftToolbarOverlay.setManualVisibility(false);\
+            } else {\
+                mLeftToolbarOverlay.setManualVisibility(true);\
+                mLeftToolbarOverlay.setAnonymize(mLeftTab != mFromTab);\
+                mLeftToolbarOverlay.setXOffset(leftX * dpToPx);\
+            }\
+        } else if (mLeftToolbarOverlay != null) {\
+        // Alice patch end 0022' "$path1"
+
+sed -i '/^        if (mRightToolbarOverlay != null) {$/,/^        } else if (mRightToolbarOverlay != null) {$/c\
+        // Alice patch start 0022\
+        if (mRightToolbarOverlay != null) {\
+            if (mAliceDisableCompositorToolbar) {\
+                mRightToolbarOverlay.setManualVisibility(false);\
+            } else {\
+                mRightToolbarOverlay.setManualVisibility(true);\
+                mRightToolbarOverlay.setAnonymize(mRightTab != mFromTab);\
+                mRightToolbarOverlay.setXOffset(rightX * dpToPx);\
+            }\
+        } else if (mRightToolbarOverlay != null) {\
+        // Alice patch end 0022' "$path1"
+
 # A) 滑动期间不再申请 hiding token（也不动工具栏位置）
 sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/c\
     public boolean forceHideBrowserControlsAndroidView() {\

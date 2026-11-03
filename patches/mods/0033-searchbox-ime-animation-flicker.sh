@@ -27,7 +27,7 @@ path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserContro
 path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
 path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
-path21="chrome/android/java/AndroidManifest.xml"
+path21="chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -1181,23 +1181,73 @@ sed -i '/^        mDropdown\.setPaddingRelative($/,/^                mDropdown\.
                         + mOmniboxAlignment.paddingBottom);\
         // Alice patch end 0033' "$path5"
 
-# 搜索页窗口保持全屏高度；输入法只通过 inset 限制建议列表的可见区域。
-# 这样顶部地址栏的纯色背景不会在键盘动画结束后缩到输入法上沿。
-sed -i '/^        <activity android:name="org\.chromium\.chrome\.browser\.searchwidget\.SearchActivity"$/,/^            android:hardwareAccelerated="false">$/c\
-        <!-- Alice patch start 0033 -->\
-        <activity\
-            android:name="org.chromium.chrome.browser.searchwidget.SearchActivity"\
-            android:theme="@style/Theme.Chromium.SearchActivity"\
-            android:label="Search"\
-            android:exported="true"\
-            android:launchMode="singleTask"\
-            android:taskAffinity=""\
-            android:clearTaskOnLaunch="true"\
-            android:excludeFromRecents="true"\
-            android:windowSoftInputMode="adjustNothing"\
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode"\
-            android:hardwareAccelerated="false">\
-        <!-- Alice patch end 0033 -->' "$path21"
+# 搜索页只在地址栏位于顶部时保持全屏高度；底置地址栏继续跟随输入法 resize。
+sed -i '/^import android\.view\.ViewGroup;$/a\
+// Alice patch start 0033\
+import android.view.WindowManager;\
+// Alice patch end 0033' "$path21"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.tabwindow\.TabWindowInfo;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
+// Alice patch end 0033' "$path21"
+
+sed -i '/^    protected ModalDialogManager createModalDialogManager() {$/,/^    protected void triggerLayoutInflation() {$/{
+    /^    @Override$/i\
+    // Alice patch start 0033\
+    private boolean mAliceSoftInputModePreDrawAttached;\
+\
+    private void setAliceSoftInputAdjustMode(boolean toolbarOnTop) {\
+        int aliceSoftInputMode = getWindow().getAttributes().softInputMode;\
+        int aliceTargetAdjustMode =\
+                toolbarOnTop\
+                        ? WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING\
+                        : WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;\
+        if ((aliceSoftInputMode \& WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)\
+                == aliceTargetAdjustMode) {\
+            return;\
+        }\
+        aliceSoftInputMode \&= ~WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST;\
+        aliceSoftInputMode |= aliceTargetAdjustMode;\
+        getWindow().setSoftInputMode(aliceSoftInputMode);\
+    }\
+\
+    @Override\
+    protected void onPreCreate() {\
+        super.onPreCreate();\
+        setAliceSoftInputAdjustMode(\
+                AddressBarPreference.isToolbarConfiguredToShowOnTop());\
+    }\
+\
+    private void updateAliceSoftInputMode(View rootView) {\
+        if (!mAliceSoftInputModePreDrawAttached) {\
+            mAliceSoftInputModePreDrawAttached = true;\
+            rootView\
+                    .getViewTreeObserver()\
+                    .addOnPreDrawListener(\
+                            () -> {\
+                                updateAliceSoftInputMode(rootView);\
+                                return true;\
+                            });\
+        }\
+        View aliceToolbar = rootView.findViewById(R.id.toolbar);\
+        if (aliceToolbar == null || rootView.getHeight() <= 0) return;\
+        int[] aliceToolbarLocation = new int[2];\
+        aliceToolbar.getLocationInWindow(aliceToolbarLocation);\
+        setAliceSoftInputAdjustMode(\
+                aliceToolbarLocation[1] + aliceToolbar.getHeight() / 2\
+                        < rootView.getHeight() / 2);\
+    }\
+    // Alice patch end 0033
+}' "$path21"
+
+sed -i '/^        setContentView(contentView);$/a\
+        // Alice patch start 0033\
+        contentView.addOnLayoutChangeListener(\
+                (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->\
+                        updateAliceSoftInputMode(view));\
+        contentView.post(() -> updateAliceSoftInputMode(contentView));\
+        // Alice patch end 0033' "$path21"
 
 sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener);$/a\
             // Alice patch start 0033\

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 捕获网页快照时合成工具栏和系统导航栏区域。
+# 捕获网页快照时仅在地址栏位于底部时合成工具栏和系统导航栏区域。
 
 set -e
 
@@ -201,7 +201,14 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
         }\
     }\
 \
+    private boolean shouldCaptureAliceToolbar() {\
+        return mBrowserControlsStateProvider != null\
+                \&\& mBrowserControlsStateProvider.getControlsPosition()\
+                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
+    }\
+\
     private @Nullable View getAliceToolbarView(Tab tab) {\
+        if (!shouldCaptureAliceToolbar()) return null;\
         Activity activity = ContextUtils.activityFromContext(mContext);\
         if (activity == null) return null;\
         return findAliceToolbarView(activity.getWindow().getDecorView());\
@@ -397,6 +404,10 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                 mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
                 mAliceRecentCompositedThumbnail = null;\
             }\
+            if (!shouldCaptureAliceToolbar() \&\& mAliceLastToolbarBitmap != null) {\
+                mAliceLastToolbarBitmap.recycle();\
+                mAliceLastToolbarBitmap = null;\
+            }\
             @Nullable View toolbarView = getAliceToolbarView(tab);\
             @Nullable Bitmap toolbarBitmap = captureAliceToolbarBitmap(toolbarView);\
             if (toolbarBitmap != null) rememberAliceToolbarBitmap(toolbarBitmap);\
@@ -409,14 +420,22 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                     (@Nullable Bitmap bitmap) -> {\
                         @Nullable Bitmap finalBitmap = bitmap;\
                         // Alice patch start 0040\
-                        Bitmap aliceToolbarForComposition = toolbarBitmap;\
-                        if (aliceToolbarForComposition == null \&\& toolbarView != null) {\
+                        boolean aliceCaptureToolbar = shouldCaptureAliceToolbar();\
+                        Bitmap aliceToolbarForComposition =\
+                                aliceCaptureToolbar ? toolbarBitmap : null;\
+                        if (!aliceCaptureToolbar \&\& toolbarBitmap != null) {\
+                            toolbarBitmap.recycle();\
+                        }\
+                        if (aliceToolbarForComposition == null\
+                                \&\& aliceCaptureToolbar\
+                                \&\& toolbarView != null) {\
                             aliceToolbarForComposition = captureAliceToolbarBitmap(toolbarView);\
                             if (aliceToolbarForComposition != null) {\
                                 rememberAliceToolbarBitmap(aliceToolbarForComposition);\
                             }\
                         }\
                         if (aliceToolbarForComposition == null\
+                                \&\& aliceCaptureToolbar\
                                 \&\& mAliceLastToolbarBitmap != null\
                                 \&\& !mAliceLastToolbarBitmap.isRecycled()) {\
                             aliceToolbarForComposition =\
