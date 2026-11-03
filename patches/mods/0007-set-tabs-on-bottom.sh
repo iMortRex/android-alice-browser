@@ -6,7 +6,7 @@ set -e
 # 目标文件路径
 path1="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
 path2="chrome/android/proguard/main.flags"
-path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
+path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListContainerViewBinder.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0007' "$path1"; then
@@ -38,33 +38,73 @@ sed -i '$a\
 }\
 # Alice patch end 0007' "$path2"
 
-# 冷启动首次布局时，第二排且下方仍有标签的卡片可能暂时停在底部锚定位置。
-# 动画会在这轮布局中读取缩略图矩形，因此只修正当前浏览器进程中的第一次
-# 动画目标；之后不再按位置判断，避免 RecyclerView 重建后重复修正。
-path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
-sed -i '/^    private boolean mBlockTouchInput;$/a\
-    // Alice patch start 0007\
-    private static boolean sAliceInitialTabAnimationRectRead;\
-    // Alice patch end 0007' "$path3"
-
-sed -i '/^        if (v != null) v\.getGlobalVisibleRect(rect);$/a\
-        // Alice patch start 0007\
-        boolean aliceInitialTabAnimationRect = !sAliceInitialTabAnimationRectRead;\
-        sAliceInitialTabAnimationRectRead = true;\
-        if (getLayoutManager() instanceof GridLayoutManager) {\
-            GridLayoutManager aliceLayoutManager = (GridLayoutManager) getLayoutManager();\
-            int aliceSpanCount = aliceLayoutManager.getSpanCount();\
-            boolean aliceSecondRow =\
-                    tabIndex >= aliceSpanCount\
-                            \&\& tabIndex < aliceSpanCount * 2\
-                            \&\& tabIndex + aliceSpanCount < aliceLayoutManager.getItemCount();\
-            int aliceCenteredTop = (getHeight() - holder.itemView.getHeight()) / 2;\
-            int aliceSearchGap =\
-                    getResources().getDimensionPixelSize(R.dimen.hub_search_box_gap);\
-            if (aliceInitialTabAnimationRect\
-                    \&\& aliceSecondRow\
-                    \&\& holder.itemView.getTop() > aliceCenteredTop + aliceSearchGap / 2) {\
-                rect.offset(0, -aliceSearchGap);\
+# 首次打开时 RecyclerView 尚未布局，不能用窗口尺寸兜底计算初始滚动位置。
+# 等真实尺寸可用后再滚动；动画几何最多额外等待这次滚动引起的一轮布局。
+sed -i '/^        } else if (INITIAL_SCROLL_INDEX == propertyKey) {$/,/^        } else if (FOCUS_TAB_INDEX_FOR_ACCESSIBILITY == propertyKey) {$/c\
+        } else if (INITIAL_SCROLL_INDEX == propertyKey) {\
+            int index = model.get(INITIAL_SCROLL_INDEX);\
+            // Alice patch start 0007\
+            LinearLayoutManager layoutManager =\
+                    assumeNonNull((LinearLayoutManager) recyclerView.getLayoutManager());\
+            if (recyclerView.isLaidOut()\
+                    \&\& recyclerView.getWidth() > 0\
+                    \&\& recyclerView.getHeight() > 0) {\
+                layoutManager.scrollToPositionWithOffset(\
+                        index, computeOffset(recyclerView, model));\
+            } else {\
+                recyclerView.addOnLayoutChangeListener(\
+                        new View.OnLayoutChangeListener() {\
+                            @Override\
+                            public void onLayoutChange(\
+                                    View v,\
+                                    int left,\
+                                    int top,\
+                                    int right,\
+                                    int bottom,\
+                                    int oldLeft,\
+                                    int oldTop,\
+                                    int oldRight,\
+                                    int oldBottom) {\
+                                if (recyclerView.getWidth() <= 0\
+                                        || recyclerView.getHeight() <= 0) {\
+                                    return;\
+                                }\
+                                recyclerView.removeOnLayoutChangeListener(this);\
+                                assumeNonNull(\
+                                                (LinearLayoutManager)\
+                                                        recyclerView.getLayoutManager())\
+                                        .scrollToPositionWithOffset(\
+                                                index, computeOffset(recyclerView, model));\
+                            }\
+                        });\
+                recyclerView.requestLayout();\
             }\
-        }\
-        // Alice patch end 0007' "$path3"
+            // Alice patch end 0007\
+        } else if (FOCUS_TAB_INDEX_FOR_ACCESSIBILITY == propertyKey) {' "$path3"
+
+sed -i '/^    private @Nullable Runnable mAwaitingLayoutRunnable;$/a\
+    // Alice patch start 0007\
+    private boolean mAwaitingLayoutDeferredForScroll;\
+    // Alice patch end 0007' "$path1"
+
+sed -i '/^        mAwaitingLayoutRunnable = r;$/a\
+        // Alice patch start 0007\
+        mAwaitingLayoutDeferredForScroll = false;\
+        // Alice patch end 0007' "$path1"
+
+sed -i 's|^        mRecyclerView\.runOnNextLayout(this::checkAwaitingLayout);$|        // Alice patch start 0007\n        mRecyclerView.runOnNextLayout(\n                () -> mRecyclerView.post(this::checkAwaitingLayout));\n        // Alice patch end 0007|' "$path1"
+
+sed -i '/^    private void checkAwaitingLayout() {$/,/^        if (mAwaitingLayoutRunnable != null) {$/ s#^        if (mAwaitingLayoutRunnable != null) {$#        if (mAwaitingLayoutRunnable != null) {\
+            // Alice patch start 0007\
+            if (!mRecyclerView.isLaidOut()) {\
+                mRecyclerView.runOnNextLayout(\
+                        () -> mRecyclerView.post(this::checkAwaitingLayout));\
+                return;\
+            }\
+            if (mRecyclerView.isLayoutRequested() \&\& !mAwaitingLayoutDeferredForScroll) {\
+                mAwaitingLayoutDeferredForScroll = true;\
+                mRecyclerView.runOnNextLayout(\
+                        () -> mRecyclerView.post(this::checkAwaitingLayout));\
+                return;\
+            }\
+            // Alice patch end 0007#' "$path1"

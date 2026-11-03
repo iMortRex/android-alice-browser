@@ -338,6 +338,12 @@ sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                \&\& mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                        mControlContainer.getView())) {\
+            layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
+        }\
+        if (layer == mBottomToolbarLayer\
+                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
                 \&\& mIsOmniboxFocusedSupplier.get()\
                 \&\& !mIsImeAnimationRunning\
                 \&\& !mKeyboardVisibilityDelegate.isKeyboardShowing(\
@@ -368,19 +374,38 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                         .isInMultiWindowMode()) {\
             return 0;\
         }\
-        android.view.WindowInsets aliceInsets = aliceRoot.getRootWindowInsets();\
-        if (aliceInsets == null) return 0;\
-        WindowInsetsCompat aliceCompatInsets =\
-                WindowInsetsCompat.toWindowInsetsCompat(aliceInsets, aliceRoot);\
-        if (!aliceCompatInsets.isVisible(WindowInsetsCompat.Type.navigationBars())) {\
+        WindowInsetsCompat aliceCompatInsets = null;\
+        InsetObserver aliceInsetObserver = mWindowAndroid.getInsetObserver();\
+        if (aliceInsetObserver != null) {\
+            aliceCompatInsets = aliceInsetObserver.getLastRawWindowInsets();\
+        }\
+        if (aliceCompatInsets == null) {\
+            android.view.WindowInsets aliceInsets = aliceRoot.getRootWindowInsets();\
+            if (aliceInsets != null) {\
+                aliceCompatInsets =\
+                        WindowInsetsCompat.toWindowInsetsCompat(aliceInsets, aliceRoot);\
+            }\
+        }\
+        if (aliceCompatInsets == null) return 0;\
+        boolean aliceKeyboardShowing =\
+                mKeyboardVisibilityDelegate.isKeyboardShowing(aliceRoot);\
+        if (!aliceCompatInsets.isVisible(WindowInsetsCompat.Type.navigationBars())\
+                \&\& !aliceKeyboardShowing) {\
             return 0;\
         }\
         return Math.max(\
+                Math.max(\
+                        aliceCompatInsets\
+                                .getInsetsIgnoringVisibility(\
+                                        WindowInsetsCompat.Type.navigationBars())\
+                                .bottom,\
+                        aliceCompatInsets\
+                                .getInsetsIgnoringVisibility(\
+                                        WindowInsetsCompat.Type.mandatorySystemGestures())\
+                                .bottom),\
                 aliceCompatInsets\
-                        .getInsets(WindowInsetsCompat.Type.navigationBars())\
-                        .bottom,\
-                aliceCompatInsets\
-                        .getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())\
+                        .getInsetsIgnoringVisibility(\
+                                WindowInsetsCompat.Type.tappableElement())\
                         .bottom);\
     }\
 \

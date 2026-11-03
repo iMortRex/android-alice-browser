@@ -9,7 +9,8 @@ path3="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/brows
 path4="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path7="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
-path8="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java"
+path9="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheet.java"
+path10="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabMediator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
@@ -115,10 +116,28 @@ sed -i '/^        mNavigationBarBackground = null;$/a\
         removeAliceStartupNavigationBarCover();\
         // Alice patch end 0041' "$path7"
 
-sed -i '/^        boolean aliceVisible =$/,/^                                        aliceControlContainer));$/c\
+sed -i '/^        aliceBackground.setTranslationY(0);$/a\
         // Alice patch start 0041\
         boolean aliceFullWindowPreview =\
                 BottomSheetContent.FullWindowPresentationState.isActive();\
+        // Alice patch end 0041' "$path7"
+
+sed -i '/^        int aliceBackgroundColor =$/,/^        aliceBackground.setBackgroundColor(aliceBackgroundColor);$/c\
+        int aliceConfiguredBackgroundColor =\
+                mNavigationBarBackgroundColor != Integer.MIN_VALUE\
+                        ? mNavigationBarBackgroundColor\
+                        : mControlContainer.getToolbarBackgroundColor();\
+        mNavigationBarBackgroundColor = aliceConfiguredBackgroundColor;\
+        aliceBackground.setBackgroundColor(\
+                // Alice patch start 0041\
+                aliceFullWindowPreview\
+                        ? android.graphics.Color.TRANSPARENT\
+                        : aliceConfiguredBackgroundColor\
+                // Alice patch end 0041\
+                );' "$path7"
+
+sed -i '/^        boolean aliceVisible =$/,/^                                        aliceControlContainer));$/c\
+        // Alice patch start 0041\
         Tab aliceStartupTab = mActiveTabSupplier.get();\
         boolean aliceInitialPageLoading =\
                 aliceStartupTab == null || aliceStartupTab.isLoading();\
@@ -177,6 +196,329 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
     // Alice patch end 0041\
 \
 ' "$path1"
+
+sed -i '/^    default boolean coversBottomControls() {$/i\
+    // Alice patch start 0041\
+    default void onSheetHeightChanged(int sheetHeight) {}\
+    // Alice patch end 0041\
+\
+' "$path1"
+
+sed -i '/^    default boolean coversBottomControls() {$/i\
+    // Alice patch start 0041\
+    default int getToolbarBackgroundHeight() {\
+        return 0;\
+    }\
+    // Alice patch end 0041\
+\
+' "$path1"
+
+sed -i '/^    int getVerticalScrollOffset();$/i\
+    // Alice patch start 0041\
+    /**\
+     * @return Whether non-toolbar touch events should be delivered directly to this content.\
+     */\
+    default boolean shouldHandleContentTouchEvents() {\
+        return false;\
+    }\
+    // Alice patch end 0041\
+\
+' "$path1"
+
+# BottomSheet 不参与预览内容区的触摸竞争，标题栏仍保留原有拖动行为。
+sed -i '/^        if (!mIsTouchEnabled) return true;$/a\
+        // Alice patch start 0041\
+        if (mSheetContent != null\
+                \&\& mSheetContent.shouldHandleContentTouchEvents()\
+                \&\& isTouchEventInSheetContent(e)) {\
+            return false;\
+        }\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > event\.getRawY();$/a\
+    // Alice patch start 0041\
+    private boolean isTouchEventInSheetContent(MotionEvent event) {\
+        if (mSheetContent == null) return false;\
+        Rect contentBounds = new Rect();\
+        if (!mSheetContent.getContentView().getGlobalVisibleRect(contentBounds)) {\
+            return false;\
+        }\
+        return contentBounds.contains(\
+                (int) event.getRawX(), (int) event.getRawY());\
+    }\
+    // Alice patch end 0041' "$path9"
+
+sed -i '/^    private int mPreviousScreenHeight;$/a\
+    // Alice patch start 0041\
+    private boolean mFullWindowImeCropped;\
+    private float mFullWindowPreviewHeightBeforeIme;\
+    private boolean mRestoringFullWindowImeCrop;\
+    private @Nullable KeyboardVisibilityDelegate mKeyboardVisibilityDelegate;\
+    // Alice patch end 0041\
+' "$path9"
+
+sed -i '/^    private InsetObserver mInsetObserver;$/a\
+    // Alice patch start 0041\
+    private final InsetObserver.WindowInsetObserver mImeResetObserver =\
+            new InsetObserver.WindowInsetObserver() {\
+                @Override\
+                public void onKeyboardInsetChanged(int inset) {\
+                    if (inset == 0 \&\& mFullWindowImeCropped) {\
+                        mWindow.getDecorView().post(\
+                                BottomSheet.this::restoreFullWindowImeCrop);\
+                    }\
+                }\
+            };\
+    private int mLastImeAnimationInset;\
+    private boolean mImeAnimationClosing;\
+    private final Runnable mRestoreWhenImeHidden =\
+            new Runnable() {\
+                @Override\
+                public void run() {\
+                    if (!mFullWindowImeCropped) return;\
+                    boolean keyboardShowing =\
+                            mKeyboardVisibilityDelegate != null\
+                                    ? mKeyboardVisibilityDelegate\
+                                            .isKeyboardShowing(\
+                                                    BottomSheet.this)\
+                                    : isKeyboardShowing();\
+                    if (keyboardShowing) {\
+                        if (mWindow != null) {\
+                            mWindow.getDecorView().postOnAnimation(this);\
+                        }\
+                        return;\
+                    }\
+                    restoreFullWindowImeCrop();\
+                }\
+            };\
+    // Alice patch end 0041\
+' "$path9"
+
+sed -i '/^        mWindow = window;$/a\
+        // Alice patch start 0041\
+        mKeyboardVisibilityDelegate = keyboardDelegate;\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^        mIsTouchEnabled = false;$/a\
+        // Alice patch start 0041\
+        if (mInsetObserver != null) {\
+            mInsetObserver.removeObserver(mImeResetObserver);\
+        }\
+        if (mWindow != null) {\
+            mWindow.getDecorView().removeCallbacks(\
+                    mRestoreWhenImeHidden);\
+        }\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^        mInsetObserver = insetObserver;$/a\
+        // Alice patch start 0041\
+        mInsetObserver.addObserver(mImeResetObserver);\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
+    // Alice patch start 0041\
+    private void onInsetChanged() {\
+        if (mFullWindowImeCropped \&\& !isKeyboardShowing()) {\
+            restoreFullWindowImeCrop();\
+            return;\
+        }\
+        updateContentContainerHeight();\
+        if (shouldFollowImeForSheetPosition()) {\
+            setSheetOffsetFromBottom(\
+                    getSheetHeightForState(SheetState.FULL),\
+                    StateChangeReason.NONE,\
+                    /* reportOpenClosed= */ false);\
+        }\
+    }\
+\
+    private void restoreFullWindowImeCrop() {\
+        if (!mFullWindowImeCropped || mRestoringFullWindowImeCrop) return;\
+        mRestoringFullWindowImeCrop = true;\
+        try {\
+            float fullPreviewHeight = mFullWindowPreviewHeightBeforeIme;\
+            ViewGroup.LayoutParams layoutParams = getLayoutParams();\
+            layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT;\
+            setLayoutParams(layoutParams);\
+            mFullWindowImeCropped = false;\
+            mFullWindowPreviewHeightBeforeIme = 0;\
+            if (mSheetContent != null \&\& fullPreviewHeight > 0) {\
+                mSheetContent.onSheetHeightChanged((int) fullPreviewHeight);\
+            }\
+            if (fullPreviewHeight > 0) {\
+                mCurrentOffsetPx = fullPreviewHeight;\
+                setSheetState(SheetState.FULL, false);\
+            }\
+        } finally {\
+            mRestoringFullWindowImeCrop = false;\
+        }\
+    }\
+    // Alice patch end 0041' "$path9"
+
+sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat animation) {$/,/^                    }$/c\
+                    // Alice patch start 0041\
+                    public void onEnd(WindowInsetsAnimationCompat animation) {\
+                        onInsetChanged();\
+                        if (mFullWindowImeCropped\
+                                \&\& (mImeAnimationClosing || !isKeyboardShowing())) {\
+                            mWindow.getDecorView().removeCallbacks(\
+                                    mRestoreWhenImeHidden);\
+                            mWindow\
+                                    .getDecorView()\
+                                    .postOnAnimation(\
+                                            mRestoreWhenImeHidden);\
+                        }\
+                        mMediator.notifyInsetAnimationEnd();\
+                    }\
+                    // Alice patch end 0041' "$path9"
+
+sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat animation) {$/,/^                    }$/c\
+                    // Alice patch start 0041\
+                    public void onPrepare(WindowInsetsAnimationCompat animation) {\
+                        if ((animation.getTypeMask()\
+                                        \& WindowInsetsCompat.Type.ime())\
+                                != 0) {\
+                            mImeAnimationClosing = false;\
+                            mLastImeAnimationInset =\
+                                    mInsetObserver\
+                                            .getSupplierForKeyboardInset()\
+                                            .get();\
+                        }\
+                        maybeCacheStateForImeAnimation(animation);\
+                        mMediator.notifyBeforeInsetAnimationStart();\
+                    }\
+                    // Alice patch end 0041' "$path9"
+
+sed -i '/^                    public void onProgress($/,/^                    }$/c\
+                    // Alice patch start 0041\
+                    public void onProgress(\
+                            WindowInsetsCompat insets,\
+                            List<WindowInsetsAnimationCompat> list) {\
+                        int imeInset =\
+                                insets.getInsets(\
+                                                WindowInsetsCompat.Type.ime())\
+                                        .bottom;\
+                        if (imeInset < mLastImeAnimationInset) {\
+                            mImeAnimationClosing = true;\
+                        }\
+                        mLastImeAnimationInset = imeInset;\
+                        onInsetChanged();\
+                    }\
+                    // Alice patch end 0041' "$path9"
+
+sed -i '/^        ViewGroup\.LayoutParams bgParams = mSheetBackground\.getLayoutParams();$/i\
+        // Alice patch start 0041\
+        if (shouldFollowImeForSheetPosition() \&\& mFullWindowImeCropped) {\
+            targetBgHeight =\
+                    mSheetContent != null\
+                            ? mSheetContent.getToolbarBackgroundHeight()\
+                            : 0;\
+            mSheetBackground.setVisibility(View.VISIBLE);\
+            mToolbarHolder.setBackgroundColor(Color.TRANSPARENT);\
+        } else {\
+            mSheetBackground.setVisibility(View.VISIBLE);\
+            mToolbarHolder.setBackgroundColor(Color.TRANSPARENT);\
+        }\
+        // Alice patch end 0041\
+\
+' "$path9"
+
+sed -i '/^            mKeyboardCurtain\.setTranslationY(maxWindowHeight);$/a\
+            // Alice patch start 0041\
+            mKeyboardCurtain.setVisibility(\
+                    shouldFollowImeForSheetPosition()\
+                            ? View.GONE\
+                            : View.VISIBLE);\
+            // Alice patch end 0041' "$path9"
+
+sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, state != SheetState\.SCROLLING);$/c\
+        // Alice patch start 0041\
+        boolean fullWindowContent =\
+                mSheetContent != null \&\& mSheetContent.shouldUseFullWindowPresentation();\
+        mModel.set(\
+                BottomSheetProperties.CONTAINER_TOUCH_ENABLED,\
+                state != SheetState.SCROLLING || fullWindowContent);\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^    private int getViewportBottomInset() {$/,/^    }$/c\
+    // Alice patch start 0041\
+    private int getViewportBottomInset() {\
+        assert mEdgeToEdgeBottomInsetSupplier.get() != null;\
+        @Px int viewportBottomInset = getEdgeToEdgeBottomInset();\
+\
+        if (shouldFollowImeForSheetPosition()) {\
+            return isKeyboardShowing() ? 0 : viewportBottomInset;\
+        }\
+\
+        if (isSheetOpen()) {\
+            int visibleViewport = mVisibleViewportRect.height();\
+            viewportBottomInset =\
+                    Math.max(viewportBottomInset, mContainerHeight - visibleViewport);\
+        }\
+        return viewportBottomInset;\
+    }\
+\
+    private boolean shouldFollowImeForSheetPosition() {\
+        return mSheetContent != null \&\& mSheetContent.shouldUseFullWindowPresentation();\
+    }\
+    // Alice patch end 0041' "$path9"
+
+sed -i '/^        float translationY =$/i\
+        // Alice patch start 0041\
+        float effectiveOffset = mCurrentOffsetPx;\
+        int positionBottomInset = bottomInset;\
+        if (!mRestoringFullWindowImeCrop\
+                \&\& shouldFollowImeForSheetPosition()\
+                \&\& isKeyboardShowing()) {\
+            int imeInset = mInsetObserver.getSupplierForKeyboardInset().get();\
+            if (imeInset > 0) {\
+                WindowInsetsCompat rawInsets =\
+                        mInsetObserver.getLastRawWindowInsets();\
+                int navigationBarInset =\
+                        rawInsets != null\
+                                ? rawInsets\
+                                        .getInsets(\
+                                                WindowInsetsCompat.Type.navigationBars())\
+                                        .bottom\
+                                : getEdgeToEdgeBottomInset();\
+                if (!mFullWindowImeCropped\
+                        || mFullWindowPreviewHeightBeforeIme <= 0) {\
+                    mFullWindowPreviewHeightBeforeIme =\
+                            getSheetHeightForState(SheetState.FULL);\
+                }\
+                effectiveOffset =\
+                        Math.max(\
+                                1,\
+                                mFullWindowPreviewHeightBeforeIme - imeInset);\
+                ViewGroup.LayoutParams layoutParams = getLayoutParams();\
+                int croppedHeight = (int) effectiveOffset;\
+                if (layoutParams.height != croppedHeight) {\
+                    layoutParams.height = croppedHeight;\
+                    setLayoutParams(layoutParams);\
+                }\
+                mFullWindowImeCropped = true;\
+                positionBottomInset = imeInset + navigationBarInset;\
+                updateContentContainerHeight();\
+                mBottomSheetContentContainer.setIsTouchEnabled(true);\
+                if (mSheetContent != null) {\
+                    mSheetContent.onSheetHeightChanged(croppedHeight);\
+                }\
+            }\
+        }\
+        // Alice patch end 0041\
+\
+' "$path9"
+
+sed -i '/^                (mContainerHeight - mCurrentOffsetPx)$/c\
+        // Alice patch start 0041\
+                (mContainerHeight - effectiveOffset)\
+        // Alice patch end 0041' "$path9"
+
+sed -i '/^                        - (mTargetState == SheetState.HIDDEN ? 0 : bottomInset);$/c\
+        // Alice patch start 0041\
+                        - (mTargetState == SheetState.HIDDEN\
+                                ? 0\
+                                : positionBottomInset);\
+        // Alice patch end 0041' "$path9"
 
 # 2) BottomSheetControllerImpl：记录遮罩及参数，支持打开动画前同步显示
 sed -i '/^    private boolean mScrimVisible;$/a\
@@ -270,10 +612,43 @@ sed -i '/^        boolean shouldCover =$/,/^                        || (content 
         // Alice patch end 0041' "$path2"
 
 # 3) 预览网页强制使用可参与普通 View 合成的 TextureView
-sed -i '/^import androidx\.annotation\.StringRes;$/a\
+sed -i '/^import android\.view\.LayoutInflater;$/a\
 // Alice patch start 0041\
-import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0041' "$path3"
+import android.view.MotionEvent;\
+// Alice patch end 0041\
+' "$path3"
+
+sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
+    // Alice patch start 0041\
+    private static final String ALICE_EXTENSION_FIT_SCRIPT =\
+            """\
+            if (location.protocol === 'chrome-extension:') {\
+              document.documentElement.style.setProperty(\
+                      'height', '100%', 'important');\
+              document.documentElement.style.setProperty(\
+                      'min-height', '0', 'important');\
+              document.documentElement.style.setProperty(\
+                      'overflow', 'auto', 'important');\
+              document.documentElement.style.setProperty(\
+                      'overflow-y', 'auto', 'important');\
+              document.documentElement.style.setProperty(\
+                      'touch-action', 'pan-y', 'important');\
+              if (document.body) {\
+                document.body.style.setProperty(\
+                        'height', 'auto', 'important');\
+                document.body.style.setProperty(\
+                        'min-height', '100%', 'important');\
+                document.body.style.setProperty(\
+                        'overflow', 'visible', 'important');\
+                document.body.style.setProperty(\
+                        'overflow-y', 'visible', 'important');\
+                document.body.style.setProperty(\
+                        'touch-action', 'pan-y', 'important');\
+              }\
+            }\
+            """;\
+    // Alice patch end 0041\
+' "$path3"
 
 sed -i '/^        mThinWebView =$/i\
         // Alice patch start 0041\
@@ -286,8 +661,6 @@ sed -i '/^        mThinWebView =$/i\
 sed -i '/^    private ViewGroup mSheetContentView;$/a\
     // Alice patch start 0041\
     private FrameLayout mContentViewport;\
-    private int mKeyboardInsetPx;\
-    private int mCurrentMaxViewHeight;\
     // Alice patch end 0041' "$path3"
 
 sed -i '/^    @EnsuresNonNull({"mThinWebView", "mSheetContentView"})$/c\
@@ -302,6 +675,31 @@ sed -i '/^                        mContext,$/,/^                        \/\* ena
                         intentRequestTracker,\
                         /* enablePermissionRequests= */ false);\
                         // Alice patch end 0041' "$path3"
+
+sed -i '/^    private void createThinWebView(int maxSheetHeight, IntentRequestTracker intentRequestTracker) {$/i\
+    // Alice patch start 0041\
+    void applyExtensionViewportConstraint() {\
+        if (mWebContents == null || mWebContents.isDestroyed()) return;\
+        mWebContents\
+                .getMainFrame()\
+                .executeJavaScriptInIsolatedWorld(ALICE_EXTENSION_FIT_SCRIPT, 1, null);\
+    }\
+    // Alice patch end 0041\
+\
+' "$path3"
+
+sed -i '/^                        \.build());$/a\
+\
+        // Alice patch start 0041\
+        mWebContentView.setOnTouchListener(\
+                (view, event) -> {\
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN\
+                            \&\& view.getParent() != null) {\
+                        view.getParent().requestDisallowInterceptTouchEvent(true);\
+                    }\
+                    return false;\
+                });\
+        // Alice patch end 0041' "$path3"
 
 # 4) 在标题栏下方建立独立裁剪视口，网页只在该范围内绘制
 sed -i '/^        mSheetContentView = new FrameLayout(mContext);$/,/^        mSheetContentView.addView(mThinWebView.getView());$/c\
@@ -332,15 +730,9 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     void updateContentHeight(int maxViewHeight) {\
         if (maxViewHeight == 0) return;\
 \
-        mCurrentMaxViewHeight = maxViewHeight;\
         int aliceSheetHeight = getMaxSheetHeight(maxViewHeight);\
         int aliceToolbarHeight = getToolbarHeight();\
-        int aliceContentHeight =\
-                Math.max(\
-                        0,\
-                        aliceSheetHeight\
-                                - aliceToolbarHeight\
-                                - Math.max(getNavigationBarInset(), mKeyboardInsetPx));\
+        int aliceContentHeight = Math.max(0, aliceSheetHeight - aliceToolbarHeight);\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
             aliceWidth = mContext.getResources().getDisplayMetrics().widthPixels;\
@@ -371,24 +763,6 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     }\
     // Alice patch end 0041' "$path3"
 
-sed -i '/^    private int getToolbarHeight() {$/i\
-    // Alice patch start 0041\
-    private int getNavigationBarInset() {\
-        android.view.WindowInsets aliceRootInsets = mSheetContentView.getRootWindowInsets();\
-        if (aliceRootInsets == null) return 0;\
-        return WindowInsetsCompat.toWindowInsetsCompat(aliceRootInsets, mSheetContentView)\
-                .getInsets(WindowInsetsCompat.Type.navigationBars())\
-                .bottom;\
-    }\
-\
-    void setKeyboardInsetPx(int inset) {\
-        mKeyboardInsetPx = Math.max(0, inset);\
-        if (mCurrentMaxViewHeight > 0) updateContentHeight(mCurrentMaxViewHeight);\
-    }\
-    // Alice patch end 0041\
-\
-' "$path3"
-
 sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
     // Alice patch start 0041\
     private int getToolbarHeight() {\
@@ -416,117 +790,66 @@ sed -i '/^        mOnToolbarCreatedCallback\.onResult(mToolbarView);$/a\
         // Alice patch end 0041\
 ' "$path3"
 
-sed -i '/^    public int getVerticalScrollOffset() {$/,/^    }$/c\
-    // Alice patch start 0041\
-    public int getVerticalScrollOffset() {\
-        int aliceScrollOffset =\
-                mWebContents == null\
-                        ? 0\
-                        : org.chromium.content_public.browser.RenderCoordinates.fromWebContents(\
-                                        mWebContents)\
-                                .getScrollYPixInt();\
-        // Extension pages may scroll an inner element while RenderCoordinates stays at 0.\
-        return Math.max(1, aliceScrollOffset);\
-    }\
-    // Alice patch end 0041' "$path3"
+sed -i '/^                        if (navigation.hasCommitted()) {$/a\
+                            // Alice patch start 0041\
+                            mSheetContent.applyExtensionViewportConstraint();\
+                            // Alice patch end 0041' "$path10"
 
-# 7) 预览面板跟随根 IME inset；只缩短 WebContents 视口，不移动窗口。
-sed -i '/^import org\.chromium\.base\.Callback;$/i\
-// Alice patch start 0041\
-import androidx.core.view.WindowInsetsAnimationCompat;\
-import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0041\
-' "$path8"
-
-sed -i '/^import org\.chromium\.ui\.base\.ViewAndroidDelegate;$/a\
-// Alice patch start 0041\
-import org.chromium.ui.insets.InsetObserver;\
-// Alice patch end 0041' "$path8"
-
-sed -i '/^import java\.util\.function\.Supplier;$/i\
-// Alice patch start 0041\
-import java.util.List;\
-// Alice patch end 0041\
-' "$path8"
-
-sed -i '/^    private int mCurrentMaxViewHeight;$/a\
-    // Alice patch start 0041\
-    private int mKeyboardInsetPx;\
-    private boolean mImeAnimationRunning;\
-    private @Nullable InsetObserver mInsetObserver;\
-    private final InsetObserver.WindowInsetsAnimationListener mImeAnimationListener =\
-            new InsetObserver.WindowInsetsAnimationListener() {\
-                @Override\
-                public void onPrepare(WindowInsetsAnimationCompat animation) {\
-                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
-                        mImeAnimationRunning = true;\
-                    }\
-                }\
-\
-                @Override\
-                public void onStart(\
-                        WindowInsetsAnimationCompat animation,\
-                        WindowInsetsAnimationCompat.BoundsCompat bounds) {}\
-\
-                @Override\
-                public void onProgress(\
-                        WindowInsetsCompat insets,\
-                        List<WindowInsetsAnimationCompat> runningAnimations) {\
-                    if (!mImeAnimationRunning) return;\
-                    updateKeyboardInset(\
-                            insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);\
-                }\
-\
-                @Override\
-                public void onEnd(WindowInsetsAnimationCompat animation) {\
-                    if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) == 0) {\
-                        return;\
-                    }\
-                    mImeAnimationRunning = false;\
-                    if (mInsetObserver != null) {\
-                        updateKeyboardInset(\
-                                mInsetObserver.getSupplierForKeyboardInset().get());\
-                    }\
-                }\
-            };\
-    // Alice patch end 0041' "$path8"
-
-sed -i '/^            mMediator\.init(mWebContents, mContentView, mSheetContent, profile);$/i\
-            // Alice patch start 0041\
-            mInsetObserver = mWindow.getInsetObserver();\
-            if (mInsetObserver != null) {\
-                mInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
-                mKeyboardInsetPx = mInsetObserver.getSupplierForKeyboardInset().get();\
-                mInsetObserver.addWindowInsetsAnimationListener(mImeAnimationListener);\
-            }\
-            mSheetContent.setKeyboardInsetPx(mKeyboardInsetPx);\
-            // Alice patch end 0041' "$path8"
-
-sed -i '/^    private void destroyWebContents() {$/a\
-        // Alice patch start 0041\
-        if (mInsetObserver != null) {\
-            mInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
-            mInsetObserver = null;\
-        }\
-        mKeyboardInsetPx = 0;\
-        mImeAnimationRunning = false;\
-        // Alice patch end 0041' "$path8"
-
-sed -i '/^    private int getMaxViewHeight() {$/i\
-    // Alice patch start 0041\
-    private void updateKeyboardInset(int inset) {\
-        mKeyboardInsetPx = Math.max(0, inset);\
-        if (mSheetContent != null) mSheetContent.setKeyboardInsetPx(mKeyboardInsetPx);\
-    }\
-    // Alice patch end 0041\
-\
-' "$path8"
+sed -i '/^                        if (mSheetContent != null) mSheetContent\.setProgress(progress);$/a\
+                        // Alice patch start 0041\
+                        if (progress >= 1f \&\& mSheetContent != null) {\
+                            mSheetContent.applyExtensionViewportConstraint();\
+                        }\
+                        // Alice patch end 0041' "$path10"
 
 sed -i '/^    @Nullable$/i\
     // Alice patch start 0041\
     @Override\
     public boolean shouldUseFullWindowPresentation() {\
         return true;\
+    }\
+\
+    @Override\
+    public boolean shouldHandleContentTouchEvents() {\
+        return true;\
+    }\
+\
+    @Override\
+    public void onSheetHeightChanged(int sheetHeight) {\
+        if (sheetHeight <= 0) return;\
+        int aliceToolbarHeight = getToolbarHeight();\
+        int aliceContentHeight = Math.max(1, sheetHeight - aliceToolbarHeight);\
+        int aliceWidth = mSheetContentView.getWidth();\
+        if (aliceWidth <= 0) {\
+            aliceWidth = mContext.getResources().getDisplayMetrics().widthPixels;\
+        }\
+        mSheetContentView.setLayoutParams(\
+                new FrameLayout.LayoutParams(\
+                        ViewGroup.LayoutParams.MATCH_PARENT, sheetHeight));\
+        FrameLayout.LayoutParams aliceViewportParams =\
+                (FrameLayout.LayoutParams) mContentViewport.getLayoutParams();\
+        aliceViewportParams.height = aliceContentHeight;\
+        aliceViewportParams.topMargin = aliceToolbarHeight;\
+        mContentViewport.setLayoutParams(aliceViewportParams);\
+        mThinWebView.resizeWebContents(aliceWidth, aliceContentHeight);\
+        mContentViewport.forceLayout();\
+        mContentViewport.measure(\
+                View.MeasureSpec.makeMeasureSpec(\
+                        aliceWidth, View.MeasureSpec.EXACTLY),\
+                View.MeasureSpec.makeMeasureSpec(\
+                        aliceContentHeight, View.MeasureSpec.EXACTLY));\
+        mContentViewport.layout(\
+                0,\
+                aliceToolbarHeight,\
+                aliceWidth,\
+                aliceToolbarHeight + aliceContentHeight);\
+        ViewUtils.requestLayout(\
+                mSheetContentView, "Alice preview sheet height");\
+    }\
+\
+    @Override\
+    public int getToolbarBackgroundHeight() {\
+        return getToolbarHeight();\
     }\
     // Alice patch end 0041\
 \

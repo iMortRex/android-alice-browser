@@ -276,11 +276,17 @@ sed -i '/^    private void updateBackgroundColor() {$/a\
 sed -i '/^        setContentView(R.layout.settings_activity);$/a\
         // Alice patch start 0032\
         View aliceEdgeContent = getContentView();\
-        aliceEdgeContent.addOnLayoutChangeListener(\
-                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {\
-                    if (v.getPaddingBottom() != 0) {\
-                        v.setPadding(\
-                                v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), 0);\
+        aliceEdgeContent.getViewTreeObserver().addOnPreDrawListener(\
+                new android.view.ViewTreeObserver.OnPreDrawListener() {\
+                    @Override\
+                    public boolean onPreDraw() {\
+                        if (aliceEdgeContent.getPaddingBottom() == 0) return true;\
+                        aliceEdgeContent.setPadding(\
+                                aliceEdgeContent.getPaddingLeft(),\
+                                aliceEdgeContent.getPaddingTop(),\
+                                aliceEdgeContent.getPaddingRight(),\
+                                0);\
+                        return false;\
                     }\
                 });\
         // Alice patch end 0032\

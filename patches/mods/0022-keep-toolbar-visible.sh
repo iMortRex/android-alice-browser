@@ -12,7 +12,7 @@ if grep -q 'Alice patch start 0022' "$path1"; then
     exit 100
 fi
 
-# A0) 默认 NTP 滑动时 Android 工具栏保持可见，不叠加 compositor 工具栏层。
+# A0) 默认普通 NTP 滑动时，Android 工具栏保持唯一的可见工具栏。
 sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRightTab or null if undetermined.$/a\
     // Alice patch start 0022\
     private boolean mAliceDisableCompositorToolbar;\
@@ -20,10 +20,11 @@ sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRight
 
 sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getNativePage() : null;$/i\
         // Alice patch start 0022\
+        Tab aliceSwipeSourceTab = model.getTabAtChecked(fromIndex);\
         mAliceDisableCompositorToolbar =\
-                currentTab != null\
-                        \&\& !currentTab.isIncognito()\
-                        \&\& UrlUtilities.isNtpUrl(currentTab.getUrl());\
+                aliceSwipeSourceTab != null\
+                        \&\& !aliceSwipeSourceTab.isIncognito()\
+                        \&\& UrlUtilities.isNtpUrl(aliceSwipeSourceTab.getUrl());\
         if (mAliceDisableCompositorToolbar) {\
             if (mLeftToolbarOverlay != null) {\
                 mLeftToolbarOverlay.setManualVisibility(false);\
@@ -36,31 +37,31 @@ sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getN
 
 sed -i 's|^        layoutTab\.setShowToolbar(mMoveToolbar);$|        // Alice patch start 0022\n        layoutTab.setShowToolbar(mMoveToolbar \&\& !mAliceDisableCompositorToolbar);\n        // Alice patch end 0022|' "$path1"
 
-sed -i '/^        if (mLeftToolbarOverlay != null) {$/,/^        } else if (mLeftToolbarOverlay != null) {$/c\
-        // Alice patch start 0022\
-        if (mLeftToolbarOverlay != null) {\
-            if (mAliceDisableCompositorToolbar) {\
-                mLeftToolbarOverlay.setManualVisibility(false);\
-            } else {\
-                mLeftToolbarOverlay.setManualVisibility(true);\
-                mLeftToolbarOverlay.setAnonymize(mLeftTab != mFromTab);\
-                mLeftToolbarOverlay.setXOffset(leftX * dpToPx);\
+sed -i '/^            if (mLeftToolbarOverlay != null) {$/,/^            }$/c\
+            // Alice patch start 0022\
+            if (mLeftToolbarOverlay != null) {\
+                if (mAliceDisableCompositorToolbar) {\
+                    mLeftToolbarOverlay.setManualVisibility(false);\
+                } else {\
+                    mLeftToolbarOverlay.setManualVisibility(true);\
+                    mLeftToolbarOverlay.setAnonymize(mLeftTab != mFromTab);\
+                    mLeftToolbarOverlay.setXOffset(leftX * dpToPx);\
+                }\
             }\
-        } else if (mLeftToolbarOverlay != null) {\
-        // Alice patch end 0022' "$path1"
+            // Alice patch end 0022' "$path1"
 
-sed -i '/^        if (mRightToolbarOverlay != null) {$/,/^        } else if (mRightToolbarOverlay != null) {$/c\
-        // Alice patch start 0022\
-        if (mRightToolbarOverlay != null) {\
-            if (mAliceDisableCompositorToolbar) {\
-                mRightToolbarOverlay.setManualVisibility(false);\
-            } else {\
-                mRightToolbarOverlay.setManualVisibility(true);\
-                mRightToolbarOverlay.setAnonymize(mRightTab != mFromTab);\
-                mRightToolbarOverlay.setXOffset(rightX * dpToPx);\
+sed -i '/^            if (mRightToolbarOverlay != null) {$/,/^            }$/c\
+            // Alice patch start 0022\
+            if (mRightToolbarOverlay != null) {\
+                if (mAliceDisableCompositorToolbar) {\
+                    mRightToolbarOverlay.setManualVisibility(false);\
+                } else {\
+                    mRightToolbarOverlay.setManualVisibility(true);\
+                    mRightToolbarOverlay.setAnonymize(mRightTab != mFromTab);\
+                    mRightToolbarOverlay.setXOffset(rightX * dpToPx);\
+                }\
             }\
-        } else if (mRightToolbarOverlay != null) {\
-        // Alice patch end 0022' "$path1"
+            // Alice patch end 0022' "$path1"
 
 # A) 滑动期间不再申请 hiding token（也不动工具栏位置）
 sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/c\

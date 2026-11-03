@@ -31,6 +31,17 @@ sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//  
                             releaseAliceFullscreenToolbarSnapshotNow();\
                             \/\/ Alice patch end 0042/}' "$path2"
 
+sed -i 's|^\( *\)mInTabSwitcherTransition = true;$|\1mInTabSwitcherTransition = true;\
+\1\/\/ Alice patch start 0042\
+\1mCompositorViewHolder.setAliceHubViewportTransition(true);\
+\1\/\/ Alice patch end 0042|' "$path2"
+
+sed -i '/^                        if (layoutType == LayoutType.BROWSING) {$/a\
+                            // Alice patch start 0042\
+                            mCompositorViewHolder.setAliceHubViewportTransition(false);\
+                            // Alice patch end 0042\
+' "$path2"
+
 # 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
 # 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。
 sed -i '/^    final class FullscreenTransitionState {$/a\
@@ -393,6 +404,7 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
     private int mAliceExitViewportLockedHeight;\
     private int mAliceLastRequestedWebContentsWidth;\
     private int mAliceLastRequestedWebContentsHeight;\
+    private boolean mAliceHubViewportTransition;\
     private final Runnable mAliceEntryViewportCommit = this::finishAliceEntryViewport;\
     private final Runnable mAliceExitViewportCommit = this::finishAliceExitViewport;\
     // Alice patch end 0042' "$path1"
@@ -868,6 +880,59 @@ sed -i '/^            \/\/ Alice patch start 0033$/,/^            \/\/ Alice pat
             // Alice patch start 0042\
             tryUpdateControlsAndWebContentsSizing();\
             // Alice patch end 0042' "$path1"
+
+# Hub 期间网页虽然不可见，但仍会因为顶部工具栏暂时脱离而提交整屏尺寸。
+# 顶部地址栏必须保持进入 Hub 前的尺寸，直到返回 BROWSING 的动画完全结束。
+sed -i '/^    private void onBrowserControlsHeightChanged() {$/,/^    }$/{
+    /^    }$/a\
+    // Alice patch start 0042\
+    private boolean aliceShouldDeferBrowserControlsViewportForHub() {\
+        return mBrowserControlsManager != null\
+                \&\& mBrowserControlsManager.getControlsPosition()\
+                        == BrowserControlsStateProvider.ControlsPosition.TOP\
+                \&\& (mAliceHubViewportTransition\
+                        || (mLayoutManager != null\
+                                \&\& (mLayoutManager.getActiveLayoutType()\
+                                                == org.chromium.chrome.browser.layouts.LayoutType.HUB\
+                                        || mLayoutManager.getNextLayoutType()\
+                                                == org.chromium.chrome.browser.layouts.LayoutType.HUB)));\
+    }\
+\
+    public void setAliceHubViewportTransition(boolean transition) {\
+        if (mAliceHubViewportTransition == transition) return;\
+        mAliceHubViewportTransition = transition;\
+        if (transition\
+                || mBrowserControlsManager == null\
+                || mBrowserControlsManager.getControlsPosition()\
+                        != BrowserControlsStateProvider.ControlsPosition.TOP) {\
+            return;\
+        }\
+        onBrowserControlsHeightChanged();\
+        onViewportChanged();\
+        tryUpdateControlsAndWebContentsSizing();\
+        updateWebContentsSize(getCurrentTab());\
+        requestRender();\
+    }\
+    // Alice patch end 0042
+}' "$path1"
+
+sed -i '/^    private void onBrowserControlsHeightChanged() {$/a\
+        // Alice patch start 0042\
+        if (aliceShouldDeferBrowserControlsViewportForHub()) return;\
+        // Alice patch end 0042\
+' "$path1"
+
+sed -i '/^        if (tab == null) return;$/a\
+        // Alice patch start 0042\
+        if (tab == mTabVisible \&\& aliceShouldDeferBrowserControlsViewportForHub()) return;\
+        // Alice patch end 0042\
+' "$path1"
+
+sed -i '/^    private void tryUpdateControlsAndWebContentsSizing() {$/a\
+        // Alice patch start 0042\
+        if (aliceShouldDeferBrowserControlsViewportForHub()) return;\
+        // Alice patch end 0042\
+' "$path1"
 
 # 全屏退出和系统栏恢复期间必须让 renderer 以 resize-content 模式重新布局，
 # 否则只会改变绘制高度，fixed 底部栏仍停在 overlay 的旧位置。
