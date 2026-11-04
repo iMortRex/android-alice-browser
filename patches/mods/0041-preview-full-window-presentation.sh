@@ -241,6 +241,7 @@ sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > ev
     // Alice patch start 0041\
     private boolean isTouchEventInSheetContent(MotionEvent event) {\
         if (mSheetContent == null) return false;\
+        if (isTouchEventInToolbar(event)) return false;\
         Rect contentBounds = new Rect();\
         if (!mSheetContent.getContentView().getGlobalVisibleRect(contentBounds)) {\
             return false;\
