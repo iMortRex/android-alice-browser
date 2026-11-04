@@ -350,6 +350,14 @@ sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
                         mControlContainer.getView())) {\
             layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
+        if (layer == mBottomToolbarLayer\
+                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                \&\& mIsImeAnimationRunning\
+                \&\& !mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                        mControlContainer.getView())\
+                \&\& layerYOffset > 0) {\
+            return;\
+        }\
         // Alice patch end 0033\
 ' "$path1"
 

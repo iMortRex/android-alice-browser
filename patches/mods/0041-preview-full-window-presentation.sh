@@ -234,7 +234,10 @@ sed -i '/^        if (!mIsTouchEnabled) return true;$/a\
         }\
         // Alice patch end 0041' "$path9"
 
-sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > event\.getRawY();$/a\
+sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > event\.getRawY();$/,/^    }$/c\
+        return mCachedLocation[1] + mToolbarHolder.getHeight() > event.getRawY();\
+    }\
+\
     // Alice patch start 0041\
     private boolean isTouchEventInSheetContent(MotionEvent event) {\
         if (mSheetContent == null) return false;\
@@ -667,28 +670,28 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
     // Alice patch start 0041\
     private static final String ALICE_EXTENSION_FIT_SCRIPT =\
             """\
-            if (location.protocol === 'chrome-extension:') {\
+            if (location.protocol === "chrome-extension:") {\
               document.documentElement.style.setProperty(\
-                      'height', '100%', 'important');\
+                      "height", "100%", "important");\
               document.documentElement.style.setProperty(\
-                      'min-height', '0', 'important');\
+                      "min-height", "0", "important");\
               document.documentElement.style.setProperty(\
-                      'overflow', 'auto', 'important');\
+                      "overflow", "auto", "important");\
               document.documentElement.style.setProperty(\
-                      'overflow-y', 'auto', 'important');\
+                      "overflow-y", "auto", "important");\
               document.documentElement.style.setProperty(\
-                      'touch-action', 'pan-y', 'important');\
+                      "touch-action", "pan-y", "important");\
               if (document.body) {\
                 document.body.style.setProperty(\
-                        'height', 'auto', 'important');\
+                        "height", "auto", "important");\
                 document.body.style.setProperty(\
-                        'min-height', '100%', 'important');\
+                        "min-height", "100%", "important");\
                 document.body.style.setProperty(\
-                        'overflow', 'visible', 'important');\
+                        "overflow", "visible", "important");\
                 document.body.style.setProperty(\
-                        'overflow-y', 'visible', 'important');\
+                        "overflow-y", "visible", "important");\
                 document.body.style.setProperty(\
-                        'touch-action', 'pan-y', 'important');\
+                        "touch-action", "pan-y", "important");\
               }\
             }\
             (() => {\
@@ -706,9 +709,9 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
               };\
               const aliceCanScroll = (node) => {\
                 const overflowY = getComputedStyle(node).overflowY;\
-                return (overflowY === 'auto'\
-                                || overflowY === 'scroll'\
-                                || overflowY === 'overlay')\
+                return (overflowY === "auto"\
+                                || overflowY === "scroll"\
+                                || overflowY === "overlay")\
                         \&\& node.scrollHeight > node.clientHeight + 1;\
               };\
               const aliceScrollBy = (node, amount) => {\
@@ -721,7 +724,7 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
               };\
               window.__aliceRevealFocusedInput = (visibleHeightPx) => {\
                 const active = aliceDeepActiveElement();\
-                if (!active || typeof active.getBoundingClientRect !== 'function') return;\
+                if (!active || typeof active.getBoundingClientRect !== "function") return;\
                 const scale = window.devicePixelRatio || 1;\
                 const viewportHeight = window.visualViewport\
                         ? window.visualViewport.height\
@@ -996,7 +999,7 @@ sed -i '/^    @Nullable$/i\
         ViewUtils.requestLayout(\
                 mSheetContentView, "Alice preview sheet height");\
         if (aliceHeightReduced) {\
-            applyPreviewImeVisibleHeight(contentHeight);\
+            applyPreviewImeVisibleHeight(aliceContentHeight);\
         }\
     }\
 \

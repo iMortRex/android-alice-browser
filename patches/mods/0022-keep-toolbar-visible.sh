@@ -26,12 +26,8 @@ sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getN
                         \&\& !aliceSwipeSourceTab.isIncognito()\
                         \&\& UrlUtilities.isNtpUrl(aliceSwipeSourceTab.getUrl());\
         if (mAliceDisableCompositorToolbar) {\
-            if (mLeftToolbarOverlay != null) {\
-                mLeftToolbarOverlay.setManualVisibility(false);\
-            }\
-            if (mRightToolbarOverlay != null) {\
-                mRightToolbarOverlay.setManualVisibility(false);\
-            }\
+            if (mLeftToolbarOverlay != null) mLeftToolbarOverlay.setManualVisibility(false);\
+            if (mRightToolbarOverlay != null) mRightToolbarOverlay.setManualVisibility(false);\
         }\
         // Alice patch end 0022' "$path1"
 
