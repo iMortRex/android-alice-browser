@@ -16,7 +16,7 @@ A secure and fully open-source, Chromium-based web browser with support for exte
 
 Thanks for [Tianium Browser](https://github.com/jqssun/android-titanium-browser) and all creaters. If you want to build a browser like this, or learn more, you can check [Tianium Browser](https://github.com/jqssun/android-titanium-browser).
 
-This browser only built for myself, so no issues and pull requests. SORRY! :(
+For now, I built this browser for my own use, so I’m not accepting issues or pull requests. SORRY! :(
 
 | Extensions | DevTools | Menu |
 |---|---|---|

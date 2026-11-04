@@ -16,7 +16,7 @@
 
 感谢 [Tianium Browser](https://github.com/jqssun/android-titanium-browser) 及所有创作者。如果你想构建一个类似这样的浏览器，或想了解更多，可以查看 [Tianium Browser](https://github.com/jqssun/android-titanium-browser)。
 
-这个浏览器暂时只为了我个人使用而创作，因此不接受 issue 和 pull request 请求。抱歉！:(
+这个浏览器暂时只是为了我个人使用而制作，因此不接受 issue 和 pull request 请求。抱歉！:(
 
 | 扩展 | 开发者工具 | 菜单 |
 |---|---|---|
