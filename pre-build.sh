@@ -78,8 +78,8 @@ if [ -f "$APK" ]; then
     echo "=== 编译成功 ==="
     echo $(date +"%Y-%m-%d %H:%M:%S")
     echo "APK: $APK"
-    echo "安装:"
-    echo "adb.exe install -r $SIGNED_APK"
+    echo "手动安装指令:"
+    echo "adb.exe install -r $APK"
 else
     echo "编译失败：找不到 APK"
     exit 1
