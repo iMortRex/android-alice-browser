@@ -96,6 +96,14 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
         }\
     }\
 \
+    private void recycleAliceRecentCompositedThumbnail() {\
+        @Nullable Bitmap bitmap = mAliceRecentCompositedThumbnail;\
+        mAliceRecentCompositedThumbnail = null;\
+        if (bitmap != null \&\& !bitmap.isRecycled()) {\
+            bitmap.recycle();\
+        }\
+    }\
+\
     private void rememberAliceToolbarBitmap(Bitmap bitmap) {\
         @Nullable Bitmap copy = copyAliceCompositedThumbnail(bitmap);\
         if (copy == null) return;\
@@ -114,6 +122,7 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
             immediateBitmap = copyAliceCompositedThumbnail(bitmap);\
         }\
         if (immediateBitmap != null) {\
+            recycleAliceRecentCompositedThumbnail();\
             mAliceRecentCompositedTabId = tabId;\
             mAliceRecentCompositedThumbnail = immediateBitmap;\
         }\
@@ -384,7 +393,7 @@ sed -i '/^    public void destroy() {$/,/^    }$/c\
         mAliceCompositingTabIds.clear();\
         mAlicePendingThumbnailRequests.clear();\
         mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-        mAliceRecentCompositedThumbnail = null;\
+        recycleAliceRecentCompositedThumbnail();\
         if (mAliceLastToolbarBitmap != null) {\
             mAliceLastToolbarBitmap.recycle();\
             mAliceLastToolbarBitmap = null;\
@@ -402,7 +411,7 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
             // Alice patch start 0040\
             if (mAliceRecentCompositedTabId == tab.getId()) {\
                 mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-                mAliceRecentCompositedThumbnail = null;\
+                recycleAliceRecentCompositedThumbnail();\
             }\
             if (!shouldCaptureAliceToolbar() \&\& mAliceLastToolbarBitmap != null) {\
                 mAliceLastToolbarBitmap.recycle();\
@@ -492,7 +501,7 @@ sed -i '/^        if (!forceRemoval \&\& !mTabWindowManager\.canTabThumbnailBeDe
         mAliceCompositingTabIds.remove(tabId);\
         if (mAliceRecentCompositedTabId == tabId) {\
             mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-            mAliceRecentCompositedThumbnail = null;\
+            recycleAliceRecentCompositedThumbnail();\
         }\
         List<AlicePendingThumbnailRequest> pendingRequests =\
                 mAlicePendingThumbnailRequests.remove(tabId);\

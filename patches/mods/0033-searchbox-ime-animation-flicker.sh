@@ -1010,8 +1010,12 @@ sed -i '/^    void setToolbarOnBottom(boolean toolbarOnBottom) {$/,/^    }$/c\
         // Alice patch end 0033\
     }' "$path9"
 
+sed -i '/^    <org\.chromium\.ui\.AsyncViewStub$/i\
+    <!-- Alice patch start 0033 -->' "$path7"
 sed -i 's|^        app:layout_anchor="@id/toolbar"$|        android:layout_gravity="top"|' \
     "$path7"
+sed -i '/^        app:inflatedId="@+id\/search_activity_suggestions_container"\/>$/a\
+    <!-- Alice patch end 0033 -->' "$path7"
 
 sed -i '/^        mBrowserControlsStateProvider\.addObserver(this);$/i\
         // Alice patch start 0033\

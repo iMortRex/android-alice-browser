@@ -16,6 +16,7 @@ fi
 sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRightTab or null if undetermined.$/a\
     // Alice patch start 0022\
     private boolean mAliceDisableCompositorToolbar;\
+    private boolean mAliceHideControlView;\
     // Alice patch end 0022' "$path1"
 
 sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getNativePage() : null;$/i\
@@ -28,6 +29,10 @@ sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getN
         if (mAliceDisableCompositorToolbar) {\
             if (mLeftToolbarOverlay != null) mLeftToolbarOverlay.setManualVisibility(false);\
             if (mRightToolbarOverlay != null) mRightToolbarOverlay.setManualVisibility(false);\
+            if (mControlView != null \&\& mControlView.getVisibility() == View.VISIBLE) {\
+                mAliceHideControlView = true;\
+                mControlView.setVisibility(View.INVISIBLE);\
+            }\
         }\
         // Alice patch end 0022' "$path1"
 
@@ -66,7 +71,30 @@ sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/
         // Alice: keep-toolbar-visible -- 滑动期间不强制隐藏 Android 工具栏，位置也不动。\
         return false;\
         // Alice patch end 0022\
-    }' "$path1"
+    }\
+\
+    // Alice patch start 0022\
+    private void restoreAliceControlView() {\
+        if (!mAliceHideControlView) return;\
+        if (mControlView != null) mControlView.setVisibility(View.VISIBLE);\
+        mAliceHideControlView = false;\
+    }\
+    // Alice patch end 0022' "$path1"
+
+sed -i '/^        super\\.doneHiding();$/a\
+        // Alice patch start 0022\
+        restoreAliceControlView();\
+        // Alice patch end 0022' "$path1"
+
+sed -i '/^    private void init() {$/a\
+        // Alice patch start 0022\
+        restoreAliceControlView();\
+        // Alice patch end 0022' "$path1"
+
+sed -i '/^        super\\.destroy();$/i\
+        // Alice patch start 0022\
+        restoreAliceControlView();\
+        // Alice patch end 0022' "$path1"
 
 # B) 全屏时隐藏 Android 工具栏。底置工具栏固定使用 Android view，
 #    顶部工具栏继续使用 Chrome 原有的 compositor/Android 二选一逻辑。

@@ -704,7 +704,6 @@ sed -i '/^    public boolean isKeyboardInOverlayMode() {$/i\
 ' "$path4"
 
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
-        // Alice patch start 0034\
         if (mAliceInsetObserver != null\
                 && mAliceInsetObserver.isImeAnimationInProgress()) {\
             mAliceImeAnimationInProgress = true;\
@@ -713,11 +712,9 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
             if (aliceGlobalImeAnimationHeight >= 0) {\
                 mAliceImeAnimationHeight = aliceGlobalImeAnimationHeight;\
             }\
-        }\
-        // Alice patch end 0034' "$path1"
+        }' "$path1"
 
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
-        // Alice patch start 0034\
         if (mAliceInsetObserver != null\
                 && mAliceInsetObserver.isImeAnimationInProgress()) {\
             mAliceImeAnimationInProgress = true;\
@@ -726,8 +723,7 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
             if (aliceGlobalImeAnimationHeight >= 0) {\
                 mAliceImeAnimationHeight = aliceGlobalImeAnimationHeight;\
             }\
-        }\
-        // Alice patch end 0034' "$path2"
+        }' "$path2"
 # 11) 非动画帧也使用 InsetObserver 保存的稳定 IME 高度，绝不直接读
 #     系统刚下发的最终 inset。动画结束后再把稳定高度更新为最终值。
 sed -i '/^    private int mCurrentImeAnimationHeight = -1;$/c\
@@ -858,26 +854,13 @@ sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        
                                         : 0);\
         int aliceBottomMargin =' "$path2"
 
-sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
-        // Alice patch start 0034' "$path1"
-sed -i '/^        int targetBottomMargin = aliceBottomMargin;$/a\
-        // Alice patch end 0034' "$path1"
-
-sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
-        // Alice patch start 0034' "$path2"
-sed -i '/^        params.bottomMargin = aliceBottomMargin;$/a\
-        // Alice patch end 0034' "$path2"
-
 # 撤销 Snackbar 与翻译气泡共用同一个静止底部基准；IME 可见时继续共用
 # InsetObserver 的动画高度，避免两者相对键盘的间隔不同。
 sed -i '/^        int aliceRestingBottomMargin =$/,/^                        + aliceNavigationBarHeight;$/c\
-        // Alice patch start 0034\
         int aliceRestingBottomMargin =\
-                getAliceBottomToolbarHeight() + aliceNavigationBarHeight;\
-        // Alice patch end 0034' "$path1"
+                getAliceBottomToolbarHeight() + aliceNavigationBarHeight;' "$path1"
 
 sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRestingBottomMargin;$/c\
-        // Alice patch start 0034\
         int aliceNormalSpacingAdjustment =\
                 Math.round(\
                         15f\
@@ -903,8 +886,7 @@ sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRes
                                 aliceImeScreenBottomTarget)\
                         : aliceRestingScreenBottomTarget;\
         int aliceBottomMargin =\
-                Math.max(0, aliceScreenBottomTarget - getAliceParentBottomInset());\
-        // Alice patch end 0034' "$path1"
+                Math.max(0, aliceScreenBottomTarget - getAliceParentBottomInset());' "$path1"
 
 # 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。

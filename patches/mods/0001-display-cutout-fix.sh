@@ -1,5 +1,5 @@
 #!/bin/bash
-# 横屏不避让挖孔，竖屏保持短边挖孔模式
+# 横屏和竖屏 HTML 全屏不避让挖孔，普通竖屏页面保持短边挖孔模式
 
 set -e
 
@@ -7,13 +7,16 @@ set -e
 path1="components/browser_ui/display_cutout/android/java/src/org/chromium/components/browser_ui/display_cutout/DisplayCutoutController.java"
 path2="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
 path3="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/layout/EdgeToEdgeLayoutCoordinator.java"
+path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0001' "$path1"; then
     exit 100
 fi
 
-# 标签页控制器中，横屏覆盖整个挖孔区域，竖屏沿用短边模式。
+# 横屏和竖屏 HTML 全屏都覆盖整个挖孔区域；普通竖屏页面仍沿用短边模式。
+# 竖屏全屏若继续使用 SHORT_EDGES，顶部 144px 挖孔安全区会让可见帧和
+# SurfaceControl 子层比 WebContents 矮 144px，导致页面底部固定控件被裁掉。
 sed -i '/^        final int displayCutoutMode = computeDisplayCutoutMode();$/,/^        setWindowAttributes(attributes);$/c\
         // Alice patch start 0001\
         android.app.Activity aliceActivity = mDelegate.getAttachedActivity();\
@@ -21,8 +24,11 @@ sed -i '/^        final int displayCutoutMode = computeDisplayCutoutMode();$/,/^
                 aliceActivity != null\
                         \&\& aliceActivity.getResources().getConfiguration().orientation\
                                 == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+        WebContents aliceWebContents = mDelegate.getWebContents();\
+        boolean aliceHtmlFullscreen =\
+                aliceWebContents != null \&\& aliceWebContents.isFullscreenForCurrentTab();\
         int aliceDisplayCutoutMode =\
-                aliceLandscape\
+                aliceLandscape || aliceHtmlFullscreen\
                         ? LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS\
                         : LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;\
         if (attributes.layoutInDisplayCutoutMode == aliceDisplayCutoutMode) return;\
@@ -95,3 +101,18 @@ sed -i '/^        if (WindowInsetsUtils\.shouldPadDisplayCutout(windowInsets, mC
             mView.setDisplayCutoutTop(Insets.NONE);\
         }\
         // Alice patch end 0001' "$path3"
+
+# 全屏时导航栏不可见，但 mandatorySystemGestures 仍会拦截底部触摸。
+# safe-area-inset-bottom 必须至少包含该手势热区，页面才能把可点击控件放到
+# 系统手势区上方；否则底部会出现看得见但点不到的窄条。
+sed -i 's|^        newSafeArea.bottom += mBottomInsetsForEdgeToEdge;$|        // Alice patch start 0001\
+        int aliceMandatoryGestureBottom = 0;\
+        if (getLastRawWindowInsets() != null) {\
+            aliceMandatoryGestureBottom =\
+                    getLastRawWindowInsets()\
+                            .getInsets(mandatorySystemGestures())\
+                            .bottom;\
+        }\
+        newSafeArea.bottom +=\
+                Math.max(mBottomInsetsForEdgeToEdge, aliceMandatoryGestureBottom);\
+        // Alice patch end 0001|' "$path4"

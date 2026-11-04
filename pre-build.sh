@@ -65,14 +65,14 @@ export PATH=$CHROMIUM/third_party/jdk/current/bin/:$PATH
 export ANDROID_HOME=$CHROMIUM/third_party/android_sdk/public
 
 VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' "$SCRIPT_DIR/vanadium/args.gn")
-mkdir -p out/release
-SIGNED_APK="out/release/$VERSION-arm64-v8a.apk"
+mkdir -p out/Release
+SIGNED_APK="out/Release/$VERSION-arm64-v8a.apk"
 sign_apk "$APK" "$SIGNED_APK"
 echo "已签名: $SIGNED_APK"
 play_sound "/mnt/c/Windows/Media/Windows Unlock.wav"
 
 # 找 APK
-APK="$CHROMIUM/out/Default/apks/ChromePublic.apk"
+APK="$CHROMIUM/$SIGNED_APK"
 if [ -f "$APK" ]; then
     echo ""
     echo "=== 编译成功 ==="

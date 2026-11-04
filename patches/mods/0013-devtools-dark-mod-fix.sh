@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 # DevTools 默认关闭"与 Chrome 配色方案匹配"，使其跟随浏览器深浅色
 
 # 目标文件路径

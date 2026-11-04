@@ -75,27 +75,26 @@ if ! grep -q 'ic_dev_tools_24dp\.xml' "$path3"; then
     sed -i 's|^  "java/res/drawable/ic_dock_to_right_24dp\.xml",$|  "java/res/drawable/ic_dev_tools_24dp.xml",\n&|' "$path3"
 fi
 
-# 11) MoreToolsItemBuilder：Dev tools 条目支持图标
-sed -i '/^    \/\*\* Builds the "Dev tools" menu item\. \*\/$/,$d' "$path2"
-cat >> "$path2" <<'EOF'
-    /**
-     * Builds the "Dev tools" menu item.
-     *
-     * @param showIcon Whether to display an icon next to the item.
-     */
-    public ListItem buildDevToolsItem(boolean showIcon) {
-        return AppMenuItemUtils.createStandardListItem(
-                AppMenuItemUtils.buildModelForStandardMenuItem(
-                        mContext,
-                        mAppMenuItemTheme,
-                        R.id.dev_tools,
-                        R.string.menu_dev_tools,
-                        showIcon ? R.drawable.ic_dev_tools_24dp : Resources.ID_NULL,
-                        mIsMenuIconAtStart),
-                showIcon);
-    }
-}
-EOF
+# 11) MoreToolsItemBuilder：只替换 Dev tools 方法，不截断文件末尾。
+sed -i '/^    \/\*\* Builds the "Dev tools" menu item\. \*\/$/,/^    }$/c\
+    // Alice patch start 0030\
+    /**\
+     * Builds the "Dev tools" menu item.\
+     *\
+     * @param showIcon Whether to display an icon next to the item.\
+     */\
+    public ListItem buildDevToolsItem(boolean showIcon) {\
+        return AppMenuItemUtils.createStandardListItem(\
+                AppMenuItemUtils.buildModelForStandardMenuItem(\
+                        mContext,\
+                        mAppMenuItemTheme,\
+                        R.id.dev_tools,\
+                        R.string.menu_dev_tools,\
+                        showIcon ? R.drawable.ic_dev_tools_24dp : Resources.ID_NULL,\
+                        mIsMenuIconAtStart),\
+                showIcon);\
+    }\
+    // Alice patch end 0030' "$path2"
 
 # 12) 一级菜单里调用时带上 showIcon（当前 tabbed 菜单始终为 true）
 sed -i 's|^            modelList\.add(mMoreToolsItemBuilder\.buildDevToolsItem());$|            modelList.add(\n                    mMoreToolsItemBuilder.buildDevToolsItem(shouldShowIconBeforeItem()));|' "$path1"

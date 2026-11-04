@@ -39,20 +39,30 @@ sed -i '/^            iconModels\.add(buildBookmarkActionModel(currentTab));$/a\
             // Alice patch end 0026' "$path1"
 
 # 2) AppMenuHandlerImpl：import
-sed -i '/^import android\.view\.ViewGroup;$/a\
-import android.view.LayoutInflater;' "$path2"
-sed -i '/^import android\.widget\.ListView;$/a\
-import android.widget.LinearLayout;' "$path2"
+sed -i '/^import android\.view\.View;$/i\
+// Alice patch start 0026\
+import android.view.LayoutInflater;\
+// Alice patch end 0026' "$path2"
+sed -i '/^import android\.widget\.ListView;$/i\
+// Alice patch start 0026\
+import android.widget.LinearLayout;\
+// Alice patch end 0026' "$path2"
 sed -i '/^import org\.chromium\.ui\.modelutil\.PropertyModel;$/a\
-import org.chromium.ui.modelutil.PropertyModelChangeProcessor;' "$path2"
+// Alice patch start 0026\
+import org.chromium.ui.modelutil.PropertyModelChangeProcessor;\
+// Alice patch end 0026' "$path2"
 
 # 3) AppMenuHandlerImpl：字段
 sed -i '/^    private final Context mContext;$/i\
-    private @Nullable PropertyModel mIconRowFooterModel;' "$path2"
+    // Alice patch start 0026\
+    private @Nullable PropertyModel mIconRowFooterModel;\
+    // Alice patch end 0026' "$path2"
 
 # 4) AppMenuHandlerImpl：摘出图标行模型
 sed -i '/^        setupModelForHighlightAndClick(mModelList, mHighlightMenuId, this);$/a\
-        mIconRowFooterModel = extractIconRowModel();' "$path2"
+        // Alice patch start 0026\
+        mIconRowFooterModel = extractIconRowModel();\
+        // Alice patch end 0026' "$path2"
 
 # 5) AppMenuHandlerImpl：新增两个方法
 sed -i '/^    \/\*\*$/{N;/A means of reporting an exception without crashing\./s|^|    // Alice patch start 0026\n    /** 把 BUTTON_ROW（图标行）从菜单模型里摘出来，留作底部固定 footer。 */\n    private @Nullable PropertyModel extractIconRowModel() {\n        if (mModelList == null) return null;\n        for (int i = 0; i < mModelList.size(); i++) {\n            ListItem item = mModelList.get(i);\n            if (item.type != AppMenuItemType.BUTTON_ROW) continue;\n            PropertyModel model = item.model;\n            mModelList.removeAt(i);\n            return model;\n        }\n        return null;\n    }\n\n    /** 用图标行模型生成一份独立视图（不随列表滚动，钉在菜单底部）。 */\n    private View buildIconRowFooterView(PropertyModel model) {\n        ViewGroup view =\n                (ViewGroup)\n                        LayoutInflater.from(mContext)\n                                .inflate(R.layout.icon_row_menu_item, /* root= */ null);\n        PropertyModelChangeProcessor.create(\n                model, view, AppMenuItemViewBinder::bindIconRowItem,\n                /* performInitialBind= */ true);\n        // 关键：root 传 null 时 inflate 不会带 LayoutParams，不设的话\n        // LinearLayout 默认 WRAP_CONTENT，而里面 5 个按钮是 weight=1 + width=0dp，\n        // 会导致整行宽度为 0（按钮全看不见）。\n        view.setLayoutParams(\n                new LinearLayout.LayoutParams(\n                        LinearLayout.LayoutParams.MATCH_PARENT,\n                        LinearLayout.LayoutParams.WRAP_CONTENT));\n        return view;\n    }\n    // Alice patch end 0026\n\n|}' "$path2"
@@ -67,7 +77,7 @@ sed -i '/^        mAppMenu\.show($/i\
         }\
         // Alice patch end 0026\
 ' "$path2"
-sed -i 's|^                mDelegate\.buildFooterView(this),$|                footer,|' "$path2"
+sed -i 's|^                mDelegate\.buildFooterView(this),$|                // Alice patch start 0026\n                footer,\n                // Alice patch end 0026|' "$path2"
 sed -i '/^        if (mModelList == null || mModelList\.isEmpty()) return false;$/,/^        return mModelList\.get(0)\.type != AppMenuItemType\.BUTTON_ROW;$/c\
         // Alice patch start 0026\
         return false;\
