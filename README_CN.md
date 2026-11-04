@@ -1,9 +1,16 @@
-# Alice Browser for Android
+<h1 align="center">Alice Browser for Android</h1>
 
-[English](https://github.com/iMortRex/android-alice-browser/blob/main/README.md) | 中文
+<p align="center">
+  <img src="res/icon.svg" width="128">
+</p>
 
-[![license](https://img.shields.io/badge/License-GPLv2-blue.svg)](https://github.com/iMortRex/android-alice-browser/blob/main/LICENSE)
-[![release](https://img.shields.io/github/v/release/jqssun/android-titanium-browser)](https://github.com/iMortRex/android-alice-browser/releases)
+<p align="center">
+  <a href="https://github.com/iMortRex/android-alice-browser/blob/main/README.md">English</a> | 中文
+</p>
+
+<p align="center">
+  <a href="https://github.com/iMortRex/android-alice-browser/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="license"></a> <a href="https://github.com/iMortRex/android-alice-browser/releases"><img src="https://img.shields.io/github/v/release/iMortRex/android-alice-browser" alt="release"></a>
+</p>
 
 一个安全且完全开源、基于 Chromium 的网页浏览器，支持扩展，基于 [Tianium Browser](https://github.com/jqssun/android-titanium-browser)。借助大量 AI 帮助，并由我进行测试/修改。
 
