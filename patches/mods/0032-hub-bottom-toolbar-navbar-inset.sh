@@ -517,7 +517,6 @@ sed -i '/^                                \.setStatusBarColor(opaqueColor)$/a\
                                 // Alice patch end 0032' "$path23"
 
 # 10) 标签管理页收缩/展开动画使用完整底部工具栏高度和实际背景
-
 sed -i '/^                    viewportRectf.round(viewportRect);$/a\
                     // Alice patch start 0032\
                     if (!isTopToolbar) {\

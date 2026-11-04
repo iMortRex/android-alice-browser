@@ -124,17 +124,16 @@ sed -i '/^        aliceBackground.setTranslationY(0);$/a\
 
 sed -i '/^        int aliceBackgroundColor =$/,/^        aliceBackground.setBackgroundColor(aliceBackgroundColor);$/c\
         int aliceConfiguredBackgroundColor =\
-                mNavigationBarBackgroundColor != Integer.MIN_VALUE\
-                        ? mNavigationBarBackgroundColor\
-                        : mControlContainer.getToolbarBackgroundColor();\
-        mNavigationBarBackgroundColor = aliceConfiguredBackgroundColor;\
-        aliceBackground.setBackgroundColor(\
-                // Alice patch start 0041\
                 aliceFullWindowPreview\
-                        ? android.graphics.Color.TRANSPARENT\
-                        : aliceConfiguredBackgroundColor\
-                // Alice patch end 0041\
-                );' "$path7"
+                                || mNavigationBarBackgroundColor == Integer.MIN_VALUE\
+                        ? mControlContainer.getToolbarBackgroundColor()\
+                        : mNavigationBarBackgroundColor;\
+        if (!aliceFullWindowPreview) {\
+            mNavigationBarBackgroundColor = aliceConfiguredBackgroundColor;\
+        }\
+        // Alice patch start 0041\
+        aliceBackground.setBackgroundColor(aliceConfiguredBackgroundColor);\
+        // Alice patch end 0041' "$path7"
 
 sed -i '/^        boolean aliceVisible =$/,/^                                        aliceControlContainer));$/c\
         // Alice patch start 0041\
@@ -252,6 +251,8 @@ sed -i '/^    private int mPreviousScreenHeight;$/a\
     // Alice patch start 0041\
     private boolean mFullWindowImeCropped;\
     private float mFullWindowPreviewHeightBeforeIme;\
+    private int mFullWindowCurrentImeInset;\
+    private boolean mFullWindowImeAnimationRunning;\
     private boolean mRestoringFullWindowImeCrop;\
     private @Nullable KeyboardVisibilityDelegate mKeyboardVisibilityDelegate;\
     // Alice patch end 0041\
@@ -263,7 +264,9 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
             new InsetObserver.WindowInsetObserver() {\
                 @Override\
                 public void onKeyboardInsetChanged(int inset) {\
-                    if (inset == 0 \&\& mFullWindowImeCropped) {\
+                    if (inset == 0\
+                            \&\& mFullWindowImeCropped\
+                            \&\& !mFullWindowImeAnimationRunning) {\
                         mWindow.getDecorView().post(\
                                 BottomSheet.this::restoreFullWindowImeCrop);\
                     }\
@@ -294,6 +297,12 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
     // Alice patch end 0041\
 ' "$path9"
 
+sed -i '/^    private static final float HALF_HEIGHT_RATIO = 0\.75f;$/a\
+    // Alice patch start 0041\
+    private static final float FULL_WINDOW_PREVIEW_HEIGHT_RATIO = 0.9f;\
+    // Alice patch end 0041\
+' "$path9"
+
 sed -i '/^        mWindow = window;$/a\
         // Alice patch start 0041\
         mKeyboardVisibilityDelegate = keyboardDelegate;\
@@ -301,6 +310,7 @@ sed -i '/^        mWindow = window;$/a\
 
 sed -i '/^        mIsTouchEnabled = false;$/a\
         // Alice patch start 0041\
+        setClipBounds(null);\
         if (mInsetObserver != null) {\
             mInsetObserver.removeObserver(mImeResetObserver);\
         }\
@@ -318,7 +328,9 @@ sed -i '/^        mInsetObserver = insetObserver;$/a\
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     // Alice patch start 0041\
     private void onInsetChanged() {\
-        if (mFullWindowImeCropped \&\& !isKeyboardShowing()) {\
+        if (mFullWindowImeCropped\
+                \&\& !isKeyboardShowing()\
+                \&\& !mFullWindowImeAnimationRunning) {\
             restoreFullWindowImeCrop();\
             return;\
         }\
@@ -336,6 +348,7 @@ sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
         mRestoringFullWindowImeCrop = true;\
         try {\
             float fullPreviewHeight = mFullWindowPreviewHeightBeforeIme;\
+            setClipBounds(null);\
             ViewGroup.LayoutParams layoutParams = getLayoutParams();\
             layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT;\
             setLayoutParams(layoutParams);\
@@ -357,6 +370,9 @@ sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
 sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat animation) {$/,/^                    }$/c\
                     // Alice patch start 0041\
                     public void onEnd(WindowInsetsAnimationCompat animation) {\
+                        mFullWindowImeAnimationRunning = false;\
+                        mFullWindowCurrentImeInset =\
+                                mInsetObserver.getSupplierForKeyboardInset().get();\
                         onInsetChanged();\
                         if (mFullWindowImeCropped\
                                 \&\& (mImeAnimationClosing || !isKeyboardShowing())) {\
@@ -377,7 +393,12 @@ sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat 
                         if ((animation.getTypeMask()\
                                         \& WindowInsetsCompat.Type.ime())\
                                 != 0) {\
-                            mImeAnimationClosing = false;\
+                            mFullWindowImeAnimationRunning = true;\
+                            mImeAnimationClosing = mFullWindowImeCropped;\
+                            mFullWindowCurrentImeInset =\
+                                    mInsetObserver\
+                                            .getSupplierForKeyboardInset()\
+                                            .get();\
                             mLastImeAnimationInset =\
                                     mInsetObserver\
                                             .getSupplierForKeyboardInset()\
@@ -397,9 +418,16 @@ sed -i '/^                    public void onProgress($/,/^                    }$
                                 insets.getInsets(\
                                                 WindowInsetsCompat.Type.ime())\
                                         .bottom;\
+                        int systemBarInset =\
+                                insets.getInsets(\
+                                                WindowInsetsCompat.Type.systemBars())\
+                                        .bottom;\
+                        int currentImeInset =\
+                                Math.max(0, imeInset - systemBarInset);\
                         if (imeInset < mLastImeAnimationInset) {\
                             mImeAnimationClosing = true;\
                         }\
+                        mFullWindowCurrentImeInset = currentImeInset;\
                         mLastImeAnimationInset = imeInset;\
                         onInsetChanged();\
                     }\
@@ -408,10 +436,7 @@ sed -i '/^                    public void onProgress($/,/^                    }$
 sed -i '/^        ViewGroup\.LayoutParams bgParams = mSheetBackground\.getLayoutParams();$/i\
         // Alice patch start 0041\
         if (shouldFollowImeForSheetPosition() \&\& mFullWindowImeCropped) {\
-            targetBgHeight =\
-                    mSheetContent != null\
-                            ? mSheetContent.getToolbarBackgroundHeight()\
-                            : 0;\
+            targetBgHeight = ViewGroup.LayoutParams.MATCH_PARENT;\
             mSheetBackground.setVisibility(View.VISIBLE);\
             mToolbarHolder.setBackgroundColor(Color.TRANSPARENT);\
         } else {\
@@ -446,7 +471,9 @@ sed -i '/^    private int getViewportBottomInset() {$/,/^    }$/c\
         @Px int viewportBottomInset = getEdgeToEdgeBottomInset();\
 \
         if (shouldFollowImeForSheetPosition()) {\
-            return isKeyboardShowing() ? 0 : viewportBottomInset;\
+            return isKeyboardShowing() || mFullWindowImeAnimationRunning\
+                    ? 0\
+                    : viewportBottomInset;\
         }\
 \
         if (isSheetOpen()) {\
@@ -462,15 +489,34 @@ sed -i '/^    private int getViewportBottomInset() {$/,/^    }$/c\
     }\
     // Alice patch end 0041' "$path9"
 
+sed -i '/^    private boolean isFullHeightWrapContent() {$/,/^    }$/c\
+    // Alice patch start 0041\
+    private boolean isFullHeightWrapContent() {\
+        return mSheetContent != null\
+                \&\& !mSheetContent.shouldUseFullWindowPresentation()\
+                \&\& mSheetContent.getFullHeightRatio() == HeightMode.WRAP_CONTENT;\
+    }\
+    // Alice patch end 0041' "$path9"
+
+sed -i '/^        if (mContainerHeight <= 0 || mSheetContent == null) return 0;$/a\
+        // Alice patch start 0041\
+        if (mSheetContent != null \&\& mSheetContent.shouldUseFullWindowPresentation()) {\
+            return FULL_WINDOW_PREVIEW_HEIGHT_RATIO;\
+        }\
+        // Alice patch end 0041' "$path9"
+
 sed -i '/^        float translationY =$/i\
         // Alice patch start 0041\
         float effectiveOffset = mCurrentOffsetPx;\
         int positionBottomInset = bottomInset;\
         if (!mRestoringFullWindowImeCrop\
                 \&\& shouldFollowImeForSheetPosition()\
-                \&\& isKeyboardShowing()) {\
-            int imeInset = mInsetObserver.getSupplierForKeyboardInset().get();\
-            if (imeInset > 0) {\
+                \&\& (isKeyboardShowing() || mFullWindowImeAnimationRunning)) {\
+            int imeInset =\
+                    mFullWindowImeAnimationRunning\
+                            ? mFullWindowCurrentImeInset\
+                            : mInsetObserver.getSupplierForKeyboardInset().get();\
+            if (imeInset > 0 || mFullWindowImeCropped) {\
                 WindowInsetsCompat rawInsets =\
                         mInsetObserver.getLastRawWindowInsets();\
                 int navigationBarInset =\
@@ -489,12 +535,11 @@ sed -i '/^        float translationY =$/i\
                         Math.max(\
                                 1,\
                                 mFullWindowPreviewHeightBeforeIme - imeInset);\
-                ViewGroup.LayoutParams layoutParams = getLayoutParams();\
                 int croppedHeight = (int) effectiveOffset;\
-                if (layoutParams.height != croppedHeight) {\
-                    layoutParams.height = croppedHeight;\
-                    setLayoutParams(layoutParams);\
-                }\
+                int clipWidth =\
+                        getWidth() > 0 ? getWidth() : mContainerWidth;\
+                setClipBounds(\
+                        new Rect(0, 0, clipWidth, croppedHeight));\
                 mFullWindowImeCropped = true;\
                 positionBottomInset = imeInset + navigationBarInset;\
                 updateContentContainerHeight();\
@@ -646,6 +691,62 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
                         'touch-action', 'pan-y', 'important');\
               }\
             }\
+            (() => {\
+              const aliceDeepActiveElement = () => {\
+                let active = document.activeElement;\
+                while (active \&\& active.shadowRoot \&\& active.shadowRoot.activeElement) {\
+                  active = active.shadowRoot.activeElement;\
+                }\
+                return active;\
+              };\
+              const aliceParentNode = (node) => {\
+                if (node.parentElement) return node.parentElement;\
+                const root = node.getRootNode();\
+                return root instanceof ShadowRoot ? root.host : null;\
+              };\
+              const aliceCanScroll = (node) => {\
+                const overflowY = getComputedStyle(node).overflowY;\
+                return (overflowY === 'auto'\
+                                || overflowY === 'scroll'\
+                                || overflowY === 'overlay')\
+                        \&\& node.scrollHeight > node.clientHeight + 1;\
+              };\
+              const aliceScrollBy = (node, amount) => {\
+                const before = node.scrollTop;\
+                node.scrollTop =\
+                        Math.min(\
+                                node.scrollHeight - node.clientHeight,\
+                                before + amount);\
+                return amount - (node.scrollTop - before);\
+              };\
+              window.__aliceRevealFocusedInput = (visibleHeightPx) => {\
+                const active = aliceDeepActiveElement();\
+                if (!active || typeof active.getBoundingClientRect !== 'function') return;\
+                const scale = window.devicePixelRatio || 1;\
+                const viewportHeight = window.visualViewport\
+                        ? window.visualViewport.height\
+                        : window.innerHeight;\
+                const visibleBottom =\
+                        Math.max(\
+                                1,\
+                                Math.min(visibleHeightPx / scale, viewportHeight) - 12);\
+                const inputBottom = active.getBoundingClientRect().bottom;\
+                let remaining = inputBottom - visibleBottom;\
+                if (remaining <= 0) return;\
+                let node = aliceParentNode(active);\
+                while (node \&\& remaining > 0.5) {\
+                  if (aliceCanScroll(node)) {\
+                    remaining = aliceScrollBy(node, remaining);\
+                  }\
+                  node = aliceParentNode(node);\
+                }\
+                if (remaining > 0.5) {\
+                  const root = document.scrollingElement || document.documentElement;\
+                  remaining = aliceScrollBy(root, remaining);\
+                  if (remaining > 0.5) window.scrollBy(0, remaining);\
+                }\
+              };\
+            })();\
             """;\
     // Alice patch end 0041\
 ' "$path3"
@@ -654,6 +755,21 @@ sed -i '/^        mThinWebView =$/i\
         // Alice patch start 0041\
         ThinWebViewConstraints constraints = new ThinWebViewConstraints();\
         constraints.supportsOpacity = true;\
+        android.util.TypedValue aliceBackgroundValue =\
+                new android.util.TypedValue();\
+        int aliceBackgroundColor = android.graphics.Color.BLACK;\
+        if (mContext\
+                .getTheme()\
+                .resolveAttribute(\
+                        android.R.attr.colorBackground,\
+                        aliceBackgroundValue,\
+                        true)) {\
+            aliceBackgroundColor =\
+                    aliceBackgroundValue.resourceId != 0\
+                            ? mContext.getColor(aliceBackgroundValue.resourceId)\
+                            : aliceBackgroundValue.data;\
+        }\
+        constraints.backgroundColor = aliceBackgroundColor;\
         constraints.ignoreSizeChanges = true;\
         // Alice patch end 0041\
 ' "$path3"
@@ -661,6 +777,7 @@ sed -i '/^        mThinWebView =$/i\
 sed -i '/^    private ViewGroup mSheetContentView;$/a\
     // Alice patch start 0041\
     private FrameLayout mContentViewport;\
+    private int mLastSheetHeight;\
     // Alice patch end 0041' "$path3"
 
 sed -i '/^    @EnsuresNonNull({"mThinWebView", "mSheetContentView"})$/c\
@@ -683,6 +800,18 @@ sed -i '/^    private void createThinWebView(int maxSheetHeight, IntentRequestTr
         mWebContents\
                 .getMainFrame()\
                 .executeJavaScriptInIsolatedWorld(ALICE_EXTENSION_FIT_SCRIPT, 1, null);\
+    }\
+\
+    private void applyPreviewImeVisibleHeight(int visibleHeightPx) {\
+        if (mWebContents == null || mWebContents.isDestroyed()) return;\
+        String aliceScript =\
+                "if (window.__aliceRevealFocusedInput) {"\
+                        + "window.__aliceRevealFocusedInput("\
+                        + visibleHeightPx\
+                        + ");}";\
+        mWebContents\
+                .getMainFrame()\
+                .executeJavaScriptInIsolatedWorld(aliceScript, 1, null);\
     }\
     // Alice patch end 0041\
 \
@@ -711,6 +840,7 @@ sed -i '/^        mSheetContentView = new FrameLayout(mContext);$/,/^        mSh
         mContentViewport = new FrameLayout(mContext);\
         mContentViewport.setClipChildren(true);\
         mContentViewport.setClipToPadding(true);\
+        mContentViewport.setBackgroundColor(aliceBackgroundColor);\
         mContentViewport.setLayoutParams(\
                 new FrameLayout.LayoutParams(\
                         ViewGroup.LayoutParams.MATCH_PARENT, maxSheetHeight));\
@@ -718,13 +848,28 @@ sed -i '/^        mSheetContentView = new FrameLayout(mContext);$/,/^        mSh
         FrameLayout.LayoutParams aliceWebViewParams =\
                 new FrameLayout.LayoutParams(\
                         ViewGroup.LayoutParams.MATCH_PARENT,\
-                        ViewGroup.LayoutParams.MATCH_PARENT);\
+                        maxSheetHeight);\
+        mThinWebView.getView().setBackgroundColor(aliceBackgroundColor);\
         mThinWebView.getView().setLayoutParams(aliceWebViewParams);\
         mContentViewport.addView(mThinWebView.getView());\
         mSheetContentView.addView(mContentViewport);\
         // Alice patch end 0041' "$path3"
 
 # 5) 固定视口尺寸，并在当前遍历中完成布局，拖动时只平移面板
+sed -i '/^    void updateContentHeight(int maxViewHeight) {$/i\
+    // Alice patch start 0041\
+    private void ensureAliceWebViewStableHeight(int contentHeight) {\
+        FrameLayout.LayoutParams params =\
+                (FrameLayout.LayoutParams) mThinWebView.getView().getLayoutParams();\
+        if (params.height < contentHeight) {\
+            params.height = contentHeight;\
+            mThinWebView.getView().setLayoutParams(params);\
+        }\
+    }\
+    // Alice patch end 0041\
+\
+' "$path3"
+
 sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     // Alice patch start 0041\
     void updateContentHeight(int maxViewHeight) {\
@@ -733,6 +878,7 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
         int aliceSheetHeight = getMaxSheetHeight(maxViewHeight);\
         int aliceToolbarHeight = getToolbarHeight();\
         int aliceContentHeight = Math.max(0, aliceSheetHeight - aliceToolbarHeight);\
+        ensureAliceWebViewStableHeight(aliceContentHeight);\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
             aliceWidth = mContext.getResources().getDisplayMetrics().widthPixels;\
@@ -817,8 +963,12 @@ sed -i '/^    @Nullable$/i\
     @Override\
     public void onSheetHeightChanged(int sheetHeight) {\
         if (sheetHeight <= 0) return;\
+        boolean aliceHeightReduced =\
+                mLastSheetHeight > 0 \&\& sheetHeight < mLastSheetHeight;\
+        mLastSheetHeight = sheetHeight;\
         int aliceToolbarHeight = getToolbarHeight();\
         int aliceContentHeight = Math.max(1, sheetHeight - aliceToolbarHeight);\
+        ensureAliceWebViewStableHeight(aliceContentHeight);\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
             aliceWidth = mContext.getResources().getDisplayMetrics().widthPixels;\
@@ -845,6 +995,9 @@ sed -i '/^    @Nullable$/i\
                 aliceToolbarHeight + aliceContentHeight);\
         ViewUtils.requestLayout(\
                 mSheetContentView, "Alice preview sheet height");\
+        if (aliceHeightReduced) {\
+            applyPreviewImeVisibleHeight(contentHeight);\
+        }\
     }\
 \
     @Override\
