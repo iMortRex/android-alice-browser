@@ -9,8 +9,9 @@ path3="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/brows
 path4="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path7="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
-path9="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheet.java"
+path9="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetCoordinator.java"
 path10="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabMediator.java"
+path11="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetMediator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
@@ -232,16 +233,12 @@ sed -i '/^        if (!mIsTouchEnabled) return true;$/a\
                 \&\& isTouchEventInSheetContent(e)) {\
             return false;\
         }\
-        // Alice patch end 0041' "$path9"
+        // Alice patch end 0041' "$path11"
 
-sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > event\.getRawY();$/,/^    }$/c\
-        return mCachedLocation[1] + mToolbarHolder.getHeight() > event.getRawY();\
-    }\
-\
+sed -i '/^    void updateCloseButton(/i\
     // Alice patch start 0041\
     private boolean isTouchEventInSheetContent(MotionEvent event) {\
         if (mSheetContent == null) return false;\
-        if (isTouchEventInToolbar(event)) return false;\
         Rect contentBounds = new Rect();\
         if (!mSheetContent.getContentView().getGlobalVisibleRect(contentBounds)) {\
             return false;\
@@ -249,7 +246,9 @@ sed -i '/^        return mCachedLocation\[1\] + mToolbarHolder\.getHeight() > ev
         return contentBounds.contains(\
                 (int) event.getRawX(), (int) event.getRawY());\
     }\
-    // Alice patch end 0041' "$path9"
+    // Alice patch end 0041\
+\
+' "$path11"
 
 sed -i '/^    private int mPreviousScreenHeight;$/a\
     // Alice patch start 0041\
@@ -272,7 +271,7 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
                             \&\& mFullWindowImeCropped\
                             \&\& !mFullWindowImeAnimationRunning) {\
                         mWindow.getDecorView().post(\
-                                BottomSheet.this::restoreFullWindowImeCrop);\
+                                BottomSheetCoordinator.this::restoreFullWindowImeCrop);\
                     }\
                 }\
             };\
@@ -287,7 +286,7 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
                             mKeyboardVisibilityDelegate != null\
                                     ? mKeyboardVisibilityDelegate\
                                             .isKeyboardShowing(\
-                                                    BottomSheet.this)\
+                                                    mView)\
                                     : isKeyboardShowing();\
                     if (keyboardShowing) {\
                         if (mWindow != null) {\
@@ -301,7 +300,7 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
     // Alice patch end 0041\
 ' "$path9"
 
-sed -i '/^    private static final float HALF_HEIGHT_RATIO = 0\.75f;$/a\
+sed -i '/^    private static final float HEIGHT_UNSPECIFIED = -1\.0f;$/a\
     // Alice patch start 0041\
     private static final float FULL_WINDOW_PREVIEW_HEIGHT_RATIO = 0.9f;\
     // Alice patch end 0041\
@@ -312,9 +311,9 @@ sed -i '/^        mWindow = window;$/a\
         mKeyboardVisibilityDelegate = keyboardDelegate;\
         // Alice patch end 0041' "$path9"
 
-sed -i '/^        mIsTouchEnabled = false;$/a\
+sed -i '/^        mIsDestroyed = true;$/a\
         // Alice patch start 0041\
-        setClipBounds(null);\
+        mView.setClipBounds(null);\
         if (mInsetObserver != null) {\
             mInsetObserver.removeObserver(mImeResetObserver);\
         }\
@@ -352,14 +351,15 @@ sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
         mRestoringFullWindowImeCrop = true;\
         try {\
             float fullPreviewHeight = mFullWindowPreviewHeightBeforeIme;\
-            setClipBounds(null);\
-            ViewGroup.LayoutParams layoutParams = getLayoutParams();\
+            mView.setClipBounds(null);\
+            ViewGroup.LayoutParams layoutParams = mView.getLayoutParams();\
             layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT;\
-            setLayoutParams(layoutParams);\
+            mView.setLayoutParams(layoutParams);\
             mFullWindowImeCropped = false;\
             mFullWindowPreviewHeightBeforeIme = 0;\
-            if (mSheetContent != null \&\& fullPreviewHeight > 0) {\
-                mSheetContent.onSheetHeightChanged((int) fullPreviewHeight);\
+            BottomSheetContent previewContent = getCurrentSheetContent();\
+            if (previewContent != null \&\& fullPreviewHeight > 0) {\
+                previewContent.onSheetHeightChanged((int) fullPreviewHeight);\
             }\
             if (fullPreviewHeight > 0) {\
                 mCurrentOffsetPx = fullPreviewHeight;\
@@ -437,28 +437,6 @@ sed -i '/^                    public void onProgress($/,/^                    }$
                     }\
                     // Alice patch end 0041' "$path9"
 
-sed -i '/^        ViewGroup\.LayoutParams bgParams = mSheetBackground\.getLayoutParams();$/i\
-        // Alice patch start 0041\
-        if (shouldFollowImeForSheetPosition() \&\& mFullWindowImeCropped) {\
-            targetBgHeight = ViewGroup.LayoutParams.MATCH_PARENT;\
-            mSheetBackground.setVisibility(View.VISIBLE);\
-            mToolbarHolder.setBackgroundColor(Color.TRANSPARENT);\
-        } else {\
-            mSheetBackground.setVisibility(View.VISIBLE);\
-            mToolbarHolder.setBackgroundColor(Color.TRANSPARENT);\
-        }\
-        // Alice patch end 0041\
-\
-' "$path9"
-
-sed -i '/^            mKeyboardCurtain\.setTranslationY(maxWindowHeight);$/a\
-            // Alice patch start 0041\
-            mKeyboardCurtain.setVisibility(\
-                    shouldFollowImeForSheetPosition()\
-                            ? View.GONE\
-                            : View.VISIBLE);\
-            // Alice patch end 0041' "$path9"
-
 sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, state != SheetState\.SCROLLING);$/c\
         // Alice patch start 0041\
         boolean fullWindowContent =\
@@ -466,13 +444,12 @@ sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, st
         mModel.set(\
                 BottomSheetProperties.CONTAINER_TOUCH_ENABLED,\
                 state != SheetState.SCROLLING || fullWindowContent);\
-        // Alice patch end 0041' "$path9"
+        // Alice patch end 0041' "$path11"
 
-sed -i '/^    private int getViewportBottomInset() {$/,/^    }$/c\
+sed -i '/^    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {$/,/^    }$/c\
     // Alice patch start 0041\
-    private int getViewportBottomInset() {\
-        assert mEdgeToEdgeBottomInsetSupplier.get() != null;\
-        @Px int viewportBottomInset = getEdgeToEdgeBottomInset();\
+    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {\
+        @Px int viewportBottomInset = e2eBottomInset;\
 \
         if (shouldFollowImeForSheetPosition()) {\
             return isKeyboardShowing() || mFullWindowImeAnimationRunning\
@@ -489,23 +466,28 @@ sed -i '/^    private int getViewportBottomInset() {$/,/^    }$/c\
     }\
 \
     private boolean shouldFollowImeForSheetPosition() {\
-        return mSheetContent != null \&\& mSheetContent.shouldUseFullWindowPresentation();\
+        BottomSheetContent content = getCurrentSheetContent();\
+        return content != null \&\& content.shouldUseFullWindowPresentation();\
     }\
     // Alice patch end 0041' "$path9"
 
 sed -i '/^    private boolean isFullHeightWrapContent() {$/,/^    }$/c\
     // Alice patch start 0041\
     private boolean isFullHeightWrapContent() {\
-        return mSheetContent != null\
-                \&\& !mSheetContent.shouldUseFullWindowPresentation()\
-                \&\& mSheetContent.getFullHeightRatio() == HeightMode.WRAP_CONTENT;\
+        BottomSheetContent content = getCurrentSheetContent();\
+        return content != null\
+                \&\& !content.shouldUseFullWindowPresentation()\
+                \&\& content.getFullHeightRatio() == HeightMode.WRAP_CONTENT;\
     }\
     // Alice patch end 0041' "$path9"
 
-sed -i '/^        if (mContainerHeight <= 0 || mSheetContent == null) return 0;$/a\
+sed -i '/^        if (isFullHeightWrapContent() \&\& state == SheetState\.FULL) {$/i\
         // Alice patch start 0041\
-        if (mSheetContent != null \&\& mSheetContent.shouldUseFullWindowPresentation()) {\
-            return FULL_WINDOW_PREVIEW_HEIGHT_RATIO;\
+        BottomSheetContent content = getCurrentSheetContent();\
+        if (content != null\
+                \&\& content.shouldUseFullWindowPresentation()\
+                \&\& state == SheetState.FULL) {\
+            return FULL_WINDOW_PREVIEW_HEIGHT_RATIO * getMaxSheetHeight();\
         }\
         // Alice patch end 0041' "$path9"
 
@@ -540,16 +522,16 @@ sed -i '/^        float translationY =$/i\
                                 1,\
                                 mFullWindowPreviewHeightBeforeIme - imeInset);\
                 int croppedHeight = (int) effectiveOffset;\
-                int clipWidth =\
-                        getWidth() > 0 ? getWidth() : mContainerWidth;\
-                setClipBounds(\
+                int clipWidth = mContainerWidth;\
+                mView.setClipBounds(\
                         new Rect(0, 0, clipWidth, croppedHeight));\
                 mFullWindowImeCropped = true;\
                 positionBottomInset = imeInset + navigationBarInset;\
                 updateContentContainerHeight();\
-                mBottomSheetContentContainer.setIsTouchEnabled(true);\
-                if (mSheetContent != null) {\
-                    mSheetContent.onSheetHeightChanged(croppedHeight);\
+                mMediator.setTouchEnabled(true);\
+                BottomSheetContent previewContent = getCurrentSheetContent();\
+                if (previewContent != null) {\
+                    previewContent.onSheetHeightChanged(croppedHeight);\
                 }\
             }\
         }\

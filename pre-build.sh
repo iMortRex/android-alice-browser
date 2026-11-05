@@ -33,9 +33,38 @@ if [ -f "$SCRIPT_DIR/patch.sh" ]; then
     source "$SCRIPT_DIR/patch.sh" || exit 1
 fi
 
+# GN 构建兜底
+mkdir -p out/Default out/tmp out/Release
+GEN_REQUIRED=0
+if [ ! -f out/Default/args.gn ] || [ ! -f out/Default/build.ninja ]; then
+    GEN_REQUIRED=1
+fi
+
+if [ "$GEN_REQUIRED" -eq 1 ]; then
+    echo "=== 初始化 GN 构建目录 ==="
+    cp "$SCRIPT_DIR/args.gn" out/Default/args.gn
+    sed -i 's/target_cpu = "arm"/target_cpu = "arm64"/' out/Default/args.gn
+    echo 'treat_warnings_as_errors = false' >> out/Default/args.gn
+    gn gen out/Default || {
+        echo "错误：gn gen 失败"
+        exit 1
+    }
+fi
+
 # 增量编译
 echo "=== 增量编译 ==="
-sed -i 's|^chrome_public_manifest_package = .*|chrome_public_manifest_package = "io.github.imortrex.alice.browser"|' out/Default/args.gn
+ARGS_GN="out/Default/args.gn"
+if ! grep -q '^target_cpu = "arm64"$' "$ARGS_GN"; then
+    if grep -q '^target_cpu =' "$ARGS_GN"; then
+        sed -i 's/^target_cpu = .*/target_cpu = "arm64"/' "$ARGS_GN"
+    else
+        printf 'target_cpu = "arm64"\n' >> "$ARGS_GN"
+    fi
+fi
+PKG='chrome_public_manifest_package = "io.github.imortrex.alice.browser"'
+if ! grep -qFx "$PKG" "$ARGS_GN"; then
+    sed -i "s|^chrome_public_manifest_package = .*|$PKG|" "$ARGS_GN"
+fi
 if ! autoninja -C out/Default chrome_public_apk; then
     play_sound "/mnt/c/Windows/Media/Windows Critical Stop.wav"
     exit 1

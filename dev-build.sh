@@ -22,7 +22,18 @@ source "$SCRIPT_DIR/alice-patch.sh"
 
 # 增量编译
 echo "=== 增量编译 ==="
-sed -i 's|^chrome_public_manifest_package = .*|chrome_public_manifest_package = "io.github.imortrex.alice.browser"|' out/Default/args.gn
+ARGS_GN="out/Default/args.gn"
+if ! grep -q '^target_cpu = "arm64"$' "$ARGS_GN"; then
+    if grep -q '^target_cpu =' "$ARGS_GN"; then
+        sed -i 's/^target_cpu = .*/target_cpu = "arm64"/' "$ARGS_GN"
+    else
+        printf 'target_cpu = "arm64"\n' >> "$ARGS_GN"
+    fi
+fi
+PKG='chrome_public_manifest_package = "io.github.imortrex.alice.browser"'
+if ! grep -qFx "$PKG" "$ARGS_GN"; then
+    sed -i "s|^chrome_public_manifest_package = .*|$PKG|" "$ARGS_GN"
+fi
 if ! autoninja -C out/Default chrome_public_apk; then
     play_sound "/mnt/c/Windows/Media/Windows Critical Stop.wav"
     exit 1
