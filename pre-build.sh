@@ -44,7 +44,7 @@ if [ "$GEN_REQUIRED" -eq 1 ]; then
     echo "=== 初始化 GN 构建目录 ==="
     cp "$SCRIPT_DIR/args.gn" out/Default/args.gn
     sed -i 's/target_cpu = "arm"/target_cpu = "arm64"/' out/Default/args.gn
-    echo 'treat_warnings_as_errors = false' >> out/Default/args.gn
+    printf '\ntreat_warnings_as_errors = false\n' >> out/Default/args.gn
     gn gen out/Default || {
         echo "错误：gn gen 失败"
         exit 1
