@@ -44,9 +44,19 @@ sed -i '/^                        if (layoutType == LayoutType.BROWSING) {$/a\
 
 # 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
 # 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。
+# 竖屏不进入该过渡状态；横屏保留完整同步。
 sed -i '/^    final class FullscreenTransitionState {$/a\
         // Alice patch start 0042\
+        private static volatile boolean sAliceViewportSyncEnabled;\
         private static volatile boolean sAliceEnteringFullscreen;\
+\
+        public static void setViewportSyncEnabled(boolean enabled) {\
+            sAliceViewportSyncEnabled = enabled;\
+        }\
+\
+        public static boolean isViewportSyncEnabled() {\
+            return sAliceViewportSyncEnabled;\
+        }\
 \
         public static void setEnteringFullscreen(boolean entering) {\
             sAliceEnteringFullscreen = entering;\
@@ -407,6 +417,42 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
     private boolean mAliceHubViewportTransition;\
     private final Runnable mAliceEntryViewportCommit = this::finishAliceEntryViewport;\
     private final Runnable mAliceExitViewportCommit = this::finishAliceExitViewport;\
+    private boolean aliceIsLandscapeLayout() {\
+        View aliceContentView = getContentView();\
+        if (aliceContentView != null\
+                \&\& aliceContentView.isAttachedToWindow()\
+                \&\& aliceContentView.getWidth() > aliceContentView.getHeight()\
+                \&\& mCompositorView.getWidth() > mCompositorView.getHeight()) {\
+            return true;\
+        }\
+        return getResources().getConfiguration().orientation\
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+    }\
+    private boolean aliceIsLandscapeFullscreenTarget() {\
+        if (aliceIsLandscapeLayout()) return true;\
+        int aliceRequestedOrientation =\
+                mActivity == null\
+                        ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED\
+                        : mActivity.getRequestedOrientation();\
+        return aliceRequestedOrientation\
+                        == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE\
+                || aliceRequestedOrientation\
+                        == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE\
+                || aliceRequestedOrientation\
+                        == android.content.pm.ActivityInfo\
+                                .SCREEN_ORIENTATION_REVERSE_LANDSCAPE\
+                || aliceRequestedOrientation\
+                        == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;\
+    }\
+    private boolean aliceIsPortraitFullscreen() {\
+        return mBrowserControlsManager != null\
+                \&\& mBrowserControlsManager\
+                        .getFullscreenManager()\
+                        .getPersistentFullscreenMode()\
+                \&\& !FullscreenManager.FullscreenTransitionState\
+                        .isExitingFullscreen()\
+                \&\& !aliceIsLandscapeLayout();\
+    }\
     // Alice patch end 0042' "$path1"
 
 # 进入 persistent fullscreen 时底部避让必须立即归零，不能读取正在隐藏的
@@ -414,7 +460,11 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
 sed -i '/^        int verticalViewportInsets =$/,/^                        + (aliceInFullscreen ? 0 : mAliceNavigationBarInset);$/c\
         // Alice patch start 0042\
         int verticalViewportInsets;\
-        if (aliceInFullscreen) {\
+        if (aliceInFullscreen\
+                \&\& (FullscreenManager.FullscreenTransitionState\
+                                .isViewportSyncEnabled()\
+                        || FullscreenManager.FullscreenTransitionState\
+                                .isEnteringFullscreen())) {\
             verticalViewportInsets =\
                     aliceTopControlsInset\
                             + webContentsHeightInset;\
@@ -444,7 +494,7 @@ sed -i '/^        if (isAttachedToWindow(view)) {$/i\
                 removeCallbacks(mAliceEntryViewportCommit);\
                 postOnAnimation(mAliceEntryViewportCommit);\
                 return;\
-            } else {\
+            } else if (aliceIsLandscapeLayout()) {\
                 if (mAliceEntryViewportLockedWidth <= 0) {\
                     mAliceEntryViewportLockedWidth = webContentsWidth;\
                 }\
@@ -527,7 +577,9 @@ sed -i '/^    private void updateBrowserControlsHeight(boolean animate) {$/,/^  
 # 立即把它补回，不再等待主 toolbar 层从 HIDING 转为 VISIBLE。
 sed -i '/^    public @LayerVisibility int getLayerVisibility() {$/a\
         // Alice patch start 0042\
-        if (mFullscreenManager.getPersistentFullscreenMode()) {\
+        if (mFullscreenManager.getPersistentFullscreenMode()\
+                \&\& FullscreenManager.FullscreenTransitionState\
+                        .isViewportSyncEnabled()) {\
             return LayerVisibility.HIDDEN;\
         }\
         // Alice patch end 0042' "$path6"
@@ -538,10 +590,18 @@ sed -i '/^    void showSystemBars(View contentView) {$/,/^    }$/c\
     void showSystemBars(View contentView) {\
         WindowInsetsControllerCompat windowInsetsController = getWindowInsetsController();\
         // Alice patch start 0042\
-        windowInsetsController.setSystemBarsBehavior(\
-                WindowInsetsControllerCompat.BEHAVIOR_DEFAULT);\
-        unsetLayoutFullscreen(contentView);\
-        windowInsetsController.show(WindowInsetsCompat.Type.systemBars());\
+        if (FullscreenManager.FullscreenTransitionState\
+                .isViewportSyncEnabled()) {\
+            windowInsetsController.setSystemBarsBehavior(\
+                    WindowInsetsControllerCompat.BEHAVIOR_DEFAULT);\
+            unsetLayoutFullscreen(contentView);\
+            windowInsetsController.show(WindowInsetsCompat.Type.systemBars());\
+        } else {\
+            windowInsetsController.setSystemBarsBehavior(\
+                    WindowInsetsControllerCompat.BEHAVIOR_DEFAULT);\
+            windowInsetsController.show(WindowInsetsCompat.Type.systemBars());\
+            unsetLayoutFullscreen(contentView);\
+        }\
         // Alice patch end 0042\
     }' "$path8"
 
@@ -562,6 +622,20 @@ sed -i 's|^                aliceBottomControlsInset = aliceToolbarHeight + alice
 sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch start 0042\
     public void finishAliceFullscreenExit() {\
+        if (!FullscreenManager.FullscreenTransitionState\
+                .isViewportSyncEnabled()) {\
+            onViewportChanged();\
+            tryUpdateControlsAndWebContentsSizing();\
+            updateWebContentsSize(getCurrentTab());\
+            FullscreenManager.FullscreenTransitionState\
+                    .setExitingFullscreen(false);\
+            requestRender();\
+            View aliceContentView = getContentView();\
+            if (aliceContentView != null) {\
+                aliceContentView.postInvalidateOnAnimation();\
+            }\
+            return;\
+        }\
         FullscreenManager.FullscreenTransitionState.setExitingFullscreen(false);\
         mControlsResizeView = true;\
         onControlsResizeViewChanged(getWebContents(), /* controlsResizeView= */ true);\
@@ -581,6 +655,10 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     }\
 \
     public void applyAliceFullscreenExitViewport() {\
+        if (!FullscreenManager.FullscreenTransitionState\
+                .isViewportSyncEnabled()) {\
+            return;\
+        }\
         mControlsResizeView = true;\
         onControlsResizeViewChanged(getWebContents(), /* controlsResizeView= */ true);\
         onBrowserControlsHeightChanged();\
@@ -665,6 +743,29 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                 return;\
             }\
         }\
+        if (!aliceEntryViewsLandscape\
+                \&\& (!aliceWaitForLandscape\
+                        || mAliceEntryViewportWaitFrames >= 60)) {\
+            FullscreenManager.FullscreenTransitionState\
+                    .setViewportSyncEnabled(false);\
+            FullscreenManager.FullscreenTransitionState\
+                    .setEnteringFullscreen(false);\
+            mAliceEntryViewportPending = false;\
+            mAliceEntryViewportLockedWidth = 0;\
+            mAliceEntryViewportLockedHeight = 0;\
+            mAliceEntryViewportWaitFrames = 0;\
+            mAliceEntryViewportStableFrames = 0;\
+            mAliceEntryControlsHiddenRequested = false;\
+            mAliceEntrySystemBarsWaitFrames = 0;\
+            Runnable aliceOnReady = mAliceEntryTransitionReadyCallback;\
+            mAliceEntryTransitionReadyCallback = null;\
+            if (aliceOnReady != null) {\
+                aliceOnReady.run();\
+            }\
+            return;\
+        }\
+        FullscreenManager.FullscreenTransitionState\
+                .setViewportSyncEnabled(true);\
         if (!mAliceEntryControlsHiddenRequested) {\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
             mAliceEntryControlsHiddenRequested = true;\
@@ -705,7 +806,12 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     }\
 \
     private void finishAliceExitViewport() {\
-        if (!mAliceExitViewportPending) return;\
+        if (!mAliceExitViewportPending\
+                || !FullscreenManager.FullscreenTransitionState\
+                        .isViewportSyncEnabled()) {\
+            mAliceExitViewportPending = false;\
+            return;\
+        }\
         mAliceExitViewportPending = false;\
         mAliceExitViewportLockedHeight = 0;\
         onViewportChanged();\
@@ -715,7 +821,33 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     }\
 \
     private void onAliceFullscreenModeChanged(Boolean fullscreen) {\
+        if (!Boolean.TRUE.equals(fullscreen)\
+                \&\& !FullscreenManager.FullscreenTransitionState\
+                        .isViewportSyncEnabled()) {\
+            FullscreenManager.FullscreenTransitionState\
+                    .setEnteringFullscreen(false);\
+            FullscreenManager.FullscreenTransitionState\
+                    .setExitingFullscreen(false);\
+            mAliceEntryViewportPending = false;\
+            mAliceExitViewportPending = false;\
+            mAliceEntryTransitionReadyCallback = null;\
+            removeCallbacks(mAliceEntryViewportCommit);\
+            removeCallbacks(mAliceExitViewportCommit);\
+            return;\
+        }\
         if (Boolean.TRUE.equals(fullscreen)) {\
+            if (!aliceIsLandscapeFullscreenTarget()) {\
+                FullscreenManager.FullscreenTransitionState\
+                        .setEnteringFullscreen(false);\
+                FullscreenManager.FullscreenTransitionState\
+                        .setViewportSyncEnabled(false);\
+                mAliceEntryViewportPending = false;\
+                mAliceExitViewportPending = false;\
+                mAliceEntryTransitionReadyCallback = null;\
+                removeCallbacks(mAliceEntryViewportCommit);\
+                removeCallbacks(mAliceExitViewportCommit);\
+                return;\
+            }\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(true);\
             mAliceExitViewportPending = false;\
             mAliceExitViewportLockedHeight = 0;\
@@ -766,6 +898,7 @@ sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControl
             }\
             removeCallbacks(mAliceEntryViewportCommit);\
             removeCallbacks(mAliceExitViewportCommit);\
+            FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(false);\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
             mAliceEntryControlsHiddenRequested = false;\
             mAliceEntrySystemBarsWaitFrames = 0;\
@@ -775,7 +908,32 @@ sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControl
 # 控件可以不可见，但不能让页面在系统栏/旋转完成前先向上抬头一个工具栏高度。
 sed -i '/^        \/\/ This min\/max logic is here to handle changes in the browser controls height\./i\
         // Alice patch start 0042\
+        boolean aliceLandscapeTransition =\
+                mActivity.getResources().getConfiguration().orientation\
+                        == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+        if (!aliceLandscapeTransition \&\& mControlContainer != null) {\
+            android.view.View aliceControlsView = mControlContainer.getView();\
+            aliceLandscapeTransition =\
+                    aliceControlsView.getWidth() > aliceControlsView.getHeight();\
+        }\
+        if (!aliceLandscapeTransition) {\
+            int aliceRequestedOrientation = mActivity.getRequestedOrientation();\
+            aliceLandscapeTransition =\
+                    aliceRequestedOrientation\
+                                    == android.content.pm.ActivityInfo\
+                                            .SCREEN_ORIENTATION_LANDSCAPE\
+                            || aliceRequestedOrientation\
+                                    == android.content.pm.ActivityInfo\
+                                            .SCREEN_ORIENTATION_SENSOR_LANDSCAPE\
+                            || aliceRequestedOrientation\
+                                    == android.content.pm.ActivityInfo\
+                                            .SCREEN_ORIENTATION_REVERSE_LANDSCAPE\
+                            || aliceRequestedOrientation\
+                                    == android.content.pm.ActivityInfo\
+                                            .SCREEN_ORIENTATION_USER_LANDSCAPE;\
+        }\
         if (FullscreenManager.FullscreenTransitionState.isEnteringFullscreen()\
+                \&\& aliceLandscapeTransition\
                 \&\& getControlsPosition() == ControlsPosition.BOTTOM) {\
             topControlsOffset = 0;\
             bottomControlsOffset = 0;\
@@ -792,7 +950,13 @@ sed -i '/^        \/\/ This min\/max logic is here to handle changes in the brow
 sed -i '/^    private void onConstraintsChanged(@BrowserControlsState int constraints) {$/,/^        if (constraints == BrowserControlsState.SHOWN) {$/c\
     private void onConstraintsChanged(@BrowserControlsState int constraints) {\
         // Alice patch start 0042\
-        // Process SHOWN immediately instead of waiting for another scroll event.\
+        if (!FullscreenManager.FullscreenTransitionState\
+                        .isViewportSyncEnabled()\
+                \&\& FullscreenManager.FullscreenTransitionState\
+                        .isExitingFullscreen()) {\
+            scheduleVisibilityUpdate();\
+            return;\
+        }\
         // Alice patch end 0042\
 \
         if (constraints == BrowserControlsState.SHOWN) {' "$path3"
@@ -814,25 +978,47 @@ sed -i '/^    private void scheduleVisibilityUpdate() {$/i\
 sed -i '/^                                \.setExitingFullscreen(false);$/a\
                         // Alice patch start 0042\
                         mBottomControlsStacker.setAliceExitingFullscreen(false);\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.showFullscreenToolbarSnapshot();\
-                            mCompositorViewHolder.setAliceEntryTransitionReadyCallback(\
-                                    () -> {\
-                                        if (mToolbarPositionController != null) {\
-                                            mToolbarPositionController\
-                                                    .hideFullscreenToolbarSnapshot();\
-                                        }\
-                                    });\
+                        if (FullscreenManager.FullscreenTransitionState\
+                                .isEnteringFullscreen()) {\
+                            if (mToolbarPositionController != null) {\
+                                mToolbarPositionController.showFullscreenToolbarSnapshot();\
+                                mCompositorViewHolder.setAliceEntryTransitionReadyCallback(\
+                                        () -> {\
+                                            if (mToolbarPositionController != null) {\
+                                                mToolbarPositionController\
+                                                        .hideFullscreenToolbarSnapshot();\
+                                            }\
+                                        });\
+                            }\
+                            mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
                         }\
-                        mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
                         // Alice patch end 0042\
 ' "$path2"
 # 0033 在 tab 校验之前就标记“正在退出”。只有真正会通知观察者的退出才
 # 开启退出同步，避免错误 tab 或重复退出把控件永久留在隐藏状态。
+sed -i '/^    private boolean shouldSkipEnterFullscreenRequest(FullscreenOptions options) {$/i\
+    // Alice patch start 0042\
+    private boolean aliceIsFullscreenLandscape() {\
+        return mActivity.getResources().getConfiguration().orientation\
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;\
+    }\
+    // Alice patch end 0042\
+\
+' "$path4"
+
 sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
         // Alice patch start 0042\
+        FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(false);\
         FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(true);\
         // Alice patch end 0042\
+' "$path4"
+
+sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
+                    // Alice patch start 0042\
+                    FullscreenManager.FullscreenTransitionState\
+                            .setViewportSyncEnabled(false);\
+                    // Alice patch end 0042\
+\
 ' "$path4"
 
 sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|        if (shouldSkipEnterFullscreenRequest(options)) {\
@@ -846,6 +1032,8 @@ sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^        if (tab != mTa
     public void onExitFullscreen(Tab tab) {\
         // Alice patch start 0042\
         if (tab != mTab) return;\
+        FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(\
+                aliceIsFullscreenLandscape());\
         FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
         // Alice patch end 0042\
 ' "$path4"
@@ -939,12 +1127,14 @@ sed -i '/^    private void tryUpdateControlsAndWebContentsSizing() {$/a\
 sed -i '/^            boolean controlsResizeView =$/,/^                            || BrowserControlsUtils\.controlsResizeView(mBrowserControlsManager);$/c\
             // Alice patch start 0042\
             boolean aliceFullscreenTransition =\
-                    mShowingFullscreen\
-                            || mBrowserControlsManager\
-                                    .getFullscreenManager()\
-                                    .getPersistentFullscreenMode()\
-                            || FullscreenManager.FullscreenTransitionState\
-                                    .isExitingFullscreen();\
+                    FullscreenManager.FullscreenTransitionState\
+                                    .isViewportSyncEnabled()\
+                            \&\& (mShowingFullscreen\
+                                    || mBrowserControlsManager\
+                                            .getFullscreenManager()\
+                                            .getPersistentFullscreenMode()\
+                                    || FullscreenManager.FullscreenTransitionState\
+                                            .isExitingFullscreen());\
             boolean controlsResizeView =\
                     aliceFullscreenTransition\
                             || org.chromium.components.browser_ui.bottomsheet.BottomSheetContent\
@@ -955,6 +1145,7 @@ sed -i '/^            boolean controlsResizeView =$/,/^                         
 # controls 每个 offset 帧都同步 WebContents。底置工具栏由 Android view 控制，
 # 不能等 controls idle 后再一次性改网页尺寸。
 sed -i '/^    public void onControlsOffsetChanged($/,/^    }$/c\
+    // Alice patch start 0042\
     public void onControlsOffsetChanged(\
             int topOffset,\
             int topControlsMinHeightOffset,\
@@ -969,22 +1160,44 @@ sed -i '/^    public void onControlsOffsetChanged($/,/^    }$/c\
                     .assertResourceExists(AndroidResourceType.DYNAMIC, R.id.control_container);\
         }\
 \
-        onViewportChanged();\
+        boolean aliceRefreshViewport =\
+                mBrowserControlsManager != null\
+                        \&\& ((mBrowserControlsManager.getControlsPosition()\
+                                                == BrowserControlsStateProvider\
+                                                        .ControlsPosition.BOTTOM\
+                                        \&\& !mBrowserControlsManager\
+                                                .getFullscreenManager()\
+                                                .getPersistentFullscreenMode()\
+                                        \&\& !FullscreenManager.FullscreenTransitionState\
+                                                .isExitingFullscreen())\
+                                || (FullscreenManager.FullscreenTransitionState\
+                                                .isViewportSyncEnabled()\
+                                        \&\& !aliceIsPortraitFullscreen()\
+                                        \&\& (mBrowserControlsManager\
+                                                        .getFullscreenManager()\
+                                                        .getPersistentFullscreenMode()\
+                                                || FullscreenManager.FullscreenTransitionState\
+                                                        .isExitingFullscreen())));\
+        boolean aliceSuppressPortraitFullscreenViewportRefresh =\
+                mBrowserControlsManager != null\
+                        \&\& (mBrowserControlsManager\
+                                        .getFullscreenManager()\
+                                        .getPersistentFullscreenMode()\
+                                || FullscreenManager.FullscreenTransitionState\
+                                        .isExitingFullscreen())\
+                        \&\& !FullscreenManager.FullscreenTransitionState\
+                                .isViewportSyncEnabled()\
+                        \&\& !aliceIsLandscapeLayout();\
+        if (!aliceSuppressPortraitFullscreenViewportRefresh) {\
+            onViewportChanged();\
+        }\
         boolean scrollingWithBciv = mInGesture || mContentViewScrolling;\
         if ((requestNewFrame || topControlsMinHeightChanged || bottomControlsMinHeightChanged)\
                 \&\& !scrollingWithBciv) {\
             requestRender();\
         }\
         updateContentViewChildrenDimension();\
-        // Alice patch start 0042\
-        if (mBrowserControlsManager != null\
-                \&\& (mBrowserControlsManager.getControlsPosition()\
-                                == BrowserControlsStateProvider.ControlsPosition.BOTTOM\
-                        || mBrowserControlsManager\
-                                .getFullscreenManager()\
-                                .getPersistentFullscreenMode()\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isExitingFullscreen())) {\
+        if (aliceRefreshViewport) {\
             updateWebContentsSize(getCurrentTab());\
         }\
         // Alice patch end 0042\
@@ -994,13 +1207,20 @@ sed -i '/^    public void onControlsOffsetChanged($/,/^    }$/c\
 sed -i 's#^    public void onBottomControlsHeightChanged($#    // Alice patch start 0042\
     public void onAndroidControlsVisibilityChanged(int visibility) {\
         if (mBrowserControlsManager != null\
-                \&\& (mBrowserControlsManager.getControlsPosition()\
-                                == BrowserControlsStateProvider.ControlsPosition.BOTTOM\
-                        || mBrowserControlsManager\
-                                .getFullscreenManager()\
-                                .getPersistentFullscreenMode()\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isExitingFullscreen())) {\
+                \&\& ((mBrowserControlsManager.getControlsPosition()\
+                                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM\
+                                \&\& !mBrowserControlsManager\
+                                        .getFullscreenManager()\
+                                        .getPersistentFullscreenMode()\
+                                \&\& !FullscreenManager.FullscreenTransitionState\
+                                        .isExitingFullscreen())\
+                        || (FullscreenManager.FullscreenTransitionState\
+                                        .isViewportSyncEnabled()\
+                                \&\& (mBrowserControlsManager\
+                                                .getFullscreenManager()\
+                                                .getPersistentFullscreenMode()\
+                                        || FullscreenManager.FullscreenTransitionState\
+                                                .isExitingFullscreen())))) {\
             onViewportChanged();\
             updateWebContentsSize(getCurrentTab());\
             requestRender();\
@@ -1015,6 +1235,8 @@ sed -i 's#^    public void onBottomControlsHeightChanged($#    // Alice patch st
 sed -i '/^        \/\/ Notify the compositor layout that the size has changed\./i\
         // Alice patch start 0042\
         if (mBrowserControlsManager != null\
+                \&\& FullscreenManager.FullscreenTransitionState\
+                        .isViewportSyncEnabled()\
                 \&\& (mShowingFullscreen\
                         || mBrowserControlsManager\
                                 .getFullscreenManager()\
@@ -1034,6 +1256,29 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch start 0042\
     private void refreshToolbarAfterFullscreen() {\
         View aliceControlContainer = mControlContainer.getView();\
+        if (!FullscreenManager.FullscreenTransitionState\
+                .isViewportSyncEnabled()) {\
+            Runnable aliceRefresh =\
+                    new Runnable() {\
+                        @Override\
+                        public void run() {\
+                            if (!BrowserControlsUtils.areBrowserControlsIdle(\
+                                    mBrowserControlsSizer)) {\
+                                aliceControlContainer.postOnAnimation(this);\
+                                return;\
+                            }\
+                            aliceControlContainer.postOnAnimation(\
+                                    () -> {\
+                                        ToolbarManager.this\
+                                                .updateToolbarSceneLayerSuppression();\
+                                        mCompositorViewHolder\
+                                                .finishAliceFullscreenExit();\
+                                    });\
+                        }\
+                    };\
+            aliceControlContainer.postOnAnimation(aliceRefresh);\
+            return;\
+        }\
         aliceControlContainer.postOnAnimation(\
                 () -> {\
                     aliceControlContainer.requestApplyInsets();\
@@ -1089,16 +1334,19 @@ sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
 # 不等待 refreshToolbarAfterFullscreen() 的下一动画帧。
 sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
                         // Alice patch start 0042\
-                        mBottomControlsStacker.setAliceExitingFullscreen(true);\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.showFullscreenToolbarSnapshot();\
+                        if (FullscreenManager.FullscreenTransitionState\
+                                .isViewportSyncEnabled()) {\
+                            mBottomControlsStacker.setAliceExitingFullscreen(true);\
+                            if (mToolbarPositionController != null) {\
+                                mToolbarPositionController.showFullscreenToolbarSnapshot();\
+                            }\
+                            scheduleAliceFullscreenSnapshotRelease();\
+                            updateToolbarSceneLayerSuppression();\
+                            mControlContainer.getView().post(\
+                                    () -> {\
+                                        mBottomControlsStacker.requestLayerUpdate(false);\
+                                        mCompositorViewHolder.applyAliceFullscreenExitViewport();\
+                                    });\
                         }\
-                        scheduleAliceFullscreenSnapshotRelease();\
-                        updateToolbarSceneLayerSuppression();\
-                        mControlContainer.getView().post(\
-                                () -> {\
-                                    mBottomControlsStacker.requestLayerUpdate(false);\
-                                    mCompositorViewHolder.applyAliceFullscreenExitViewport();\
-                                });\
                         // Alice patch end 0042\
 ' "$path2"

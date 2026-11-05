@@ -14,6 +14,7 @@ path7="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManage
 path8="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewForegroundTabAnimationHostView.java"
 path9="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TabSwitcherActionMenuCoordinator.java"
 path10="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
+path11="chrome/browser/ui/android/browser_navigator_android.cc"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0029' "$path1"; then
@@ -56,6 +57,26 @@ sed -i '/^public class ToolbarPositionController implements OnSharedPreferenceCh
 sed -i 's|^                    v -> {$|                    v -> {\n                        // Alice patch start 0029\n                        ToolbarPositionController\n                                .notifyAliceBottomBarNewTabButtonClicked();\n                        // Alice patch end 0029|' "$path7"
 
 sed -i 's|^                        recordUserActions(id);$|                        // Alice patch start 0029\n                        org.chromium.chrome.browser.toolbar.ToolbarPositionController\n                                .notifyAliceTabSwitcherMenuClicked();\n                        // Alice patch end 0029\n                        recordUserActions(id);|' "$path9"
+
+# 扩展页打开新前台标签时，在 Android launch type 映射阶段标记为 Chrome UI，
+# 让动画复用右下角菜单按钮锚点；background tab 保持原行为。
+sed -i '/^TabModel::TabLaunchType GetTabLaunchType(const NavigateParams\* params) {$/a\
+  // Alice patch start 0029\
+  bool aliceExtensionNavigation =\
+      params->url.SchemeIs("chrome-extension")\
+              || (params->source_contents != nullptr\
+                      \&\& params->source_contents->GetLastCommittedURL().SchemeIs(\
+                              "chrome-extension"));\
+  // Alice patch end 0029' "$path11"
+
+sed -i '/^  \/\/ 3\. Foreground Navigation:$/i\
+  // Alice patch start 0029\
+  if (aliceExtensionNavigation \&\& !is_background) {\
+    return TabLaunchType::FROM_CHROME_UI;\
+  }\
+  // Alice patch end 0029\
+\
+' "$path11"
 
 # 5) 起点终点都是底部居中：圆角才会是 {r, r, 0, 0}（左右一致）
 sed -i 's|^\( *\)@RectStart int rectStart = isBottomBarInGts ? RectStart\.BOTTOM_CENTER : RectStart\.TOP;$|\1@RectStart int rectStart = isBottomBarInGts ? RectStart.BOTTOM_CENTER : RectStart.TOP;\n\1// Alice patch start 0029\n\1rectStart = RectStart.BOTTOM_CENTER;\n\1// Alice patch end 0029|' "$path3"

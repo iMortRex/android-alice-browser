@@ -159,8 +159,8 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
                 };\
         // Alice patch end 0033' "$path1"
 
-# 动画期间缓存每一帧的当前键盘高度。结束后的下一帧再读取最终 root inset，
-# 避免 onEnd 与最终 inset 派发顺序不同导致工具栏再跳一次。
+# 动画期间缓存每一帧的当前键盘高度，并在 onEnd 后保留最后一帧。root inset
+# 可能晚于动画完成才包含系统导航栏，立即切换会让工具栏再上跳一次。
 sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyboardHeightProgressBarCallback);$/a\
         // Alice patch start 0033\
         mImeAnimationListener =\
@@ -202,7 +202,8 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
                         if (mCurrentImeAnimationHeight >= 0) updateImeLayerOffsets();\
                         mCurrentAnimation = null;\
                         mIsImeAnimationRunning = false;\
-                        mCurrentImeAnimationHeight = -1;\
+                        // Keep the final animation frame until the next IME animation.\
+                        // Root insets can include an extra system-bar inset at this point.\
                         mControlContainer\
                                 .getView()\
                                 .postOnAnimation(\
@@ -268,11 +269,12 @@ sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgres
         releaseSearchToolbarSnapshot();\
         // Alice patch end 0033' "$path1"
 
-# 3) 当前帧优先使用动画 inset；动画结束后使用最终 root inset。
+# 3) 当前帧优先使用动画 inset；结束后继续使用动画最后一帧，直到下一次 IME
+#    动画开始才重新读取 root inset。
 sed -i '/^            int keyboardHeight = windowInsetsCompat\.getInsets(WindowInsetsCompat\.Type\.ime())\.bottom;$/c\
             // Alice patch start 0033\
             int keyboardHeight =\
-                    mIsImeAnimationRunning && mCurrentImeAnimationHeight >= 0\
+                    mCurrentImeAnimationHeight >= 0\
                             ? mCurrentImeAnimationHeight\
                             : windowInsetsCompat\
                                     .getInsets(WindowInsetsCompat.Type.ime())\
