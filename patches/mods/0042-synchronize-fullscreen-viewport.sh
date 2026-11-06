@@ -1028,10 +1028,9 @@ sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|     
             return;\
         }|' "$path4"
 
-sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^        if (tab != mTab) return;$/c\
-    public void onExitFullscreen(Tab tab) {\
+sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
         // Alice patch start 0042\
-        if (tab != mTab) return;\
+        if (tab != mTab \&\& tab != mTabInFullscreen) return;\
         FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(\
                 aliceIsFullscreenLandscape());\
         FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\

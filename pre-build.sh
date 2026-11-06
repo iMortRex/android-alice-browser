@@ -23,6 +23,8 @@ git reset -q
 git checkout -- .
 git clean -fd
 
+export VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' \
+    "$SCRIPT_DIR/vanadium/args.gn")
 # 应用 patch.sh
 if [ -f "$SCRIPT_DIR/common.sh" ]; then
     echo "=== 应用 common.sh ==="
@@ -93,7 +95,6 @@ fi
 export PATH=$CHROMIUM/third_party/jdk/current/bin/:$PATH
 export ANDROID_HOME=$CHROMIUM/third_party/android_sdk/public
 
-VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' "$SCRIPT_DIR/vanadium/args.gn")
 mkdir -p out/Release
 SIGNED_APK="out/Release/$VERSION-arm64-v8a.apk"
 sign_apk "$APK" "$SIGNED_APK"

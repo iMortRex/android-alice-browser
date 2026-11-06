@@ -80,27 +80,26 @@ sed -i '/^        super\.onConfigurationChanged(newConfig);$/a\
         // Alice patch end 0001' "$path2"
 
 # Edge-to-edge 根布局只在需要安全区时绘制挖孔；ALWAYS 模式让背景自然铺满挖孔区域。
-sed -i '/^        Insets cutout = windowInsets\.getInsets(Type\.displayCutout());$/,/^        mView\.setDisplayCutoutInsetRight(cutout\.right > 0 ? cutout : Insets\.NONE);$/c\
-        // Alice patch start 0001\
+# 逐行替换，避免范围 sed 在版本差异时吞掉后续方法。
+sed -i 's|^        Insets cutout = windowInsets\.getInsets(Type\.displayCutout());$|        // Alice patch start 0001\
         Insets cutout = windowInsets.getInsets(Type.displayCutout());\
         boolean shouldPadDisplayCutout =\
                 WindowInsetsUtils.shouldPadDisplayCutout(windowInsets, mContext);\
-        mView.setDisplayCutoutInsetLeft(\
-                shouldPadDisplayCutout \&\& cutout.left > 0 ? cutout : Insets.NONE);\
-        mView.setDisplayCutoutInsetRight(\
-                shouldPadDisplayCutout \&\& cutout.right > 0 ? cutout : Insets.NONE);\
-        // Alice patch end 0001' "$path3"
+        // Alice patch end 0001|' "$path3"
 
-sed -i '/^        if (WindowInsetsUtils\.shouldPadDisplayCutout(windowInsets, mContext)) {$/,/^        }$/c\
-        // Alice patch start 0001\
+sed -i 's|^        if (WindowInsetsUtils\.shouldPadDisplayCutout(windowInsets, mContext)) {$|        // Alice patch start 0001\
         if (shouldPadDisplayCutout) {\
-            paddingInsetTypes += Type.displayCutout();\
-            // Color display cutout padding to keep behaviour for Android 15-.\
-            mView.setDisplayCutoutTop(cutout.top > 0 ? cutout : Insets.NONE);\
-        } else {\
-            mView.setDisplayCutoutTop(Insets.NONE);\
-        }\
-        // Alice patch end 0001' "$path3"
+        // Alice patch end 0001|' "$path3"
+
+sed -i 's|^            mView\.setDisplayCutoutInsetLeft(cutout\.left > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
+            mView.setDisplayCutoutInsetLeft(\
+                    shouldPadDisplayCutout \&\& cutout.left > 0 ? cutout : Insets.NONE);\
+            // Alice patch end 0001|' "$path3"
+
+sed -i 's|^            mView\.setDisplayCutoutInsetRight(cutout\.right > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
+            mView.setDisplayCutoutInsetRight(\
+                    shouldPadDisplayCutout \&\& cutout.right > 0 ? cutout : Insets.NONE);\
+            // Alice patch end 0001|' "$path3"
 
 # 全屏时导航栏不可见，但 mandatorySystemGestures 仍会拦截底部触摸。
 # safe-area-inset-bottom 必须至少包含该手势热区，页面才能把可点击控件放到
