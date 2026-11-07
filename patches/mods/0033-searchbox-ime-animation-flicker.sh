@@ -28,6 +28,7 @@ path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/t
 path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
 path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 path21="chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java"
+path22="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -106,7 +107,9 @@ import java.util.List;\
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
+    private @Nullable ViewGroup mNavigationBarBackgroundContainer;\
     private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;\
+    private float mAliceTabSwitcherBackgroundAlpha = -1f;\
     private @Nullable ImageView mSearchToolbarSnapshot;\
     private @Nullable Bitmap mSearchToolbarSnapshotBitmap;\
     private int mSearchToolbarSnapshotWidth;\
@@ -141,6 +144,18 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
             mNavigationBarBackground.setBackgroundColor(color);\
         }\
     }\
+\
+    public void setAliceTabSwitcherBackgroundAlpha(float alpha) {\
+        mAliceTabSwitcherBackgroundAlpha = Math.max(0f, Math.min(1f, alpha));\
+        if (mNavigationBarBackground == null) {\
+            updateNavigationBarBackground();\
+        }\
+        View aliceBackground = mNavigationBarBackground;\
+        if (aliceBackground == null) return;\
+        aliceBackground.setAlpha(mAliceTabSwitcherBackgroundAlpha);\
+        aliceBackground.setVisibility(\
+                mAliceTabSwitcherBackgroundAlpha > 0f ? View.VISIBLE : View.INVISIBLE);\
+    }\
     // Alice patch end 0033\
 ' "$path1"
 
@@ -156,6 +171,15 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
                     updateSearchToolbarSnapshot();\
                     mControlContainer.getView().postOnAnimation(\
                             ToolbarPositionController.this::updateSearchToolbarSnapshot);\
+                };\
+        // Alice patch end 0033' "$path1"
+
+sed -i '/^        mIsTabSwitcherFinishedShowingObserver = (showing) -> updateCurrentPosition();$/c\
+        // Alice patch start 0033\
+        mIsTabSwitcherFinishedShowingObserver =\
+                (showing) -> {\
+                    updateCurrentPosition();\
+                    updateNavigationBarBackground();\
                 };\
         // Alice patch end 0033' "$path1"
 
@@ -255,10 +279,16 @@ sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgres
             imeInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
         }\
         if (mNavigationBarBackground != null\
+                \&\& mNavigationBarBackgroundContainer != null\
+                \&\& mNavigationBarBackgroundContainer.getParent() instanceof ViewGroup) {\
+            ((ViewGroup) mNavigationBarBackgroundContainer.getParent())\
+                    .removeView(mNavigationBarBackgroundContainer);\
+        } else if (mNavigationBarBackground != null\
                 \&\& mNavigationBarBackground.getParent() instanceof ViewGroup) {\
             ((ViewGroup) mNavigationBarBackground.getParent())\
                     .removeView(mNavigationBarBackground);\
         }\
+        mNavigationBarBackgroundContainer = null;\
         mNavigationBarBackground = null;\
         if (mSearchToolbarSnapshot != null\
                 \&\& mSearchToolbarSnapshot.getParent() instanceof ViewGroup) {\
@@ -290,6 +320,16 @@ sed -i '/^        if (mIsOmniboxFocusedSupplier.get() \&\& mCurrentPosition.get(
         if (aliceBottomControlsFollowIme\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
             // Alice patch end 0033' "$path1"
+
+# 网页表单输入时窗口不能 resize，否则工具栏会被整个窗口一起推到 IME 上方。
+sed -i '/^                        WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN$/,/^                                | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);$/c\
+                        // Alice patch start 0033\
+                        WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN\
+                                | (org.chromium.chrome.browser.toolbar.settings.AddressBarPreference\
+                                                .isToolbarConfiguredToShowOnTop()\
+                                        ? WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE\
+                                        : WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING));\
+                        // Alice patch end 0033' "$path22"
 
 # 4) 工具栏底边取 IME 与导航栏 inset 的较大值。导航栏区域由独立的背景
 #    延伸层覆盖，工具栏本身不再为了填背景而永久上移。
@@ -340,15 +380,15 @@ sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0033\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                \&\& mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                \&\& mIsOmniboxFocusedSupplier.get()\
+                \&\& !mIsImeAnimationRunning\
+                \&\& !mKeyboardVisibilityDelegate.isKeyboardShowing(\
                         mControlContainer.getView())) {\
             layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                \&\& mIsOmniboxFocusedSupplier.get()\
-                \&\& !mIsImeAnimationRunning\
-                \&\& !mKeyboardVisibilityDelegate.isKeyboardShowing(\
+                \&\& mKeyboardVisibilityDelegate.isKeyboardShowing(\
                         mControlContainer.getView())) {\
             layerYOffset = Math.min(layerYOffset, -getNavigationBarHeight());\
         }\
@@ -383,6 +423,11 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                 \&\& ((android.app.Activity) aliceRoot.getContext())\
                         .isInMultiWindowMode()) {\
             return 0;\
+        }\
+        View aliceChinView =\
+                aliceRoot.findViewById(R.id.edge_to_edge_bottom_chin);\
+        if (aliceChinView != null \&\& aliceChinView.getHeight() > 0) {\
+            return aliceChinView.getHeight();\
         }\
         WindowInsetsCompat aliceCompatInsets = null;\
         InsetObserver aliceInsetObserver = mWindowAndroid.getInsetObserver();\
@@ -472,23 +517,49 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                         }\
                         return aliceWindowInsets;\
                     });\
+            ViewGroup aliceOverlayParent = aliceParent;\
+            android.widget.FrameLayout aliceBackgroundContainer =\
+                    new android.widget.FrameLayout(aliceOverlayParent.getContext());\
+            aliceBackgroundContainer.setClickable(false);\
+            aliceBackgroundContainer.setFocusable(false);\
+            aliceBackgroundContainer.setImportantForAccessibility(\
+                    View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
+            aliceBackgroundContainer.setTranslationZ(\
+                    aliceControlContainer.getTranslationZ());\
             CoordinatorLayout.LayoutParams aliceParams =\
                     new CoordinatorLayout.LayoutParams(\
                             ViewGroup.LayoutParams.MATCH_PARENT,\
                             aliceNavigationBarHeight);\
             aliceParams.gravity = Gravity.BOTTOM;\
-            int aliceIndex = aliceParent.indexOfChild(aliceControlContainer);\
-            if (aliceIndex < 0) aliceIndex = aliceParent.getChildCount();\
-            aliceParent.addView(aliceBackground, aliceIndex, aliceParams);\
-            aliceParent.setClipChildren(false);\
-            aliceParent.setClipToPadding(false);\
+            aliceBackgroundContainer.addView(\
+                    aliceBackground,\
+                    new android.widget.FrameLayout.LayoutParams(\
+                            ViewGroup.LayoutParams.MATCH_PARENT,\
+                            ViewGroup.LayoutParams.MATCH_PARENT));\
+            int aliceIndex = aliceOverlayParent.indexOfChild(aliceControlContainer);\
+            if (aliceIndex < 0) aliceIndex = aliceOverlayParent.getChildCount();\
+            aliceOverlayParent.addView(aliceBackgroundContainer, aliceIndex, aliceParams);\
+            aliceOverlayParent.setClipChildren(false);\
+            aliceOverlayParent.setClipToPadding(false);\
+            mNavigationBarBackgroundContainer = aliceBackgroundContainer;\
             mNavigationBarBackground = aliceBackground;\
         }\
 \
         View aliceBackground = mNavigationBarBackground;\
         assert aliceBackground != null;\
-        CoordinatorLayout.LayoutParams aliceParams =\
-                (CoordinatorLayout.LayoutParams) aliceBackground.getLayoutParams();\
+        ViewGroup aliceBackgroundContainer = mNavigationBarBackgroundContainer;\
+        if (aliceBackgroundContainer != null) {\
+            ViewGroup.LayoutParams aliceContainerParams =\
+                    aliceBackgroundContainer.getLayoutParams();\
+            if (aliceContainerParams != null\
+                    \&\& aliceContainerParams.height != aliceNavigationBarHeight) {\
+                aliceContainerParams.height = aliceNavigationBarHeight;\
+                aliceBackgroundContainer.setLayoutParams(aliceContainerParams);\
+            }\
+            aliceBackgroundContainer.setTranslationZ(\
+                    aliceControlContainer.getTranslationZ());\
+        }\
+        ViewGroup.LayoutParams aliceParams = aliceBackground.getLayoutParams();\
         if (aliceParams.height != aliceNavigationBarHeight) {\
             aliceParams.height = aliceNavigationBarHeight;\
             aliceBackground.setLayoutParams(aliceParams);\
@@ -512,6 +583,7 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                                 || mIsImeAnimationRunning\
                                 || mKeyboardVisibilityDelegate.isKeyboardShowing(\
                                         aliceControlContainer));\
+        aliceBackground.setAlpha(mAliceTabSwitcherBackgroundAlpha);\
         aliceBackground.setVisibility(aliceVisible ? View.VISIBLE : View.INVISIBLE);\
         if (!mIsOmniboxFocusedSupplier.get()) {\
             captureSearchToolbarSnapshot();\
@@ -1301,7 +1373,7 @@ sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener)
             }\
             // Alice patch end 0033' "$path5"
 
-sed -i '/^            getViewTreeObserver().removeOnPreDrawListener(mStickListener);$/a\
+sed -i '/^        getViewTreeObserver().removeOnPreDrawListener(mStickListener);$/a\
             // Alice patch start 0033\
             mAliceBottomViewportHeight = -1;\
             mAliceImeAnimationActive = false;\

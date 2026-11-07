@@ -108,11 +108,6 @@ sed -i 's|^        RectStart\.BOTTOM_CENTER$|        // Alice patch start 0029\n
 sed -i 's|^        int BOTTOM_CENTER = 5;$|        // Alice patch start 0029\n        int BOTTOM_CENTER = 5;\n        int BOTTOM_RIGHT = 6;\n        // Alice patch end 0029|' "$path5"
 sed -i 's|^        } else {$|        } else if (rectStart == RectStart.BOTTOM_RIGHT) {\n            // Alice patch start 0029\n            // 右下角起手：初始小卡片贴在右下角，再往左上铺满\n            int aliceRight = finalRect.right;\n            initialRect.right = aliceRight;\n            initialRect.left = aliceRight - initialWidth;\n            finalRect.left = aliceRight - finalWidth;\n            int aliceBottom = finalRect.bottom;\n            initialRect.top = aliceBottom - initialHeight;\n            initialRect.bottom = aliceBottom;\n            finalRect.top = aliceBottom - finalHeight;\n            // Alice patch end 0029\n        } else {|' "$path5"
 
-# 8) NewTabAnimationLayout：区分「开发者工具」和「新建标签页」
-#    - 开发者工具（devtools:// 标签页）：右下角 → 左上角
-#    - 新建标签页（工具栏的新标签页按钮 / 长按「标签页」后的「新建标签页」）：从新标签页按钮处往上缩放
-sed -i '/^                || tabLaunchType == TabLaunchType\.FROM_LONGPRESS_FOREGROUND_IN_GROUP) {$/,/^        }$/ s|^        }$|        }\n\n        // Alice patch start 0029\n        // 打开开发者工具：从右下角往左上角展开\n        if (newTab.getUrl() != null \&\& "devtools".equals(newTab.getUrl().getScheme())) {\n            return RectStart.BOTTOM_RIGHT;\n        }\n        // 新建标签页（工具栏「新标签页」按钮 / 长按「标签页」后的「新建标签页」/ 应用菜单）：\n        // 从新标签页按钮处往上缩放\n        if (tabLaunchType == TabLaunchType.FROM_CHROME_UI\n                \|\| tabLaunchType == TabLaunchType.FROM_TAB_SWITCHER_UI) {\n            return RectStart.BOTTOM_CENTER;\n        }\n        // Alice patch end 0029|' "$path6"
-
 # 9) 新建标签页动画从上到下所有角始终保持相同圆角。
 sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch start 0029\n                // 所有角保持相同圆角。\n                // Alice patch end 0029|' "$path6"
 sed -i 's|^                    startRadii\[3\] = 0;$|                    // Alice patch start 0029\n                    startRadii[3] = radius;\n                    // Alice patch end 0029|' "$path6"
@@ -201,19 +196,39 @@ sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/i\
 \
 ' "$path6"
 
+# 新建标签页动画视图插到 bottom_container 之前：撤销气泡必须盖在动画之上，
+# 同时动画仍在工具栏、Hub 之上。Z 保持 0，避免 Z 排序压过索引顺序。
 sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/a\
         // Alice patch start 0029\
-        mForegroundHostView.setElevation(1000f);\
-        mForegroundHostView.setTranslationZ(1000f);\
-        mAnimationHostView.bringChildToFront(mForegroundHostView);\
+        // Keep the undo bubble above the new tab animation: insert the animation\
+        // view just below bottom_container and keep its Z at 0.\
+        mForegroundHostView.setElevation(0f);\
+        mForegroundHostView.setTranslationZ(0f);\
+        View aliceSnackbarHost = mAnimationHostView.findViewById(R.id.bottom_container);\
+        if (aliceSnackbarHost != null\
+                \&\& aliceSnackbarHost.getParent() == mAnimationHostView) {\
+            int aliceSnackbarIndex = mAnimationHostView.indexOfChild(aliceSnackbarHost);\
+            mAnimationHostView.removeView(mForegroundHostView);\
+            mAnimationHostView.addView(mForegroundHostView, aliceSnackbarIndex);\
+        }\
         // Alice patch end 0029' "$path6"
 
-sed -i '/^        mHubContainerView\.addView(mShrinkExpandImageView);$/a\
+# Hub 预览/新建标签页动画视图插到 snackbar 容器之前：撤销气泡必须盖在动画之上。
+# snackbar 容器已由 0034 提升为 HubContainerView 的直接子视图，两者同层。
+sed -i '/^        mHubContainerView\.addView(mShrinkExpandImageView);$/c\
         // Alice patch start 0029\
-        if (mAnimationType == HubLayoutAnimationType.EXPAND_NEW_TAB) {\
-            mShrinkExpandImageView.setElevation(1000f);\
-            mShrinkExpandImageView.setTranslationZ(1000f);\
-            mHubContainerView.bringChildToFront(mShrinkExpandImageView);\
+        // Keep the undo bubble above the hub preview animation: insert the animation\
+        // image just below the hub snackbar container (both are direct children of\
+        // HubContainerView).\
+        View aliceHubSnackbarContainer =\
+                mHubContainerView.findViewById(R.id.pane_host_view_snackbar_container);\
+        if (aliceHubSnackbarContainer != null\
+                \&\& aliceHubSnackbarContainer.getParent() == mHubContainerView) {\
+            mHubContainerView.addView(\
+                    mShrinkExpandImageView,\
+                    mHubContainerView.indexOfChild(aliceHubSnackbarContainer));\
+        } else {\
+            mHubContainerView.addView(mShrinkExpandImageView);\
         }\
         // Alice patch end 0029' "$path2"
 

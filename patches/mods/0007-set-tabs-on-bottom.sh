@@ -7,6 +7,8 @@ set -e
 path1="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListCoordinator.java"
 path2="chrome/android/proguard/main.flags"
 path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListContainerViewBinder.java"
+path4="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
+path5="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0007' "$path1"; then
@@ -44,12 +46,10 @@ sed -i '/^        } else if (INITIAL_SCROLL_INDEX == propertyKey) {$/,/^        
         } else if (INITIAL_SCROLL_INDEX == propertyKey) {\
             int index = model.get(INITIAL_SCROLL_INDEX);\
             // Alice patch start 0007\
-            LinearLayoutManager layoutManager =\
-                    assumeNonNull((LinearLayoutManager) recyclerView.getLayoutManager());\
             if (recyclerView.isLaidOut()\
                     \&\& recyclerView.getWidth() > 0\
                     \&\& recyclerView.getHeight() > 0) {\
-                layoutManager.scrollToPositionWithOffset(\
+                recyclerView.scrollToPositionWithOffset(\
                         index, computeOffset(recyclerView, model));\
             } else {\
                 recyclerView.addOnLayoutChangeListener(\
@@ -70,11 +70,8 @@ sed -i '/^        } else if (INITIAL_SCROLL_INDEX == propertyKey) {$/,/^        
                                     return;\
                                 }\
                                 recyclerView.removeOnLayoutChangeListener(this);\
-                                assumeNonNull(\
-                                                (LinearLayoutManager)\
-                                                        recyclerView.getLayoutManager())\
-                                        .scrollToPositionWithOffset(\
-                                                index, computeOffset(recyclerView, model));\
+                                recyclerView.scrollToPositionWithOffset(\
+                                        index, computeOffset(recyclerView, model));\
                             }\
                         });\
                 recyclerView.requestLayout();\
@@ -82,17 +79,79 @@ sed -i '/^        } else if (INITIAL_SCROLL_INDEX == propertyKey) {$/,/^        
             // Alice patch end 0007\
         } else if (FOCUS_TAB_INDEX_FOR_ACCESSIBILITY == propertyKey) {' "$path3"
 
-sed -i '/^    private @Nullable Runnable mAwaitingLayoutRunnable;$/a\
+sed -i '/^    private boolean mBlockTouchInput;$/a\
     // Alice patch start 0007\
-    private boolean mAwaitingLayoutDeferredForScroll;\
-    // Alice patch end 0007' "$path1"
+    private boolean mAliceInitialScrollRequested;\
+    private @Nullable Runnable mAliceInitialScrollCompletionRunnable;\
+    private int mAliceInitialScrollIndex;\
+    private int mAliceInitialScrollOffset;\
+    private int mAliceInitialScrollWaitFrames;\
+    // Alice patch end 0007' "$path4"
 
-sed -i '/^        mAwaitingLayoutRunnable = r;$/a\
+sed -i '/^        super\.onLayout(changed, l, t, r, b);$/a\
         // Alice patch start 0007\
-        mAwaitingLayoutDeferredForScroll = false;\
-        // Alice patch end 0007' "$path1"
+        if (mAliceInitialScrollRequested\
+                \&\& mAliceInitialScrollCompletionRunnable != null) {\
+            postOnAnimation(this::maybeRunAliceInitialScrollCompletion);\
+        }\
+        // Alice patch end 0007' "$path4"
 
-sed -i 's|^        mRecyclerView\.runOnNextLayout(this::checkAwaitingLayout);$|        // Alice patch start 0007\n        mRecyclerView.runOnNextLayout(\n                () -> mRecyclerView.post(this::checkAwaitingLayout));\n        // Alice patch end 0007|' "$path1"
+sed -i '/^    \/\*\*\
+     \* @param tabIndex The index in the RecyclerView of the tab\.$/i\
+    // Alice patch start 0007\
+    void scrollToPositionWithOffset(int index, int offset) {\
+        LinearLayoutManager layoutManager =\
+                assumeNonNull((LinearLayoutManager) getLayoutManager());\
+        mAliceInitialScrollRequested = true;\
+        mAliceInitialScrollIndex = index;\
+        mAliceInitialScrollOffset = offset;\
+        mAliceInitialScrollWaitFrames = 0;\
+        layoutManager.scrollToPositionWithOffset(index, offset);\
+        if (!isLayoutRequested()) {\
+            requestLayout();\
+        }\
+    }\
+\
+    void runAfterInitialScroll(Runnable runnable) {\
+        if (mAliceInitialScrollRequested) {\
+            mAliceInitialScrollCompletionRunnable = runnable;\
+        } else {\
+            postOnAnimation(runnable);\
+        }\
+    }\
+\
+    private void maybeRunAliceInitialScrollCompletion() {\
+        if (!mAliceInitialScrollRequested) return;\
+        @Nullable Runnable completionRunnable = mAliceInitialScrollCompletionRunnable;\
+        if (completionRunnable == null) return;\
+        if (!isAliceInitialScrollSettled() \&\& mAliceInitialScrollWaitFrames++ < 6) {\
+            postOnAnimation(this::maybeRunAliceInitialScrollCompletion);\
+            return;\
+        }\
+        mAliceInitialScrollRequested = false;\
+        mAliceInitialScrollWaitFrames = 0;\
+        mAliceInitialScrollCompletionRunnable = null;\
+        completionRunnable.run();\
+    }\
+\
+    private boolean isAliceInitialScrollSettled() {\
+        LinearLayoutManager layoutManager = (LinearLayoutManager) getLayoutManager();\
+        if (layoutManager == null) return false;\
+        View targetView = layoutManager.findViewByPosition(mAliceInitialScrollIndex);\
+        if (targetView == null) return false;\
+        int expectedTop = getPaddingTop() + mAliceInitialScrollOffset;\
+        int actualTop = targetView.getTop();\
+        if (actualTop == expectedTop) return true;\
+        int firstComplete = layoutManager.findFirstCompletelyVisibleItemPosition();\
+        int lastComplete = layoutManager.findLastCompletelyVisibleItemPosition();\
+        int itemCount = getAdapter() == null ? 0 : getAdapter().getItemCount();\
+        return (firstComplete == 0 \&\& actualTop <= expectedTop)\
+                || (itemCount > 0 \&\& lastComplete == itemCount - 1 \&\& actualTop >= expectedTop);\
+    }\
+    // Alice patch end 0007\
+' "$path4"
+
+sed -i 's|^        mRecyclerView\.runOnNextLayout(this::checkAwaitingLayout);$|        // Alice patch start 0007\n        mRecyclerView.runAfterInitialScroll(\n                () -> mRecyclerView.post(this::checkAwaitingLayout));\n        // Alice patch end 0007|' "$path1"
 
 sed -i '/^    private void checkAwaitingLayout() {$/,/^        if (mAwaitingLayoutRunnable != null) {$/ s#^        if (mAwaitingLayoutRunnable != null) {$#        if (mAwaitingLayoutRunnable != null) {\
             // Alice patch start 0007\
@@ -101,10 +160,60 @@ sed -i '/^    private void checkAwaitingLayout() {$/,/^        if (mAwaitingLayo
                         () -> mRecyclerView.post(this::checkAwaitingLayout));\
                 return;\
             }\
-            if (mRecyclerView.isLayoutRequested() \&\& !mAwaitingLayoutDeferredForScroll) {\
-                mAwaitingLayoutDeferredForScroll = true;\
-                mRecyclerView.runOnNextLayout(\
-                        () -> mRecyclerView.post(this::checkAwaitingLayout));\
+            if (mRecyclerView.isLayoutRequested()) {\
+                mRecyclerView.postOnAnimation(this::checkAwaitingLayout);\
                 return;\
             }\
             // Alice patch end 0007#' "$path1"
+
+sed -i '/^            if (holder == null) return;$/c\
+            // Alice patch start 0007\
+            if (holder == null) {\
+                mRecyclerView.postOnAnimation(this::checkAwaitingLayout);\
+                return;\
+            }\
+            // Alice patch end 0007' "$path1"
+
+sed -i '0,/^        SyncOneshotSupplier<ShrinkExpandAnimationData> animationDataSupplier =$/s//        \/\/ Alice patch start 0007\n        setInitialScrollIndexOffset();\n        \/\/ Alice patch end 0007\n&/' "$path5"
+
+sed -i 's|^        coordinator\.waitForLayoutWithTab(tabId, provideAnimationData);$|        // Alice patch start 0007\
+        if (isShrink) {\
+            coordinator.waitForLayoutWithTab(tabId, provideAnimationData);\
+        } else {\
+            hubContainerView.postOnAnimation(provideAnimationData);\
+        }\
+        // Alice patch end 0007|' "$path5"
+
+sed -i '/^    private @Nullable PropertyModel mAwaitingModel;$/a\
+    // Alice patch start 0007\
+    private final Rect mAliceAwaitingGeometryRect = new Rect();\
+    private int mAliceAwaitingGeometryStableFrames;\
+    // Alice patch end 0007' "$path1"
+
+sed -i '/^        mAwaitingModel = mModelList.get(index)\.model;$/a\
+        // Alice patch start 0007\
+        mAliceAwaitingGeometryRect.setEmpty();\
+        mAliceAwaitingGeometryStableFrames = 0;\
+        // Alice patch end 0007' "$path1"
+
+sed -i '/^            assert assumeNonNull(holder\.model) == mAwaitingModel;$/i\
+            // Alice patch start 0007\
+            Rect aliceGeometryRect = mRecyclerView.getRectOfTabThumbnail(index);\
+            if (aliceGeometryRect.isEmpty()) {\
+                mRecyclerView.postOnAnimation(this::checkAwaitingLayout);\
+                return;\
+            }\
+            if (!aliceGeometryRect.equals(mAliceAwaitingGeometryRect)) {\
+                mAliceAwaitingGeometryRect.set(aliceGeometryRect);\
+                mAliceAwaitingGeometryStableFrames = 1;\
+                mRecyclerView.postOnAnimation(this::checkAwaitingLayout);\
+                return;\
+            }\
+            mAliceAwaitingGeometryStableFrames++;\
+            if (mAliceAwaitingGeometryStableFrames < 3) {\
+                mRecyclerView.postOnAnimation(this::checkAwaitingLayout);\
+                return;\
+            }\
+            mAliceAwaitingGeometryStableFrames = 0;\
+            // Alice patch end 0007\
+' "$path1"

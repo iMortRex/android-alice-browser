@@ -14,15 +14,26 @@ path7="chrome/browser/browser_controls/android/java/src/org/chromium/chrome/brow
 path8="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerCompat.java"
 path9="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 path10="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
+path11="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubAnimationConstants.java"
+path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
+path13="chrome/android/java/src/org/chromium/chrome/browser/hub/HubLayout.java"
+path14="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewTabAnimationLayout.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
 
+sed -i '/^import org\.chromium\.chrome\.browser\.hub\.HubExitNavigationHelper;$/a\
+// Alice patch start 0042\
+import org.chromium.chrome.browser.hub.HubAnimationConstants;\
+// Alice patch end 0042' "$path2"
+
 sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
     // Alice patch start 0042\
     private @Nullable Runnable mAliceFullscreenSnapshotReleaseRunnable;\
+    private final HubAnimationConstants.AliceHubAnimationProgressObserver\
+            mAliceHubAnimationProgressObserver;\
     // Alice patch end 0042' "$path2"
 
 sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
@@ -36,11 +47,134 @@ sed -i 's|^\( *\)mInTabSwitcherTransition = true;$|\1mInTabSwitcherTransition = 
 \1mCompositorViewHolder.setAliceHubViewportTransition(true);\
 \1\/\/ Alice patch end 0042|' "$path2"
 
+sed -i '/^        mHubManagerSupplier = hubManagerSupplier;$/a\
+        // Alice patch start 0042\
+        mAliceHubAnimationProgressObserver =\
+                (showingHub, fraction) -> {\
+                    if (mToolbarPositionController == null) return;\
+                    mToolbarPositionController.setAliceTabSwitcherBackgroundAlpha(\
+                            (showingHub || fraction < 0.95f) ? 0f : 1f);\
+                };\
+        HubAnimationConstants.setAliceHubAnimationProgressObserver(\
+                mAliceHubAnimationProgressObserver);\
+        // Alice patch end 0042' "$path2"
+
+sed -i '/^        mIsDestroyed = true;$/a\
+        // Alice patch start 0042\
+        HubAnimationConstants.removeAliceHubAnimationProgressObserver(\
+                mAliceHubAnimationProgressObserver);\
+        // Alice patch end 0042' "$path2"
+
 sed -i '/^                        if (layoutType == LayoutType.BROWSING) {$/a\
                             // Alice patch start 0042\
                             mCompositorViewHolder.setAliceHubViewportTransition(false);\
                             // Alice patch end 0042\
 ' "$path2"
+
+sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
+// Alice patch start 0042\
+import org.chromium.build.annotations.Nullable;\
+// Alice patch end 0042' "$path11"
+
+sed -i '/^public class HubAnimationConstants {$/a\
+    // Alice patch start 0042\
+    public interface AliceHubAnimationProgressObserver {\
+        void onProgress(boolean showingHub, float fraction);\
+    }\
+\
+    private static volatile @Nullable AliceHubAnimationProgressObserver\
+            sAliceHubAnimationProgressObserver;\
+\
+    public static void setAliceHubAnimationProgressObserver(\
+            @Nullable AliceHubAnimationProgressObserver observer) {\
+        sAliceHubAnimationProgressObserver = observer;\
+    }\
+\
+    public static void removeAliceHubAnimationProgressObserver(\
+            AliceHubAnimationProgressObserver observer) {\
+        if (sAliceHubAnimationProgressObserver == observer) {\
+            sAliceHubAnimationProgressObserver = null;\
+        }\
+    }\
+\
+    public static void notifyAliceHubAnimationProgress(boolean showingHub, float fraction) {\
+        AliceHubAnimationProgressObserver observer = sAliceHubAnimationProgressObserver;\
+        if (observer != null) observer.onProgress(showingHub, fraction);\
+    }\
+    // Alice patch end 0042\
+' "$path11"
+
+sed -i '/^        if (mAnimationTracker != null) {$/,/^        }$/c\
+        // Alice patch start 0042\
+        shrinkExpandAnimator.addUpdateListener(\
+                animation -> {\
+                    if (mAnimationTracker != null) mAnimationTracker.onUpdate();\
+                    notifyAliceHubAnimationProgress(animation.getAnimatedFraction());\
+                });\
+        // Alice patch end 0042' "$path12"
+
+sed -i '/^                        if (mAnimationTracker != null) mAnimationTracker.onStart();$/a\
+                        // Alice patch start 0042\
+                        notifyAliceHubAnimationProgress(0f);\
+                        // Alice patch end 0042' "$path12"
+
+sed -i '/^                            mAnimationTracker.onEnd();$/a\
+                        // Alice patch start 0042\
+                        notifyAliceHubAnimationProgress(1f);\
+                        // Alice patch end 0042' "$path12"
+
+sed -i '/^    private void resetState() {$/i\
+    // Alice patch start 0042\
+    private void notifyAliceHubAnimationProgress(float fraction) {\
+        if (mAnimationType != HubLayoutAnimationType.SHRINK_TAB\
+                \&\& mAnimationType != HubLayoutAnimationType.EXPAND_TAB) {\
+            return;\
+        }\
+        HubAnimationConstants.notifyAliceHubAnimationProgress(\
+                mAnimationType == HubLayoutAnimationType.SHRINK_TAB, fraction);\
+    }\
+    // Alice patch end 0042\
+\
+' "$path12"
+
+sed -i '/^        mOnToolbarAlphaChange = dependencyHolder\.getOnOverviewAlphaChange();$/c\
+        // Alice patch start 0042\
+        DoubleConsumer onToolbarAlphaChange =\
+                dependencyHolder.getOnOverviewAlphaChange();\
+        mOnToolbarAlphaChange =\
+                alpha -> {\
+                    onToolbarAlphaChange.accept(alpha);\
+                    if (isStartingToHide()) {\
+                        HubAnimationConstants.notifyAliceHubAnimationProgress(\
+                                false, 1f - (float) alpha);\
+                    } else if (isStartingToShow()) {\
+                        HubAnimationConstants.notifyAliceHubAnimationProgress(\
+                                true, (float) alpha);\
+                    }\
+                };\
+        // Alice patch end 0042' "$path13"
+
+sed -i '/^        mRootView = dependencyHolder\.getHubRootView();$/a\
+        // Alice patch start 0042\
+        View aliceHubAnimationLayer = mRootView;\
+        while (aliceHubAnimationLayer.getParent() instanceof View) {\
+            aliceHubAnimationLayer.setTranslationZ(1000f);\
+            View aliceHubAnimationParent = (View) aliceHubAnimationLayer.getParent();\
+            if (aliceHubAnimationParent.getId() == android.R.id.content) break;\
+            aliceHubAnimationLayer = aliceHubAnimationParent;\
+        }\
+        // Alice patch end 0042' "$path13"
+
+sed -i '/^        mAnimationHostView = animationHostView;$/a\
+        // Alice patch start 0042\
+        View aliceAnimationLayer = mAnimationHostView;\
+        while (aliceAnimationLayer.getParent() instanceof View) {\
+            aliceAnimationLayer.setTranslationZ(1000f);\
+            View aliceAnimationParent = (View) aliceAnimationLayer.getParent();\
+            if (aliceAnimationParent.getId() == android.R.id.content) break;\
+            aliceAnimationLayer = aliceAnimationParent;\
+        }\
+        // Alice patch end 0042' "$path14"
 
 # 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
 # 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。
@@ -802,6 +936,12 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
         updateWebContentsSize(getCurrentTab());\
         Runnable onReady = mAliceEntryTransitionReadyCallback;\
         mAliceEntryTransitionReadyCallback = null;\
+        if (onReady != null) {\
+            // requestRender 回调要等下一次完整的 compositor swap 才执行；全屏\
+            // 视频等场景下该帧可能永远不呈现，快照会残留。定时兜底隐藏，\
+            // 与正常路径重复执行也无害。\
+            postOnAnimationDelayed(onReady, ALICE_ENTRY_VIEWPORT_SETTLE_MS);\
+        }\
         requestRender(onReady);\
     }\
 \
@@ -830,7 +970,11 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                     .setExitingFullscreen(false);\
             mAliceEntryViewportPending = false;\
             mAliceExitViewportPending = false;\
+            Runnable aliceOnReady = mAliceEntryTransitionReadyCallback;\
             mAliceEntryTransitionReadyCallback = null;\
+            if (aliceOnReady != null) {\
+                aliceOnReady.run();\
+            }\
             removeCallbacks(mAliceEntryViewportCommit);\
             removeCallbacks(mAliceExitViewportCommit);\
             return;\
@@ -843,7 +987,11 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                         .setViewportSyncEnabled(false);\
                 mAliceEntryViewportPending = false;\
                 mAliceExitViewportPending = false;\
+                Runnable aliceOnReady = mAliceEntryTransitionReadyCallback;\
                 mAliceEntryTransitionReadyCallback = null;\
+                if (aliceOnReady != null) {\
+                    aliceOnReady.run();\
+                }\
                 removeCallbacks(mAliceEntryViewportCommit);\
                 removeCallbacks(mAliceExitViewportCommit);\
                 return;\
@@ -862,7 +1010,11 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
             mAliceEntryViewportStableFrames = 0;\
             mAliceEntryControlsHiddenRequested = false;\
             mAliceEntrySystemBarsWaitFrames = 0;\
+            Runnable aliceOnReady = mAliceEntryTransitionReadyCallback;\
             mAliceEntryTransitionReadyCallback = null;\
+            if (aliceOnReady != null) {\
+                aliceOnReady.run();\
+            }\
             removeCallbacks(mAliceEntryViewportCommit);\
             mAliceExitViewportPending = true;\
             mAliceExitViewportLockedHeight =\
@@ -978,6 +1130,7 @@ sed -i '/^    private void scheduleVisibilityUpdate() {$/i\
 sed -i '/^                                \.setExitingFullscreen(false);$/a\
                         // Alice patch start 0042\
                         mBottomControlsStacker.setAliceExitingFullscreen(false);\
+                        cancelAliceFullscreenSnapshotRelease();\
                         if (FullscreenManager.FullscreenTransitionState\
                                 .isEnteringFullscreen()) {\
                             if (mToolbarPositionController != null) {\
@@ -1045,8 +1198,11 @@ sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscree
         // Alice patch end 0042' "$path4"
 
 # 退出时直接把 browser controls 放到完全显示位置，不等待 SHOWN 动画。
-sed -i 's|^\( *\)mTab, BrowserControlsState.SHOWN, \(true\|false\));$|\1// Alice patch start 0042\
+sed -i 's|^\( *\)mTab, BrowserControlsState.SHOWN, true);$|\1// Alice patch start 0042\
 \1mTab, BrowserControlsState.SHOWN, false);\
+\1// Alice patch end 0042|' "$path4"
+sed -i 's|^\( *\)TabBrowserControlsConstraintsHelper\.update(mTab, BrowserControlsState\.SHOWN, true);$|\1// Alice patch start 0042\
+\1TabBrowserControlsConstraintsHelper.update(mTab, BrowserControlsState.SHOWN, false);\
 \1// Alice patch end 0042|' "$path4"
 
 # 退出期间强制无动画 SHOWN；正常浏览仍使用 BOTH 约束。

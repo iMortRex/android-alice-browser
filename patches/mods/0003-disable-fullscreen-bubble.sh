@@ -13,4 +13,4 @@ fi
 
 sed -i 's|^\( *\)public void show() {$|\1// Alice patch start 0003\n\1public void show() { if (true) return;\n\1// Alice patch end 0003|' "$path1"
 
-sed -i 's|^\( *\)public void update(String text) {$|\1// Alice patch start 0003\n\1public void update(String text) { if (true) return;\n\1// Alice patch end 0003|' "$path1"
+sed -i 's|^\( *\)public void update(@JniType("std::u16string") String text) {$|\1// Alice patch start 0003\n\1public void update(@JniType("std::u16string") String text) { if (true) return;\n\1// Alice patch end 0003|' "$path1"

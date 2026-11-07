@@ -190,22 +190,29 @@ sed -i '/^    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =$/i\
     // Alice patch end 0039\
 ' "$path3"
 
-sed -i '/^        initAliceRefinePref();$/a\
+sed -i '/^        initTabPositionPref();$/a\
         // Alice patch start 0039\
         initAliceSearchPageGradientPref();\
         // Alice patch end 0039\
 ' "$path3"
 
-sed -i '/^    private void initUiThemePref() {$/i\
+sed -i '/^    private void updateUiThemePref() {$/i\
     // Alice patch start 0039\
     /** Alice: 点击地址栏后是否让搜索页背景竖向渐隐。 */\
     private void initAliceSearchPageGradientPref() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference)\
                         findPreference(PREF_ALICE_SEARCH_PAGE_GRADIENT);\
-        String language =\
-                getResources().getConfiguration().getLocales().get(0).getLanguage();\
-        if ("zh".equals(language)) {\
+        boolean aliceUseChinese = false;\
+        android.os.LocaleList aliceLocales =\
+                getResources().getConfiguration().getLocales();\
+        for (int aliceIndex = 0; aliceIndex < aliceLocales.size(); aliceIndex++) {\
+            if ("zh".equals(aliceLocales.get(aliceIndex).getLanguage())) {\
+                aliceUseChinese = true;\
+                break;\
+            }\
+        }\
+        if (aliceUseChinese) {\
             switchPref.setTitle("搜索页背景渐隐");\
             switchPref.setSummary("点击地址栏后，搜索页背景上下渐隐，聚焦遮罩底边停在搜索框顶部");\
         }\

@@ -15,15 +15,35 @@ if grep -q 'Alice patch start 0025' "$path1"; then
     exit 100
 fi
 
-# 1) ChromeActivity：打开 DevTools 前，把目标浏览器窗口告诉原生层
-sed -i '/^            DevToolsWindowAndroid\.openDevTools(currentTab\.getWebContents());$/,/^            return true;$/c\
+# 1) ChromeActivity：三个入口打开 DevTools 前，把目标浏览器窗口告诉原生层
+sed -i '/^            DevToolsWindowAndroid\.openDevTools(webContents);$/i\
             // Alice patch start 0025\
-            ChromeAndroidTask task = getChromeAndroidTaskSupplier().get();\
-            if (task != null) {\
+            ChromeAndroidTask aliceDevToolsTask = getChromeAndroidTaskSupplier().get();\
+            if (aliceDevToolsTask != null) {\
                 DevToolsWindowAndroid.setTargetBrowserWindow(\
-                        task.getOrCreateNativeBrowserWindowPtr(currentTab.getProfile()));\
+                        aliceDevToolsTask.getOrCreateNativeBrowserWindowPtr(\
+                                currentTab.getProfile()));\
             }\
-            DevToolsWindowAndroid.openDevTools(currentTab.getWebContents());\
+            // Alice patch end 0025' "$path1"
+
+sed -i '/^            DevToolsWindowAndroid\.openDevToolsConsole(webContents);$/i\
+            // Alice patch start 0025\
+            ChromeAndroidTask aliceDevToolsTask = getChromeAndroidTaskSupplier().get();\
+            if (aliceDevToolsTask != null) {\
+                DevToolsWindowAndroid.setTargetBrowserWindow(\
+                        aliceDevToolsTask.getOrCreateNativeBrowserWindowPtr(\
+                                currentTab.getProfile()));\
+            }\
+            // Alice patch end 0025' "$path1"
+
+sed -i '/^            DevToolsWindowAndroid\.openDevToolsInspect(webContents);$/i\
+            // Alice patch start 0025\
+            ChromeAndroidTask aliceDevToolsTask = getChromeAndroidTaskSupplier().get();\
+            if (aliceDevToolsTask != null) {\
+                DevToolsWindowAndroid.setTargetBrowserWindow(\
+                        aliceDevToolsTask.getOrCreateNativeBrowserWindowPtr(\
+                                currentTab.getProfile()));\
+            }\
             // Alice patch end 0025' "$path1"
 
 # 2) DevToolsWindowAndroid：Java 入口

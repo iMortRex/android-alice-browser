@@ -31,7 +31,6 @@ sed -i '/^import android\.graphics\.Matrix;$/a\
 // Alice patch start 0040\
 import android.graphics.Paint;\
 import android.graphics.Rect;\
-import android.graphics.RectF;\
 import android.graphics.drawable.RippleDrawable;\
 // Alice patch end 0040' "$path2"
 
@@ -63,6 +62,12 @@ import java.util.HashSet;\
 import java.util.Map;\
 import java.util.Set;\
 // Alice patch end 0040' "$path2"
+
+sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/i\
+    // Alice patch start 0040\
+    public static final float ALICE_SNAPSHOT_VERTICAL_STRETCH_PX = 2.0f;\
+    // Alice patch end 0040\
+' "$path2"
 
 sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/a\
     // Alice patch start 0040\
@@ -132,7 +137,14 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
                 getTabThumbnailFromDisk(\
                         tabId, request.mThumbnailSize, request.mCallback);\
             } else {\
-                Callback.runNullSafe(request.mCallback, immediateBitmap);\
+                @Nullable Bitmap callbackBitmap =\
+                        copyAliceCompositedThumbnail(immediateBitmap);\
+                if (callbackBitmap == null) {\
+                    getTabThumbnailFromDisk(\
+                            tabId, request.mThumbnailSize, request.mCallback);\
+                } else {\
+                    Callback.runNullSafe(request.mCallback, callbackBitmap);\
+                }\
             }\
         }\
     }\
@@ -284,35 +296,13 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
             int alicePageBottom = thumbnail.getHeight();\
             int contentTop = toolbarOnBottom ? 0 : toolbarHeight;\
             int toolbarTop = toolbarOnBottom ? alicePageBottom : 0;\
-            int baseResultHeight =\
+            int resultHeight =\
                     toolbarOnBottom\
                             ? toolbarTop + toolbarHeight + navigationHeight\
-                            : toolbarHeight + thumbnail.getHeight() + navigationHeight;\
+                            : toolbarHeight + alicePageBottom;\
 \
-            Bitmap baseResult =\
-                    Bitmap.createBitmap(\
-                            thumbnail.getWidth(), baseResultHeight, Bitmap.Config.ARGB_8888);\
-            Canvas canvas = new Canvas(baseResult);\
-            if (toolbarOnBottom) {\
-                Rect alicePageDestination =\
-                        new Rect(\
-                                0,\
-                                0,\
-                                thumbnail.getWidth(),\
-                                alicePageBottom);\
-                Paint alicePagePaint = new Paint(Paint.FILTER_BITMAP_FLAG);\
-                canvas.drawBitmap(thumbnail, null, alicePageDestination, alicePagePaint);\
-            } else {\
-                canvas.drawBitmap(thumbnail, 0, contentTop, null);\
-            }\
-\
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);\
-            Rect destination = new Rect();\
-            destination.set(0, toolbarTop, thumbnail.getWidth(), toolbarTop + toolbarHeight);\
-            canvas.drawBitmap(toolbarBitmap, null, destination, paint);\
-\
-            if (navigationHeight > 0) {\
-                int navigationColor = 0;\
+            int navigationColor = 0;\
+            if (toolbarOnBottom \&\& navigationHeight > 0) {\
                 if (toolbarView != null\
                         \&\& toolbarView.getBackground()\
                                 instanceof android.graphics.drawable.ColorDrawable) {\
@@ -326,32 +316,37 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
                             toolbarBitmap.getPixel(\
                                     0, Math.max(0, toolbarBitmap.getHeight() - 1));\
                 }\
-                paint.setColor(navigationColor);\
-                canvas.drawRect(\
-                        0,\
-                        baseResultHeight - navigationHeight,\
-                        thumbnail.getWidth(),\
-                        baseResultHeight,\
-                        paint);\
             }\
-            if (!toolbarOnBottom) return baseResult;\
 \
-            // Stretch the merged page and toolbar downward by 1px.\
-            int resultHeight = baseResultHeight + 1;\
             Bitmap result =\
                     Bitmap.createBitmap(\
                             thumbnail.getWidth(), resultHeight, Bitmap.Config.ARGB_8888);\
-            result.eraseColor(baseResult.getPixel(0, baseResultHeight - 1));\
-            Canvas stretchedCanvas = new Canvas(result);\
-            RectF stretchedDestination =\
-                    new RectF(\
-                            0,\
-                            0,\
-                            thumbnail.getWidth(),\
-                            baseResultHeight + 1.0f);\
-            Paint stretchedPaint = new Paint(Paint.FILTER_BITMAP_FLAG);\
-            stretchedCanvas.drawBitmap(baseResult, null, stretchedDestination, stretchedPaint);\
-            baseResult.recycle();\
+            result.eraseColor(\
+                    toolbarOnBottom \&\& navigationHeight > 0\
+                            ? navigationColor\
+                            : toolbarBitmap.getPixel(\
+                                    0, Math.max(0, toolbarBitmap.getHeight() - 1)));\
+            Canvas canvas = new Canvas(result);\
+            if (toolbarOnBottom) {\
+                canvas.scale(\
+                        1.0f,\
+                        (resultHeight + ALICE_SNAPSHOT_VERTICAL_STRETCH_PX) / resultHeight);\
+            }\
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);\
+            canvas.drawBitmap(thumbnail, 0, contentTop, paint);\
+            Rect destination = new Rect();\
+            destination.set(0, toolbarTop, thumbnail.getWidth(), toolbarTop + toolbarHeight);\
+            canvas.drawBitmap(toolbarBitmap, null, destination, paint);\
+\
+            if (navigationHeight > 0) {\
+                paint.setColor(navigationColor);\
+                canvas.drawRect(\
+                        0,\
+                        resultHeight - navigationHeight,\
+                        thumbnail.getWidth(),\
+                        resultHeight,\
+                        paint);\
+            }\
             return result;\
         } catch (OutOfMemoryError ex) {\
             return null;\
@@ -642,11 +637,21 @@ sed -i '/^        int aliceToolbarHeight = toolbarView == null ? 0 : toolbarView
                                 : Math.max(0, bottomControlsHeight - bottomMargin);\
         // Alice patch end 0040' "$path5"
 
-# 11) 缩略图尺寸向下取整，避免底边因非整数缩放而发糊
-sed -i '/^        gfx::Size thumbnail_size($/,/^        gfx::ScaleToCeiledSize(view_size_in_pixels, thumbnail_scale_));$/c\
+# 11) 用整数目标宽度对应的实际比例计算高度，避免网页与工具栏缩放基准不一致
+sed -i '/^#include <cstdint>$/i\
+// Alice patch start 0040\
+#include <cmath>\
+// Alice patch end 0040' "$path3"
+
+sed -i '/^    gfx::Size thumbnail_size($/,/^        gfx::ScaleToCeiledSize(view_size_in_pixels, thumbnail_scale_));$/c\
         // Alice patch start 0040\
-        gfx::Size thumbnail_size(\
-            gfx::ScaleToFlooredSize(view_size_in_pixels, thumbnail_scale_));\
+        const int thumbnail_width =\
+            std::lround(view_size_in_pixels.width() * thumbnail_scale_);\
+        const float aligned_scale =\
+            static_cast<float>(thumbnail_width) / view_size_in_pixels.width();\
+        const int thumbnail_height =\
+            std::lround(view_size_in_pixels.height() * aligned_scale);\
+        gfx::Size thumbnail_size(thumbnail_width, thumbnail_height);\
         // Alice patch end 0040' "$path3"
 
 # 12) 不降采样时直接桥接原始 Bitmap，避免同尺寸 Resize 把网页底边重采样发糊
@@ -670,7 +675,7 @@ sed -i '/^  in_flight_captures_\.erase(tab_id);$/a\
   // Alice patch end 0040' "$path3"
 
 # 14) 工具栏横滑切换前缓存当前网页标签，避免离开后缩略图仍为空
-sed -i '/^        if (tab != null \&\& tab\.isNativePage\(\)) {$/,/^        }$/c\
+sed -i '/^        if (tab != null [&][&] tab\.isNativePage()) {$/,/^        }$/c\
         // Alice patch start 0040\
         if (tab != null) {\
             assumeNonNull(mTabContentManager);\

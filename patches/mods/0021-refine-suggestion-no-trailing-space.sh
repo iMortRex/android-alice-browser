@@ -27,17 +27,24 @@ sed -i 's|^import org.chromium.chrome.browser.preferences.Pref;$|// Alice patch 
 
 sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n    // Alice patch start 0021\n    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =\n            "alice_refine_trailing_space_switch";\n    // Alice patch end 0021|' "$path3"
 
-sed -i 's|^        initUiThemePref();$|        // Alice patch start 0021\n        initUiThemePref();\n        initAliceRefinePref();\n        // Alice patch end 0021|' "$path3"
+sed -i 's|^        initTabPositionPref();$|        // Alice patch start 0021\n        initTabPositionPref();\n        initAliceRefinePref();\n        // Alice patch end 0021|' "$path3"
 
-sed -i '/^    private void initUiThemePref() {$/i\
+sed -i '/^    private void updateUiThemePref() {$/i\
     // Alice patch start 0021\
     /** Alice: 地址栏建议 refine 后是否补空格的开关。 */\
     private void initAliceRefinePref() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference) findPreference(PREF_ALICE_REFINE_TRAILING_SPACE);\
-        String language =\
-                getResources().getConfiguration().getLocales().get(0).getLanguage();\
-        if ("zh".equals(language)) {\
+        boolean aliceUseChinese = false;\
+        android.os.LocaleList aliceLocales =\
+                getResources().getConfiguration().getLocales();\
+        for (int aliceIndex = 0; aliceIndex < aliceLocales.size(); aliceIndex++) {\
+            if ("zh".equals(aliceLocales.get(aliceIndex).getLanguage())) {\
+                aliceUseChinese = true;\
+                break;\
+            }\
+        }\
+        if (aliceUseChinese) {\
             switchPref.setTitle("修改搜索查询时在末尾补空格");\
             switchPref.setSummary(\
                     "在地址栏建议里点“修改搜索查询”后，填入搜索框的内容末尾补一个空格");\

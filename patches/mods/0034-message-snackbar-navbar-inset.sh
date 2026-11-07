@@ -13,6 +13,8 @@ path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chr
 path7="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/EdgeToEdgeSystemBarColorHelper.java"
 path9="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path10="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+path11="chrome/android/java/res_app/layout/main.xml"
+path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubCoordinator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0034' "$path1"; then
@@ -396,22 +398,17 @@ sed -i '/^        int windowNavColor = mIsActivityEdgeToEdge ? Color\.TRANSPAREN
         // Alice patch start 0034\
         boolean aliceImeVisible = isAliceImeVisible();\
         int windowNavColor =\
-                aliceImeVisible\
-                        ? mNavBarColor\
-                        : mIsActivityEdgeToEdge ? Color.TRANSPARENT : mNavBarColor;\
+                aliceImeVisible ? mNavBarColor : Color.TRANSPARENT;\
         // Alice patch end 0034' "$path7"
 sed -i '/^        int windowNavDividerColor = mIsActivityEdgeToEdge ? Color\.TRANSPARENT : mNavBarDividerColor;$/c\
         // Alice patch start 0034\
         int windowNavDividerColor =\
-                aliceImeVisible\
-                        ? mNavBarDividerColor\
-                        : mIsActivityEdgeToEdge\
-                                ? Color.TRANSPARENT\
-                                : mNavBarDividerColor;\
+                aliceImeVisible ? mNavBarDividerColor : Color.TRANSPARENT;\
         // Alice patch end 0034' "$path7"
 
+sed -i 's|^        mWindowColorHelper\.setNavigationBarContrastEnforced(!mIsActivityEdgeToEdge);$|        // Alice patch start 0034\n        mWindowColorHelper.setNavigationBarContrastEnforced(false);\n        // Alice patch end 0034|' "$path7"
 
-sed -i '/^        mWindowColorHelper.setNavigationBarContrastEnforced(!mIsActivityEdgeToEdge);$/a\
+sed -i '/^        mWindowColorHelper.setNavigationBarContrastEnforced(false);$/a\
         // Alice patch start 0034\
         if (aliceImeVisible) {\
             mWindow.clearFlags(\
@@ -739,33 +736,10 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/a\
                 (mAliceInsetObserver != null\
                                 && mAliceInsetObserver.getCurrentImeAnimationHeight() > 0)\
                         ||' "$path1"
-sed -i '/^        int aliceImeHeight = aliceImeAnimating$/,/^        int aliceRestingBottomMargin =$/c\
-        int aliceImeHeight =\
-                aliceImeAnimating\
-                        ? Math.max(0, aliceEffectiveImeAnimationHeight)\
-                        : Math.max(\
-                                0,\
-                                mAliceInsetObserver != null\
-                                        ? mAliceInsetObserver\
-                                                .getCurrentImeAnimationHeight()\
-                                        : 0);\
-        int aliceRestingBottomMargin =' "$path1"
-
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/a\
                 (mAliceInsetObserver != null\
                                 && mAliceInsetObserver.getCurrentImeAnimationHeight() > 0)\
                         ||' "$path2"
-sed -i '/^        int aliceImeHeight = aliceImeAnimating$/,/^        int aliceRestingBottomMargin = aliceToolbarBottomMargin + aliceNavigationBarHeight;$/c\
-        int aliceImeHeight =\
-                aliceImeAnimating\
-                        ? Math.max(0, aliceEffectiveImeAnimationHeight)\
-                        : Math.max(\
-                                0,\
-                                mAliceInsetObserver != null\
-                                        ? mAliceInsetObserver\
-                                                .getCurrentImeAnimationHeight()\
-                                        : 0);\
-        int aliceRestingBottomMargin = aliceToolbarBottomMargin + aliceNavigationBarHeight;' "$path2"
 
 # 12) 气泡首次显示前先完成定位，避免旧布局位置先绘制一帧。
 sed -i '/^        if (mContainer\.getVisibility() != View\.VISIBLE) {$/c\
@@ -890,7 +864,7 @@ sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRes
 
 # 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
-sed -i '/^        if (mKeyboardInsets != null && mKeyboardInsets\.bottom > bottomPadding) {$/,/^        }$/c\
+sed -i '/^        if (isKeyboardInsetTallerThanNavBar()) {$/,/^        }$/c\
         // Alice patch start 0034\
         // ADJUST_RESIZE already accounts for the keyboard. Do not add its height\
         // to content padding a second time.\
@@ -952,3 +926,69 @@ sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
         }\
         // Alice patch end 0034\
 ' "$path10"
+
+# 17) Hub 标签页预览（缩略图/展开动画）在 bottom_container 之后绘制，
+#     会盖住撤销气泡。把 bottom_container 移到 tab_switcher_view_holder_stub
+#     之后，让气泡位于 Hub 预览动画之上。forked 布局已经是这个顺序，无需处理。
+sed -i '/^        <org.chromium.chrome.browser.ui.BottomContainer$/{:a;N;/android:layout_gravity="start[|]bottom" \/>$/{N;d};ba}' "$path11"
+
+sed -i '/^            android.layout="@layout\/tab_switcher_view_holder" \/>$/a\
+\
+        <org.chromium.chrome.browser.ui.BottomContainer\
+            android:id="@+id/bottom_container"\
+            android:layout_width="match_parent"\
+            android:layout_height="wrap_content"\
+            android:layout_gravity="start|bottom" />' "$path11"
+
+# 18) Hub 的标签预览动画（ShrinkExpandImageView）是 HubContainerView 的最后一个
+#     子视图，会盖住 pane host 里的 snackbar 容器。把 snackbar 容器提升为
+#     HubContainerView 的直接子视图，并让预览动画插到它之前绘制，撤销气泡因此
+#     保持在 Hub 内容与动画之上。
+sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);$/a\
+        // Alice patch start 0034\
+        // Pin the hub snackbar container to HubContainerView so the undo bubble stays\
+        // above the shrink/expand preview animation.\
+        {\
+            View alicePinnedSnackbarContainer =\
+                    hubPaneHostView.findViewById(R.id.pane_host_view_snackbar_container);\
+            if (alicePinnedSnackbarContainer != null\
+                    \&\& alicePinnedSnackbarContainer.getParent() instanceof ViewGroup) {\
+                ((ViewGroup) alicePinnedSnackbarContainer.getParent())\
+                        .removeView(alicePinnedSnackbarContainer);\
+                alicePinnedSnackbarContainer.setTag("alice_hub_snackbar_container");\
+                mContainerView.addView(alicePinnedSnackbarContainer);\
+            }\
+        }\
+        // Alice patch end 0034' "$path12"
+
+# 19) 撤销气泡的消失动画只移动到父容器底边。父容器 bottom_container 会被浏览器
+#     控件向上平移，所以动画停在导航栏上方。补上父容器到窗口底部的距离，并关闭
+#     父容器裁剪，让气泡一直滑出屏幕底部。
+sed -i '/^    protected int getYPositionForMoveAnimation() {$/,/^    }$/c\
+    protected int getYPositionForMoveAnimation() {\
+        // Alice patch start 0034\
+        return mContainerView.getHeight()\
+                + getLayoutParams().bottomMargin\
+                + getAliceParentBottomInset();\
+        // Alice patch end 0034\
+    }' "$path1"
+
+sed -i '/^    private void addToParent() {$/,/^    }$/c\
+    private void addToParent() {\
+        // Alice patch start 0034\
+        // Allow the snackbar to slide past the parent bottom while dismissing.\
+        mParent.setClipChildren(false);\
+        // Alice patch end 0034\
+        mParent.addView(mContainerView);\
+        mParent.addOnLayoutChangeListener(mLayoutListener);\
+    }' "$path1"
+
+# 20) Hub 的 snackbar 容器贴在 HubContainerView 底部（等于窗口底部），它的屏幕位置
+#     会随首次布局 / Hub 动画变化。参与底边距补偿时，首帧会算出一个很大的 inset，
+#     把 margin 压成 0，气泡就贴在容器底边（导航栏上方）。这里识别该容器、跳过补偿，
+#     始终使用「容器底边 - target」的稳定位置。
+sed -i '/^    private int getAliceParentBottomInset() {$/a\
+        // Alice patch start 0034\
+        // Hub 内部容器贴底，其视觉位置会随首次布局 / Hub 动画变化，不做底边距补偿。\
+        if ("alice_hub_snackbar_container".equals(mParent.getTag())) return 0;\
+        // Alice patch end 0034' "$path1"

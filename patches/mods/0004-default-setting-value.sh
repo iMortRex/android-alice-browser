@@ -58,4 +58,3 @@ sed -i '/^std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(/,/^}$/
 
 # --- 地址栏默认底部（这里有两条互相牵制的替换，保持原样加 TODO 注释） ---
 sed -i '0,/^            ToolbarPositionAndSource\.TOP_SETTINGS;$/{s|^\( *\)ToolbarPositionAndSource\.TOP_SETTINGS;$|\1// Alice patch start 0004\n\1ToolbarPositionAndSource.BOTTOM_SETTINGS;\n\1// Alice patch end 0004|}' "$path2"
-sed -i 'N;s|if (isInBottomPosition) return ToolbarPositionAndSource.BOTTOM_SETTINGS;\n        return DEFAULT_POSITION_AND_SOURCE;|if (isInBottomPosition) return ToolbarPositionAndSource.BOTTOM_SETTINGS;\n        return ToolbarPositionAndSource.TOP_SETTINGS;|' "$path2"

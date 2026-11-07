@@ -26,7 +26,7 @@ sed -i '/^    static final WritableIntPropertyKey TOP_INSET_PX = new WritableInt
     static final WritableIntPropertyKey BOTTOM_INSET_PX = new WritableIntPropertyKey();\
     // Alice patch end 0008' "$path1"
 
-sed -i 's|^\( *\)DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, TRANSITION_Y,$|\1// Alice patch start 0008\n\1DELEGATE, ON_LAYOUT_CHANGE_LISTENER, SEARCH_BOX_VIEW, TOP_INSET_PX, BOTTOM_INSET_PX, TRANSITION_Y,\n\1// Alice patch end 0008|' "$path1"
+sed -i 's|^        TOP_INSET_PX,$|        // Alice patch start 0008\n        TOP_INSET_PX,\n        BOTTOM_INSET_PX,\n        // Alice patch end 0008|' "$path1"
 
 # --- 2) ViewBinder：新增分支写 paddingBottom ---
 sed -i '/^import static org\.chromium\.chrome\.browser\.ntp\.NewTabPageLayoutProperties\.DELEGATE;$/i\

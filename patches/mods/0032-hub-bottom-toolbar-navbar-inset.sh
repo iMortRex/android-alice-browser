@@ -46,31 +46,25 @@ if grep -q 'Alice patch start 0032' "$path1"; then
 fi
 
 # 1) 3 键导航也启用底部 edge-to-edge
-sed -i '/^    public static boolean isEdgeToEdgeBottomChinEnabled(Activity activity) {$/,/^    }$/c\
-    public static boolean isEdgeToEdgeBottomChinEnabled(Activity activity) {\
-        // Alice patch start 0032\
-        if (activity == null || activity.getWindow() == null) return false;\
-        if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(activity)\
-                && (!isEdgeToEdgeTabletEnabled() || !isSupportedTablet(activity))) {\
-            return false;\
-        }\
-        return !DeviceInfo.isAutomotive();\
-        // Alice patch end 0032\
-    }' "$path1"
+sed -i 's|^        return !DeviceInfo\.isAutomotive() \&\& !hasTappableNavigationBar(activity\.getWindow());$|        // Alice patch start 0032\n        return !DeviceInfo.isAutomotive();\n        // Alice patch end 0032|' "$path1"
 
-sed -i '/^    static boolean isSupportedByConfiguration(/,/^    }$/c\
-    static boolean isSupportedByConfiguration(Activity activity, InsetObserver insetObserver) {\
+sed -i '/^    static boolean isBottomChinSupportedByConfiguration(/,/^    }$/c\
+    static boolean isBottomChinSupportedByConfiguration(\
+            Activity activity, InsetObserver insetObserver) {\
         // Alice patch start 0032\
-        return EdgeToEdgeUtils.isEdgeToEdgeBottomChinEnabled(activity);\
+        return EdgeToEdgeUtils.isEdgeToEdgeBottomChinSupportedByDevice(activity);\
         // Alice patch end 0032\
     }' "$path2"
-sed -i '/^        \/\/ Exit early if there is a tappable navbar (3-button) as the controller should not function$/,/^        }$/d' "$path2"
-sed -i '/^        boolean shouldDrawToEdge =$/,/^                        pageOptedIntoEdgeToEdge, currentLayoutType, mSystemInsets.bottom);$/c\
+sed -i '/^        \/\/ Exit early if there is a tappable navbar (3-button) as bottom edge to edge should not$/,/^        }$/c\
         // Alice patch start 0032\
-        boolean shouldDrawToEdge =\
+        // 3-button navigation is handled by the patched configuration check.\
+        // Alice patch end 0032' "$path2"
+sed -i '/^        boolean shouldDrawToBottomEdge =$/,/^                        pageOptedIntoBottomEdgeToEdge, currentLayoutType, mSystemInsets.bottom);$/c\
+        // Alice patch start 0032\
+        boolean shouldDrawToBottomEdge =\
                 !mActivity.isInMultiWindowMode()\
-                        \&\& EdgeToEdgeUtils.shouldDrawToEdge(\
-                                pageOptedIntoEdgeToEdge,\
+                        \&\& EdgeToEdgeUtils.shouldDrawToBottomEdge(\
+                                pageOptedIntoBottomEdgeToEdge,\
                                 currentLayoutType,\
                                 mSystemInsets.bottom);\
         // Alice patch end 0032' "$path2"
@@ -379,10 +373,6 @@ sed -i '/^import android\.graphics\.Color;$/a\
 // Alice patch start 0032\
 import android.graphics.drawable.ColorDrawable;\
 // Alice patch end 0032' "$path6"
-sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider\.ControlsPosition;$/a\
-// Alice patch start 0032\
-import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
-// Alice patch end 0032' "$path6"
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomOverscrollHandler;$/a\
 // Alice patch start 0032\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
@@ -527,6 +517,22 @@ sed -i '/^                    viewportRectf.round(viewportRect);$/a\
                         viewportRect.bottom = aliceWindowViewportRect.bottom;\
                     }\
                     // Alice patch end 0032' "$path21"
+
+sed -i '/^                    if (!isTopToolbar \&\& !BottomBarConfigUtils\.isBottomBarEnabled(context)) {$/,/^                    }$/c\
+                    if (!isTopToolbar \&\& !BottomBarConfigUtils.isBottomBarEnabled(context)) {\
+                        // TODO(crbug.com/390714662): This is a temporary fix and should be removed\
+                        // once the fade-in and fade-out behavior of the bottom toolbar is\
+                        // implemented.\
+                        // When the bottom toolbar is visible, the tab\x27s view must extend all the\
+                        // way to the bottom to prevent the tab switcher from being visible behind\
+                        // it during animations.\
+                        RectF windowViewportRectf = new RectF();\
+                        Rect windowViewportRect = new Rect();\
+                        viewHolder.getWindowViewport(windowViewportRectf);\
+                        windowViewportRectf.round(windowViewportRect);\
+                        viewportRect.bottom = windowViewportRect.bottom;\
+                    }\
+                    ' "$path21"
 
 sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0032\

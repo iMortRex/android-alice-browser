@@ -17,10 +17,7 @@ fi
 sed -i 's|^\( *\)<dimen name="omnibox_search_engine_logo_composed_half_size">12dp</dimen>$|\1<!-- Alice patch start 0020 -->\n\1<dimen name="omnibox_search_engine_logo_composed_half_size">6dp</dimen>\n\1<!-- Alice patch end 0020 -->|' "$path2"
 
 # 2) beginInput 里统一成同一个 dimen
-sed -i '/^                OmniboxFeatures\.sPreviewMatchFavicons\.isEnabled()$/,/^                        : R\.dimen\.omnibox_search_engine_logo_composed_half_size;$/c\
-                // Alice patch start 0020\
-                R.dimen.omnibox_search_engine_logo_composed_half_size;\
-                // Alice patch end 0020' "$path3"
+sed -i 's|^                mResourceProvider\.getStatusIconCornerRadiusRes(/\* focused= \*/ true));$|                // Alice patch start 0020\n                R.dimen.omnibox_search_engine_logo_composed_half_size);\n                // Alice patch end 0020|' "$path3"
 
 # 3) StatusView：启用 outline provider，否则图标是方的
 sed -i 's|^        mIconView\.setClipToOutline(true);$|        // Alice patch start 0020\n        // Alice: round-search-engine-icon -- 2dp 圆角（启用 outline provider，否则图标是方的）。\n        mIconView.setOutlineProvider(mIconCornerRadiusProvider);\n        mIconView.setClipToOutline(true);\n        // Alice patch end 0020|' "$path1"
