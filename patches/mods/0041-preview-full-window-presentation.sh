@@ -13,6 +13,7 @@ path7="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/to
 path9="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetCoordinator.java"
 path10="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabMediator.java"
 path11="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetMediator.java"
+pathHub="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
@@ -365,6 +366,22 @@ sed -i '/^        if (!bottomMarginChanged) return;$/i\
         updateAliceNavBarHeight();\
 // Alice patch end 0041\
 ' "$path9"
+
+# Alice: clamp the shrink/expand animation rects' bottom to the top of the bottom
+# buttons so the animated preview occasionally does not lag behind the grid cards.
+sed -i '/^        Rect finalRect = animationData\.getFinalRect();$/a\
+// Alice patch start 0040\
+// Alice: occasionally the animation rects extend behind the bottom toolbar;\
+// clamp their bottom to the top of the bottom buttons so the animated\
+// preview stays in sync with the grid cards.\
+if (toolbarView != null \&\& !animationData.isTopToolbar()) {\
+    int aliceBottomMargin = animationData.getBottomMargin();\
+    int aliceButtonsTop = mHubContainerView.getHeight() - aliceBottomMargin;\
+    initialRect.bottom = Math.min(initialRect.bottom, aliceButtonsTop);\
+    finalRect.bottom = Math.min(finalRect.bottom, aliceButtonsTop);\
+}\
+// Alice patch end 0040\
+' "$pathHub"
 
 sed -i '/^    private void updateAliceNavBarHeight() {$/,/^    }$/c\
     // Alice patch start 0041\

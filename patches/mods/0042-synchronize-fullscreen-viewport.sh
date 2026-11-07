@@ -343,6 +343,28 @@ sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
 \
 ' "$path9"
 
+sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/c\
+        // Alice patch start 0042\
+        int aliceViewTranslationY = layerYOffset;\
+        if (layer == mBottomToolbarLayer\
+                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
+                \&\& FullscreenManager.FullscreenTransitionState\
+                        .isExitingFullscreen()) {\
+            int aliceNavigationBarHeight =\
+                    mAliceFullscreenCapturedNavigationBarHeight;\
+            if (aliceNavigationBarHeight <= 0) {\
+                aliceNavigationBarHeight = getNavigationBarHeight();\
+            }\
+            if (aliceNavigationBarHeight > 0) {\
+                aliceViewTranslationY =\
+                        Math.max(\
+                                -aliceNavigationBarHeight,\
+                                layerYOffset - aliceNavigationBarHeight);\
+            }\
+        }\
+        viewForLayer.setTranslationY(aliceViewTranslationY);\
+        // Alice patch end 0042' "$path9"
+
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
     // Alice patch start 0042\
     private int getFullscreenSnapshotNavigationBarHeight() {\
