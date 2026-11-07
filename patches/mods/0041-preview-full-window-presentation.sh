@@ -13,7 +13,17 @@ path7="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/to
 path9="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetCoordinator.java"
 path10="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabMediator.java"
 path11="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetMediator.java"
-pathHub="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
+path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
+path13="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
+pathTabUi="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
+pathAnimData="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
+sed -i '/^    private int mBottomBarHeight;$/a\
+// Alice patch start 0041\
+    // Alice: generation counter for the deferred shrink/expand rect captures.\
+    private int mAliceCaptureGeneration;\
+// Alice patch end 0041\
+' "$pathTabUi"
+
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
@@ -381,7 +391,99 @@ if (toolbarView != null \&\& !animationData.isTopToolbar()) {\
     finalRect.bottom = Math.min(finalRect.bottom, aliceButtonsTop);\
 }\
 // Alice patch end 0040\
-' "$pathHub"
+' "$path12"
+
+# Alice: restore the edge-to-edge drawing state immediately on fullscreen exit;
+# the inset event that re-enables it arrives a moment late, which briefly left
+# the page un-avoiding the navigation bar.
+# Alice: gate the bottom chin on the stable fullscreen state; the dispatched
+# drawing flag goes stale during rotation and fullscreen transitions, which
+# briefly removed the navigation-bar avoidance.
+# Alice: the pre-fullscreen inset memory and the exit-instant force flag.
+sed -i '/^    private boolean mIsDrawingToEdge;$/a\
+// Alice patch start 0041\
+    // Alice: the inset captured before fullscreen and a force flag for the exit\
+    // instant, because the fullscreen flag and the inset event clear a moment late.\
+    private int mAliceInsetBeforeFullscreen;\
+    private boolean mAliceForceChin;\
+// Alice patch end 0041\
+' "$path13"
+
+sed -i '/^    private void updateHeightAndVisibility() {$/,/^        int newHeight = mIsDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;$/c\
+    private void updateHeightAndVisibility() {\
+        // Alice patch start 0032\
+        // Alice: gate on the stable fullscreen state; the dispatched drawing flag\
+        // goes stale during rotation and fullscreen transitions, which briefly\
+        // removed the navigation-bar avoidance.\
+        boolean aliceDrawingToEdge =\
+                mAliceForceChin\
+                        || (!mFullscreenManager.getPersistentFullscreenMode()\
+                                \&\& (mIsDrawingToEdge\
+                                        || mEdgeToEdgeBottomInsetPx > 0));\
+        int newHeight = aliceDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;\
+'
+# Alice: capture the pre-fullscreen inset on enter, restore it at the exit
+# instant (the fullscreen flag and the inset event clear a moment late), and
+# drop the force once the authoritative inset state arrives.
+sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/,/^    }$/c\
+    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {\
+// Alice patch start 0041\
+        // Alice: remember the pre-fullscreen inset for the instant exit restore.\
+        mAliceInsetBeforeFullscreen = mEdgeToEdgeBottomInsetPx;\
+        updateHeightAndVisibility();\
+// Alice patch end 0041\
+    }\
+' "$path13"
+
+sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^    }$/c\
+    public void onExitFullscreen(Tab tab) {\
+// Alice patch start 0041\
+        // Alice: at the exit instant the fullscreen flag has not cleared yet, so\
+        // restore the pre-fullscreen inset and force the chin on for this frame.\
+        if (mAliceInsetBeforeFullscreen > 0) {\
+            mEdgeToEdgeBottomInsetPx = mAliceInsetBeforeFullscreen;\
+            mIsDrawingToEdge = true;\
+            mAliceForceChin = true;\
+        }\
+        updateHeightAndVisibility();\
+// Alice patch end 0041\
+    }\
+' "$path13"
+
+sed -i '/^    public void onToEdgeChange(\$/i\
+// Alice patch start 0041\
+// Alice: the authoritative inset state arrived; drop the exit force.\
+' "$path13"
+
+sed -i '/^        mEdgeToEdgeBottomInsetPx = bottomInset;$/a\
+// Alice patch start 0041\
+        mAliceForceChin = false;\
+// Alice patch end 0041\
+' "$path13"
+
+# Alice: the chin visibility uses the same stable gate.
+sed -i '/^        boolean newVisibility =$/,/^                        \&\& !isKeyboardVisible;$/c\
+        boolean newVisibility =\
+                aliceDrawingToEdge\
+                        \&\& isBottomChinAllowed(\
+                                mLayoutManager.getActiveLayoutType(), mEdgeToEdgeBottomInsetPx)\
+                        \&\& !isKeyboardVisible;\
+'
+
+# Alice: hide the stale shrink/expand preview image when a newer animation
+# supersedes it; rapid switching and grid scrolling left it lingering offset.
+sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData animationData) {$/,/^    }$/c\
+    private void onAnimationDataAvailable(ShrinkExpandAnimationData animationData) {\
+        if (mShrinkExpandImageView == null) return;\
+        if (mAnimatorSupplier.get() != null) {\
+// Alice patch start 0041\
+            // Alice: a newer switch superseded the supplied animation; hide the\
+            // stale preview image so it does not linger offset over the grid.\
+            mShrinkExpandImageView.setVisibility(View.INVISIBLE);\
+            return;\
+// Alice patch end 0041\
+        }
+' "$path12"
 
 sed -i '/^    private void updateAliceNavBarHeight() {$/,/^    }$/c\
     // Alice patch start 0041\
@@ -410,6 +512,24 @@ sed -i '/^    public void setProgressVisible(boolean visible) {$/,/^    }$/c\
 // Alice patch end 0041\
     }\
 ' "$path3"
+
+# Alice: capture the shrink animation's thumbnail rect one frame after the tab
+# grid layout settles; capturing inline occasionally reads a not-yet-final card
+# position, which offsets the animated preview.
+sed -i '/^        Runnable provideAnimationData =$/i\
+// Alice patch start 0041\
+        // Alice: rapid tab switching can leave several deferred captures in flight;\
+        // only the newest one may publish its rects.\
+        final int aliceCaptureGeneration = ++mAliceCaptureGeneration;\
+// Alice patch end 0041\
+' "$pathTabUi"
+
+sed -i '/^        Runnable provideAnimationData =$/a\
+// Alice patch start 0041\
+        if (aliceCaptureGeneration != mAliceCaptureGeneration) return;\
+// Alice patch end 0041\
+' "$pathTabUi"
+
 
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     // Alice patch start 0041\
@@ -1184,3 +1304,203 @@ sed -i '/^    @Nullable$/i\
     // Alice patch end 0041\
 \
 ' "$path3"
+
+# Alice: the shrink/expand animation queries the grid card rect live on every
+# frame, so a grid that scrolls or relayouts mid-animation cannot desync the
+# preview image from the cards.
+sed -i '/^import android\.util\.Size;$/a\
+// Alice patch start 0041\
+import java.util.function.Supplier;\
+// Alice patch end 0041' "$pathAnimData"
+
+sed -i '/^    private final int mBottomMargin;$/a\
+    // Alice patch start 0041\
+    // Alice: live grid card rect queried on every animation frame; null falls\
+    // back to the cached rects.\
+    private @Nullable Supplier<@Nullable Rect> mLiveCardRectSupplier;\
+    // Alice patch end 0041' "$pathAnimData"
+
+sed -i '/^    \/\*\* Returns whether to use the fallback animation\. \*\/$/,/^    }$/c\
+    /** Returns whether to use the fallback animation. */\
+    public boolean shouldUseFallbackAnimation() {\
+        return mUseFallbackAnimation;\
+    }\
+\
+    // Alice patch start 0041\
+\
+    /** Sets a live supplier for the grid card rect used by the animation frames. */\
+    public void setLiveCardRectSupplier(@Nullable Supplier<@Nullable Rect> supplier) {\
+        mLiveCardRectSupplier = supplier;\
+    }\
+\
+    /** Returns the live grid card rect supplier, or null when only cached rects exist. */\
+    public @Nullable Supplier<@Nullable Rect> getLiveCardRectSupplier() {\
+        return mLiveCardRectSupplier;\
+    }\
+    // Alice patch end 0041' "$pathAnimData"
+
+# Alice: attach the live card rect query when the animation data is published.
+sed -i '/^                                    bottomMargin));$/a\
+        // Alice patch start 0041\
+        // Alice: attach a per-frame card rect query so the preview animation\
+        // tracks the live grid instead of the rects captured at switch time.\
+        @Nullable ShrinkExpandAnimationData aliceAnimationData =\
+                animationDataSupplier.get();\
+        if (aliceAnimationData != null) {\
+            aliceAnimationData.setLiveCardRectSupplier(\
+                    () -> {\
+                        Rect aliceLiveRect = coordinator.getTabThumbnailRect(tabId);\
+                        if (aliceLiveRect.isEmpty()) {\
+                            return null;\
+                        }\
+                        Rect aliceHubRect = new Rect();\
+                        hubContainerView.getGlobalVisibleRect(aliceHubRect);\
+                        aliceLiveRect.offset(-aliceHubRect.left, -aliceHubRect.top);\
+                        // Alice: keep the live rect above the bottom buttons to\
+                        // match the cached rect clamp.\
+                        int aliceBottomMargin = 0;\
+                        if (mIsBottomBarEnabledOnGts) {\
+                            EdgeToEdgeController aliceEdgeToEdge =\
+                                    mEdgeToEdgeSupplier.get();\
+                            if (aliceEdgeToEdge != null) {\
+                                aliceBottomMargin +=\
+                                        aliceEdgeToEdge.getSystemBottomInsetPx();\
+                            }\
+                            aliceBottomMargin += mBottomBarHeight;\
+                        }\
+                        aliceLiveRect.bottom =\
+                                Math.min(\
+                                        aliceLiveRect.bottom,\
+                                        hubContainerView.getHeight()\
+                                                - aliceBottomMargin);\
+                        return aliceLiveRect;\
+                    });\
+        }\
+        // Alice patch end 0041
+' "$pathTabUi"
+
+# Alice: apply the live card rect on every animation frame, lerping between the
+# fixed viewport endpoint and the live card endpoint with the frame fraction.
+sed -i '/^import java\.util\.function\.DoubleConsumer;$/a\
+// Alice patch start 0041\
+import java.util.function.Supplier;\
+// Alice patch end 0041' "$path12"
+
+sed -i '/^        Interpolator interpolator = getInterpolator(mAnimationType);$/a\
+        // Alice patch start 0041\
+        // Alice: record the animation fraction each frame; the live card rect is\
+        // applied by the pre-draw listener below, after the frame grid scroll and\
+        // layout, so the preview never trails the cards by one frame.\
+        shrinkExpandAnimator.addUpdateListener(\
+                animation -> {\
+                    mAliceLiveFraction = animation.getAnimatedFraction();\
+                });\
+        mAlicePreDrawListener =\
+                () -> {\
+                    Supplier<@Nullable Rect> aliceLiveCardSupplier =\
+                            animationData.getLiveCardRectSupplier();\
+                    @Nullable ShrinkExpandAnimator aliceLiveAnimator =\
+                            mShrinkExpandAnimator;\
+                    if (aliceLiveCardSupplier == null || aliceLiveAnimator == null) {\
+                        return true;\
+                    }\
+                    Rect aliceLiveCard = aliceLiveCardSupplier.get();\
+                    if (aliceLiveCard == null || aliceLiveCard.isEmpty()) {\
+                        return true;\
+                    }\
+                    float aliceFraction = mAliceLiveFraction;\
+                    Rect aliceFrom = isShrink ? initialRect : aliceLiveCard;\
+                    Rect aliceTo = isShrink ? aliceLiveCard : finalRect;\
+                    Rect aliceLiveRect =\
+                            new Rect(\
+                                    Math.round(\
+                                            aliceFrom.left\
+                                                    + (aliceTo.left - aliceFrom.left)\
+                                                            * aliceFraction),\
+                                    Math.round(\
+                                            aliceFrom.top\
+                                                    + (aliceTo.top - aliceFrom.top)\
+                                                            * aliceFraction),\
+                                    Math.round(\
+                                            aliceFrom.right\
+                                                    + (aliceTo.right - aliceFrom.right)\
+                                                            * aliceFraction),\
+                                    Math.round(\
+                                            aliceFrom.bottom\
+                                                    + (aliceTo.bottom - aliceFrom.bottom)\
+                                                            * aliceFraction));\
+                    aliceLiveAnimator.setRect(aliceLiveRect);\
+                    return true;\
+                };\
+        mHubContainerView\
+                .getViewTreeObserver()\
+                .addOnPreDrawListener(mAlicePreDrawListener);\
+        // Alice patch end 0041
+' "$path12"
+
+# Alice: fields for the per-frame fraction and the live rect pre-draw listener.
+sed -i '/^import android\.view\.View;$/a\
+// Alice patch start 0041\
+import android.view.ViewTreeObserver;\
+// Alice patch end 0041' "$path12"
+
+sed -i '/^    private boolean mLayoutSatisfied;$/a\
+    // Alice patch start 0041\
+    // Alice: fraction of the running shrink/expand animation and the pre-draw\
+    // listener that re-applies the live card rect after each frame layout.\
+    private float mAliceLiveFraction;\
+    private ViewTreeObserver.@Nullable OnPreDrawListener mAlicePreDrawListener;\
+    // Alice patch end 0041' "$path12"
+
+sed -i '/^    private void resetState() {$/a\
+        // Alice patch start 0041\
+        // Alice: detach the live rect pre-draw listener with the animation.\
+        if (mAlicePreDrawListener != null) {\
+            mHubContainerView\
+                    .getViewTreeObserver()\
+                    .removeOnPreDrawListener(mAlicePreDrawListener);\
+            mAlicePreDrawListener = null;\
+        }\
+        // Alice patch end 0041' "$path12"
+
+# Alice: place the preview image at the live card rect before the first
+# animation frame; the pre-animation placement used the rect captured before
+# the grid settled, which flashed an offset position when the grid scrolled.
+sed -i '/^                        mShrinkExpandImageView\.setVisibility(View\.VISIBLE);$/a\
+                        // Alice patch start 0041\
+                        // Alice: place the preview image at the live card rect\
+                        // before the first animation frame, so the initial\
+                        // placement is not the rect captured before the grid\
+                        // settled.\
+                        if (!isShrink) {\
+                            Supplier<@Nullable Rect> aliceStartSupplier =\
+                                    animationData.getLiveCardRectSupplier();\
+                            if (aliceStartSupplier != null) {\
+                                Rect aliceStartCard = aliceStartSupplier.get();\
+                                if (aliceStartCard != null \&\& !aliceStartCard.isEmpty()) {\
+                                    assumeNonNull(mShrinkExpandAnimator)\
+                                            .setRect(aliceStartCard);\
+                                }\
+                            }\
+                        }\
+                        // Alice patch end 0041' "$path12"
+
+# Alice: land the shrink animation on the live card rect instead of the cached
+# final rect, which may be stale if the grid settled after the capture.
+sed -i '/^                        mShrinkExpandImageView\.resetKeepingBitmap(animationData\.getFinalRect());$/c\
+                        // Alice patch start 0041\
+                        // Alice: land the shrink on the live card rect; the cached\
+                        // final rect may be stale if the grid settled after capture.\
+                        Rect aliceEndRect = animationData.getFinalRect();\
+                        if (isShrink) {\
+                            Supplier<@Nullable Rect> aliceEndSupplier =\
+                                    animationData.getLiveCardRectSupplier();\
+                            if (aliceEndSupplier != null) {\
+                                Rect aliceEndCard = aliceEndSupplier.get();\
+                                if (aliceEndCard != null \&\& !aliceEndCard.isEmpty()) {\
+                                    aliceEndRect = aliceEndCard;\
+                                }\
+                            }\
+                        }\
+                        mShrinkExpandImageView.resetKeepingBitmap(aliceEndRect);\
+                        // Alice patch end 0041' "$path12"
