@@ -116,6 +116,32 @@ sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     private int mSearchToolbarSnapshotHeight;\
     private int mSearchToolbarSnapshotNavigationBarHeight;\
     private int mSearchToolbarSnapshotColor;\
+    private boolean mAliceFullscreenExitMarginHandoffPending;\
+    private final View.OnLayoutChangeListener mAliceFullscreenExitLayoutHandoffListener =\
+            new View.OnLayoutChangeListener() {\
+                @Override\
+                public void onLayoutChange(\
+                        View view,\
+                        int left,\
+                        int top,\
+                        int right,\
+                        int bottom,\
+                        int oldLeft,\
+                        int oldTop,\
+                        int oldRight,\
+                        int oldBottom) {\
+                    if (!mAliceFullscreenExitMarginHandoffPending) {\
+                        view.removeOnLayoutChangeListener(this);\
+                        return;\
+                    }\
+                    CoordinatorLayout.LayoutParams layoutParams =\
+                            (CoordinatorLayout.LayoutParams) view.getLayoutParams();\
+                    if (layoutParams.bottomMargin != 0) return;\
+                    mAliceFullscreenExitMarginHandoffPending = false;\
+                    view.removeOnLayoutChangeListener(this);\
+                    mBottomControlsStacker.requestLayerUpdate(false);\
+                }\
+            };\
     private boolean mIsImeAnimationRunning;\
     private int mCurrentImeAnimationHeight = -1;\
     private final InsetObserver.WindowInsetsAnimationListener mImeAnimationListener;\
@@ -166,96 +192,37 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     }\
 \
     void setAliceFullscreenExitLayout(boolean exiting) {\
-        CoordinatorLayout.LayoutParams aliceLayoutParams = mControlContainer.mutateLayoutParams();\
-        if (aliceLayoutParams.bottomMargin != 0) {\
-            aliceLayoutParams.bottomMargin = 0;\
-            mControlContainer.getView().requestLayout();\
-        }\
-        if ((exiting\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isPersistentFullscreen())\
-                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
-            int aliceNavigationBarHeight =\
-                    mAliceFullscreenCapturedNavigationBarHeight;\
+        int aliceNavigationBarHeight = 0;\
+        if (exiting \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
+            aliceNavigationBarHeight = mAliceFullscreenCapturedNavigationBarHeight;\
             if (aliceNavigationBarHeight <= 0) {\
                 aliceNavigationBarHeight = getNavigationBarHeight();\
             }\
-            if (aliceNavigationBarHeight > 0) {\
-                if (mAliceFullscreenOriginalControlContainerLayoutHeight\
-                        == Integer.MIN_VALUE) {\
-                    mAliceFullscreenOriginalControlContainerLayoutHeight =\
-                            aliceLayoutParams.height;\
-                }\
-                int aliceExtendedHeight =\
-                        mControlContainer.getToolbarHeight()\
-                                + mControlContainer.getToolbarHairlineHeight()\
-                                + aliceNavigationBarHeight;\
-                if (aliceLayoutParams.height != aliceExtendedHeight) {\
-                    aliceLayoutParams.height = aliceExtendedHeight;\
-                    mControlContainer.getView().requestLayout();\
-                }\
-                View aliceToolbarResource =\
-                        mControlContainer\
-                                .getView()\
-                                .findViewById(R.id.toolbar_container);\
-                if (aliceToolbarResource != null) {\
-                    ViewGroup.LayoutParams aliceResourceParams =\
-                            aliceToolbarResource.getLayoutParams();\
-                    if (mAliceFullscreenOriginalToolbarResourceLayoutHeight\
-                            == Integer.MIN_VALUE) {\
-                        mAliceFullscreenOriginalToolbarResourceLayoutHeight =\
-                                aliceResourceParams.height;\
-                    }\
-                    if (aliceResourceParams.height != aliceExtendedHeight) {\
-                        aliceResourceParams.height = aliceExtendedHeight;\
-                        aliceToolbarResource.setLayoutParams(\
-                                aliceResourceParams);\
-                        aliceToolbarResource.requestLayout();\
-                    }\
-                    mControlContainer\
-                            .getToolbarResourceAdapter()\
-                            .invalidate(null);\
-                }\
-                mControlContainer\
-                        .getView()\
-                        .setTranslationY(0);\
-            }\
-        } else if (mAliceFullscreenOriginalControlContainerLayoutHeight\
-                != Integer.MIN_VALUE) {\
-            aliceLayoutParams.height =\
-                    mAliceFullscreenOriginalControlContainerLayoutHeight;\
-            mAliceFullscreenOriginalControlContainerLayoutHeight =\
-                    Integer.MIN_VALUE;\
-            mControlContainer.getView().requestLayout();\
-            View aliceToolbarResource =\
-                    mControlContainer\
-                            .getView()\
-                            .findViewById(R.id.toolbar_container);\
-            if (aliceToolbarResource != null\
-                    \&\& mAliceFullscreenOriginalToolbarResourceLayoutHeight\
-                            != Integer.MIN_VALUE) {\
-                ViewGroup.LayoutParams aliceResourceParams =\
-                        aliceToolbarResource.getLayoutParams();\
-                aliceResourceParams.height =\
-                        mAliceFullscreenOriginalToolbarResourceLayoutHeight;\
-                mAliceFullscreenOriginalToolbarResourceLayoutHeight =\
-                        Integer.MIN_VALUE;\
-                aliceToolbarResource.setLayoutParams(aliceResourceParams);\
-                aliceToolbarResource.requestLayout();\
-                mControlContainer\
-                        .getToolbarResourceAdapter()\
-                        .invalidate(null);\
-            }\
-            if (mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                    \&\& mAliceFullscreenCapturedNavigationBarHeight > 0) {\
-                mControlContainer\
-                        .getView()\
-                        .setTranslationY(\
-                                -mAliceFullscreenCapturedNavigationBarHeight);\
-            }\
+        }\
+        View aliceControlContainer = mControlContainer.getView();\
+        if (exiting) {\
+            mAliceFullscreenExitMarginHandoffPending = false;\
+            aliceControlContainer.removeOnLayoutChangeListener(\
+                    mAliceFullscreenExitLayoutHandoffListener);\
+        }\
+        CoordinatorLayout.LayoutParams aliceLayoutParams = mControlContainer.mutateLayoutParams();\
+        boolean aliceBottomMarginChanged =\
+                aliceLayoutParams.bottomMargin != aliceNavigationBarHeight;\
+        if (aliceBottomMarginChanged) {\
+            aliceLayoutParams.bottomMargin = aliceNavigationBarHeight;\
+            aliceControlContainer.setTranslationY(0);\
+            aliceControlContainer.requestLayout();\
+        }\
+        if (!exiting \&\& aliceBottomMarginChanged) {\
+            mAliceFullscreenExitMarginHandoffPending = true;\
+            aliceControlContainer.removeOnLayoutChangeListener(\
+                    mAliceFullscreenExitLayoutHandoffListener);\
+            aliceControlContainer.addOnLayoutChangeListener(\
+                    mAliceFullscreenExitLayoutHandoffListener);\
+            return;\
         }\
         if (exiting) {\
-            mControlContainer.getView().setVisibility(View.VISIBLE);\
+            aliceControlContainer.setVisibility(View.VISIBLE);\
         }\
         mBottomControlsStacker.requestLayerUpdate(false);\
     }\
@@ -502,6 +469,16 @@ sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
                         mControlContainer.getView())\
                 \&\& layerYOffset > 0) {\
             return;\
+        }\
+        if (layer == mBottomToolbarLayer\
+                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
+            if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
+                    || mAliceFullscreenExitMarginHandoffPending) {\
+                layerYOffset = 0;\
+            } else if (FullscreenManager.FullscreenTransitionState\
+                    .isPersistentFullscreen()) {\
+                layerYOffset = 0;\
+            }\
         }\
         // Alice patch end 0033\
 ' "$path1"
@@ -1902,6 +1879,8 @@ sed -i '/^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrl
                         || (mIsUrlBarFocusedForSceneLayer\
                                 \&\& !isAliceDefaultNtpBottomOmniboxFocused())\
                         || mFullscreenManager.getPersistentFullscreenMode()\
+                        || FullscreenManager.FullscreenTransitionState\
+                                .isExitingFullscreen()\
                         || mInTabSwitcherTransition\
                         || (mLayoutStateProvider != null\
                                 \&\& mLayoutStateProvider.getActiveLayoutType()\

@@ -226,10 +226,6 @@ sed -i '/^    private void updateForLayout(@LayoutType int layoutType) {$/,/^   
 sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
     // Alice patch start 0042\
     private int mAliceFullscreenCapturedNavigationBarHeight;\
-    private int mAliceFullscreenOriginalControlContainerLayoutHeight =\
-            Integer.MIN_VALUE;\
-    private int mAliceFullscreenOriginalToolbarResourceLayoutHeight =\
-            Integer.MIN_VALUE;\
     // Alice patch end 0042' "$path9"
 
 sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
@@ -245,32 +241,6 @@ sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
     // Alice patch end 0042\
 \
 ' "$path9"
-
-sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/c\
-        // Alice patch start 0042\
-        int aliceViewTranslationY = layerYOffset;\
-        if (layer == mBottomToolbarLayer\
-                \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                \&\& (FullscreenManager.FullscreenTransitionState\
-                                .isExitingFullscreen()\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isPersistentFullscreen())) {\
-            int aliceNavigationBarHeight =\
-                    mAliceFullscreenCapturedNavigationBarHeight;\
-            if (aliceNavigationBarHeight <= 0) {\
-                aliceNavigationBarHeight = getNavigationBarHeight();\
-            }\
-            if (aliceNavigationBarHeight > 0) {\
-                aliceViewTranslationY = 0;\
-            }\
-        }\
-        viewForLayer.setTranslationY(aliceViewTranslationY);\
-        // Alice patch end 0042' "$path9"
-
-sed -i '/^            mBrowserControlsOffsetSupplier\.set(layerYOffset);$/c\
-            // Alice patch start 0042\
-            mBrowserControlsOffsetSupplier.set(aliceViewTranslationY);\
-            // Alice patch end 0042' "$path9"
 
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
     // Alice patch start 0042\
@@ -569,82 +539,6 @@ sed -i '/^        if (isAttachedToWindow(view)) {$/i\
         // Alice patch end 0042\
 \
 ' "$path1"
-
-# 0032 曾把导航栏 chin 从 browser controls 总高度里拆掉，再由 Compositor 手工
-# 补一次导航栏。恢复为单一高度源，退出时 chin 的高度变化会直接通知 WebContents。
-sed -i '/^    private int mTotalMinHeight = INVALID_HEIGHT;$/a\
-    // Alice patch start 0042\
-    private int mAliceLastChinHeight;\
-    private boolean mAliceExitingFullscreen;\
-    private boolean mAliceChinHeightIncluded;\
-    // Alice patch end 0042' "$path7"
-
-sed -i '/^    private void recalculateLayerSizes() {$/a\
-        // Alice patch start 0042\
-        mAliceChinHeightIncluded = false;\
-        // Alice patch end 0042\
-' "$path7"
-
-sed -i '/^        mTotalHeight = height;$/i\
-        // Alice patch start 0042\
-        BottomControlsLayer aliceChin = mLayers.get(LayerType.BOTTOM_CHIN);\
-        boolean aliceChinAccounted =\
-                aliceChin != null\
-                        \&\& aliceChin.getHeight() > 0\
-                        \&\& mLayerVisibilities.get(LayerType.BOTTOM_CHIN);\
-        if (mAliceExitingFullscreen\
-                \&\& !aliceChinAccounted\
-                \&\& mAliceLastChinHeight > 0) {\
-            mAliceChinHeightIncluded = true;\
-        }\
-        // Alice patch end 0042\
-' "$path7"
-
-sed -i '/^    public BrowserControlsStateProvider getBrowserControls() {$/i\
-    // Alice patch start 0042\
-    public void setAliceExitingFullscreen(boolean exiting) {\
-        mAliceExitingFullscreen = exiting;\
-    }\
-    // Alice patch end 0042\
-\
-' "$path7"
-
-sed -i '/^    private void updateBrowserControlsHeight(boolean animate) {$/,/^    }$/c\
-    private void updateBrowserControlsHeight(boolean animate) {\
-        if (animate) {\
-            mBrowserControlsSizer.setAnimateBrowserControlsHeightChanges(true);\
-        }\
-        // Alice patch start 0042\
-        int aliceBottomControlsHeight = mTotalHeight;\
-        int aliceBottomControlsMinHeight = mTotalMinHeight;\
-        BottomControlsLayer aliceChin = mLayers.get(LayerType.BOTTOM_CHIN);\
-        if (aliceChin != null) {\
-            int aliceChinHeight = aliceChin.getHeight();\
-            if (aliceChinHeight > 0) {\
-                mAliceLastChinHeight = aliceChinHeight;\
-            } else {\
-                aliceChinHeight = mAliceLastChinHeight;\
-            }\
-            boolean aliceChinAccounted =\
-                    aliceChin.getHeight() > 0\
-                            \&\& mLayerVisibilities.get(LayerType.BOTTOM_CHIN);\
-            if (aliceChinHeight > 0\
-                    \&\& aliceChin.getLayerVisibility() != LayerVisibility.HIDDEN\
-                    \&\& mAliceExitingFullscreen\
-                    \&\& !aliceChinAccounted\
-                    \&\& !mAliceChinHeightIncluded) {\
-                aliceBottomControlsHeight += aliceChinHeight;\
-                aliceBottomControlsMinHeight =\
-                        Math.max(aliceBottomControlsMinHeight, aliceChinHeight);\
-            }\
-        }\
-        mBrowserControlsSizer.setBottomControlsHeight(\
-                aliceBottomControlsHeight, aliceBottomControlsMinHeight);\
-        // Alice patch end 0042\
-        if (animate) {\
-            mBrowserControlsSizer.setAnimateBrowserControlsHeightChanges(false);\
-        }\
-    }' "$path7"
 
 # fullscreen 时 chin 必须从 bottom controls 中排除；退出后同一次高度计算
 # 立即把它补回，不再等待主 toolbar 层从 HIDING 转为 VISIBLE。
@@ -1058,7 +952,6 @@ sed -i '/^                                \.setExitingFullscreen(false);$/a\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController.refreshAliceNavigationBarBackground();\
                         }\
-                        mBottomControlsStacker.setAliceExitingFullscreen(false);\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController\
                                     .captureFullscreenNavigationBarHeight();\
@@ -1412,11 +1305,11 @@ sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
     private void finishAliceFullscreenToolbarExit() {\
         mAliceFullscreenExitReadyFrames = 0;\
         FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(false);\
-        mBottomControlsStacker.setAliceExitingFullscreen(false);\
         if (mToolbarPositionController != null) {\
             mToolbarPositionController.setAliceFullscreenExitLayout(false);\
         }\
         mBottomControlsStacker.requestLayerUpdate(false);\
+        updateToolbarSceneLayerSuppression();\
     }\
     // Alice patch end 0042\
 \
@@ -1431,7 +1324,6 @@ sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController.refreshAliceNavigationBarBackground();\
                         }\
-                        mBottomControlsStacker.setAliceExitingFullscreen(true);\
                         if (mToolbarPositionController != null) {\
                             mCompositorViewHolder.setAliceFullscreenExitNavigationBarHeight(\
                                     mToolbarPositionController\
