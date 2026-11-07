@@ -175,8 +175,12 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
                         \&\& aliceNavigationBarHeight > 0\
                         \&\& !mIsOmniboxFocusedSupplier.get()\
                         \&\& !aliceTabSwitcherHidden\
+                        \&\& !FullscreenManager.FullscreenTransitionState\
+                                .isPersistentFullscreen()\
                         \&\& aliceParentReachesWindowBottom\
                         \&\& (aliceFullWindowPreview\
+                                || FullscreenManager.FullscreenTransitionState\
+                                        .isExitingFullscreen()\
                                 || mLayerVisibility != LayerVisibility.HIDDEN\
                                 || mIsImeAnimationRunning\
                                 || mKeyboardVisibilityDelegate.isKeyboardShowing(\
@@ -353,6 +357,30 @@ sed -i '/^        mInsetObserver = insetObserver;$/a\
         mInsetObserver.addObserver(mImeResetObserver);\
         // Alice patch end 0041' "$path9"
 
+# Alice: the fake navigation bar height tracks the edge-to-edge inset.
+sed -i '/^        if (!bottomMarginChanged) return;$/i\
+// Alice patch start 0041\
+        // Alice: the fake navigation bar tracks the edge-to-edge inset, which is\
+        // zero unless the preview is covering the bottom controls.\
+        updateAliceNavBarHeight();\
+// Alice patch end 0041\
+' "$path9"
+
+sed -i '/^    private void updateAliceNavBarHeight() {$/,/^    }$/c\
+    // Alice patch start 0041\
+    private void updateAliceNavBarHeight() {\
+        if (mAliceNavBarView == null) return;\
+        if (mEdgeToEdgeBottomInsetSupplier.get() == null) return;\
+        int aliceNavBarHeight = getEdgeToEdgeBottomInset();\
+        ViewGroup.LayoutParams aliceNavBarParams = mAliceNavBarView.getLayoutParams();\
+        if (aliceNavBarParams.height != aliceNavBarHeight) {\
+            aliceNavBarParams.height = aliceNavBarHeight;\
+            mAliceNavBarView.setLayoutParams(aliceNavBarParams);\
+        }\
+    }\
+    // Alice patch end 0041\
+' "$path9"
+
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     // Alice patch start 0041\
     private void onInsetChanged() {\
@@ -362,6 +390,7 @@ sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
             restoreFullWindowImeCrop();\
             return;\
         }\
+        updateAliceNavBarHeight();\
         updateContentContainerHeight();\
         if (shouldFollowImeForSheetPosition()) {\
             setSheetOffsetFromBottom(\
@@ -477,9 +506,9 @@ sed -i '/^    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {$/
         @Px int viewportBottomInset = e2eBottomInset;\
 \
         if (shouldFollowImeForSheetPosition()) {\
-            // Alice: the preview sheet never avoids the navigation bar. The preview\
-            // content reserves the navigation-bar height as its own bottom safe area.\
-            return 0;\
+            return isKeyboardShowing() || mFullWindowImeAnimationRunning\
+                    ? 0\
+                    : viewportBottomInset;\
         }\
 \
         if (isSheetOpen()) {\
@@ -530,14 +559,13 @@ sed -i '/^        if (mContainerHeight <= 0 || content == null) return 0;$/a\
 sed -i '/^        float translationY =$/i\
         // Alice patch start 0041\
         float effectiveOffset = mCurrentOffsetPx;\
-        // Alice: the preview must reach the physical bottom of the screen. The sheet\
-        // container ends above the navigation bar, so shift the preview down by the\
-        // navigation-bar height; the IME branch below lifts it exactly onto the\
-        // keyboard instead.\
+        // Alice: the resting inset of the preview is keyboard-independent so the\
+        // keyboard animation does not sink it before the IME branch takes over.\
         int positionBottomInset =\
                 shouldFollowImeForSheetPosition()\
-                        ? -getAliceNavigationBarInset()\
+                        ? getAliceNavigationBarInset()\
                         : bottomInset;\
+
         if (!mRestoringFullWindowImeCrop\
                 \&\& shouldFollowImeForSheetPosition()\
                 \&\& (isKeyboardShowing() || mFullWindowImeAnimationRunning)) {\
@@ -552,17 +580,10 @@ sed -i '/^        float translationY =$/i\
                     mFullWindowPreviewHeightBeforeIme =\
                             getSheetHeightForState(SheetState.FULL);\
                 }\
-                // Alice: the keyboard covers the navigation-bar area too, and the\
-                // resting preview overhangs the container bottom by the navigation-bar\
-                // height, so the visible height shrinks by ime + 2 x navigationBar.\
-                // This keeps the sheet top fixed instead of jumping up by a\
-                // navigation-bar height when the keyboard is summoned.\
                 effectiveOffset =\
                         Math.max(\
                                 1,\
-                                mFullWindowPreviewHeightBeforeIme\
-                                        - imeInset\
-                                        - 2 * navigationBarInset);\
+                                mFullWindowPreviewHeightBeforeIme - imeInset);\
                 int croppedHeight = (int) effectiveOffset;\
                 int clipWidth = mContainerWidth;\
                 mView.setClipBounds(\
@@ -582,20 +603,75 @@ sed -i '/^        float translationY =$/i\
 ' "$path9"
 
 # Alice: navigation-bar inset helper for the full-window preview positioning above.
+# Alice: fake navigation bar below the preview window, following its animations.
+sed -i '/^    private final BottomSheetView mView;$/a\
+// Alice patch start 0041\
+    private View mAliceNavBarView;\
+// Alice patch end 0041\
+' "$path9"
+
+sed -i '/^        mSheetContainer\.removeView(mView);$/i\
+// Alice patch start 0041\
+        // Alice: a fake navigation bar that sits below the preview window, in the\
+        // zone the content avoids, with the same background as the title bar. As a\
+        // child of the sheet view it follows every preview window animation.\
+        Context aliceNavBarContext = mView.getContext();\
+        mAliceNavBarView = new View(aliceNavBarContext);\
+        Drawable aliceNavBarSource = aliceNavBarContext.getDrawable(\
+                org.chromium.components.browser_ui.widget.R.drawable\
+                        .bottom_sheet_background);\
+        if (aliceNavBarSource != null) {\
+            Bitmap aliceNavBarSample = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888);\
+            try {\
+                aliceNavBarSource.setBounds(0, 0, 64, 64);\
+                aliceNavBarSource.draw(new Canvas(aliceNavBarSample));\
+                // Alice: sample below the rounded top corners of the drawable, which\
+                // are transparent and would otherwise give a fully transparent bar.\
+                mAliceNavBarView.setBackground(\
+                        new ColorDrawable(aliceNavBarSample.getPixel(32, 56)));\
+            } finally {\
+                aliceNavBarSample.recycle();\
+            }\
+        }\
+        mView.addView(\
+                mAliceNavBarView,\
+                new FrameLayout.LayoutParams(\
+                        ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.BOTTOM));\
+// Alice patch end 0041\
+' "$path9"
+
+sed -i '/^import android\.graphics\.Rect;$/a\
+// Alice patch start 0041\
+import android.graphics.Bitmap;\
+import android.graphics.Canvas;\
+import android.graphics.drawable.ColorDrawable;\
+import android.graphics.drawable.Drawable;\
+// Alice patch end 0041\
+' "$path9"
+
+sed -i '/^import android\.view\.MotionEvent;$/i\
+// Alice patch start 0041\
+import android.view.Gravity;\
+// Alice patch end 0041\
+' "$path9"
+
+sed -i '/^import android\.view\.Window;$/a\
+// Alice patch start 0041\
+import android.widget.FrameLayout;\
+// Alice patch end 0041\
+' "$path9"
+
 sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
     private int getAliceNavigationBarInset() {\
         WindowInsetsCompat aliceRawInsets = mInsetObserver.getLastRawWindowInsets();\
         if (aliceRawInsets != null) {\
-            return Math.max(\
-                    aliceRawInsets\
-                            .getInsetsIgnoringVisibility(\
-                                    WindowInsetsCompat.Type.navigationBars())\
-                            .bottom,\
-                    aliceRawInsets\
-                            .getInsetsIgnoringVisibility(\
-                                    WindowInsetsCompat.Type.mandatorySystemGestures())\
-                            .bottom);\
+            // Alice: navigation bars only; the mandatory-gesture inset is much\
+            // taller than the visible bar and would over-shift the preview.\
+            return aliceRawInsets\
+                    .getInsetsIgnoringVisibility(\
+                            WindowInsetsCompat.Type.navigationBars())\
+                    .bottom;\
         }\
         return getEdgeToEdgeBottomInset();\
     }\
@@ -815,64 +891,6 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
                   if (remaining > 0.5) window.scrollBy(0, remaining);\
                 }\
               };\
-              const aliceEnsureSafeStyle = () => {\
-                if (document.getElementById("alice-safe-area-style")) return;\
-                const style = document.createElement("style");\
-                style.id = "alice-safe-area-style";\
-                style.textContent =\
-                        ":root{--alice-safe-bottom:0px}"\
-                        + ".alice-safe-bottom-shift{"\
-                        + "bottom:var(--alice-safe-bottom)!important}";\
-                (document.head || document.documentElement).appendChild(style);\
-              };\
-              aliceEnsureSafeStyle();\
-              window.__aliceSetBottomSafeArea = (px, force) => {\
-                if (!force \&\& window.__aliceBottomSafeAreaPx === px) return;\
-                window.__aliceBottomSafeAreaPx = px;\
-                const aliceApply = () => {\
-                  aliceEnsureSafeStyle();\
-                  document.documentElement.style.setProperty(\
-                          "--alice-safe-bottom", px + "px");\
-                  if (!window.__aliceShiftedNodes) {\
-                    window.__aliceShiftedNodes = new Set();\
-                  }\
-                  for (const el of window.__aliceShiftedNodes) {\
-                    el.classList.remove("alice-safe-bottom-shift");\
-                  }\
-                  window.__aliceShiftedNodes.clear();\
-                  if (px <= 0) return;\
-                  const aliceVisit = (root) => {\
-                    for (const el of root.querySelectorAll("*")) {\
-                      if (el.shadowRoot) aliceVisit(el.shadowRoot);\
-                      const cs = getComputedStyle(el);\
-                      if (cs.position !== "fixed" || cs.display === "none") {\
-                        continue;\
-                      }\
-                      const bottom = parseFloat(cs.bottom);\
-                      if (Number.isNaN(bottom) || bottom > 8) continue;\
-                      el.classList.add("alice-safe-bottom-shift");\
-                      window.__aliceShiftedNodes.add(el);\
-                    }\
-                  };\
-                  aliceVisit(document);\
-                };\
-                if (document.readyState === "loading") {\
-                  document.addEventListener("DOMContentLoaded", aliceApply);\
-                } else {\
-                  aliceApply();\
-                }\
-                if (!window.__aliceSafeObserver) {\
-                  window.__aliceSafeObserver = new MutationObserver(() => {\
-                    clearTimeout(window.__aliceSafeTimer);\
-                    window.__aliceSafeTimer = setTimeout(() => {\
-                      window.__aliceSetBottomSafeArea(\
-                              window.__aliceBottomSafeAreaPx || 0, true);\
-                    }, 200);\
-                  });\
-                  window.__aliceSafeObserver.observe(\
-                          document.documentElement, {childList: true, subtree: true});\
-                }\
-              };\
             })();\
             """;\
     // Alice patch end 0041\
@@ -927,19 +945,6 @@ sed -i '/^    private void createThinWebView(int maxSheetHeight, IntentRequestTr
         mWebContents\
                 .getMainFrame()\
                 .executeJavaScriptInIsolatedWorld(ALICE_EXTENSION_FIT_SCRIPT, 1, null);\
-        applyPreviewSafeArea(getBottomSafeArea());\
-    }\
-\
-    private void applyPreviewSafeArea(int safeAreaPx) {\
-        if (mWebContents == null || mWebContents.isDestroyed()) return;\
-        String aliceScript =\
-                "if (window.__aliceSetBottomSafeArea) {"\
-                        + "window.__aliceSetBottomSafeArea("\
-                        + safeAreaPx\
-                        + ");}";\
-        mWebContents\
-                .getMainFrame()\
-                .executeJavaScriptInIsolatedWorld(aliceScript, 1, null);\
     }\
 \
     private void applyPreviewImeVisibleHeight(int visibleHeightPx) {\
@@ -1018,10 +1023,7 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
         int aliceSheetHeight = getMaxSheetHeight(maxViewHeight);\
         int aliceToolbarHeight = getToolbarHeight();\
         int aliceContentHeight = Math.max(0, aliceSheetHeight - aliceToolbarHeight);\
-        // Alice: the web contents fill the whole visible area so nothing is truncated;\
-        // the navigation-bar safe area is only exposed to the page so fixed bottom\
-        // elements shift above the navigation bar. It disappears while the keyboard\
-        // is visible because the keyboard replaces the navigation bar.\
+        // Alice: the web contents fill the whole visible area so nothing is truncated.\
         ensureAliceWebViewStableHeight(aliceContentHeight);\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
@@ -1039,7 +1041,6 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
         mSheetContentView.setPadding(0, 0, 0, 0);\
 \
         mThinWebView.resizeWebContents(aliceWidth, aliceContentHeight);\
-        applyPreviewSafeArea(getBottomSafeArea());\
         mContentViewport.forceLayout();\
         mContentViewport.measure(\
                 View.MeasureSpec.makeMeasureSpec(aliceWidth, View.MeasureSpec.EXACTLY),\
@@ -1053,25 +1054,7 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
         ViewUtils.requestLayout(mSheetContentView, "Alice preview fixed viewport");\
     }\
 \
-    private int getBottomSafeArea() {\
-        WindowInsets aliceInsets = mSheetContentView.getRootWindowInsets();\
-        if (aliceInsets == null) return 0;\
-        WindowInsetsCompat aliceCompat =\
-                WindowInsetsCompat.toWindowInsetsCompat(aliceInsets, mSheetContentView);\
-        // Alice: the keyboard replaces the navigation bar at the bottom of the preview,\
-        // so the safe area only applies while the keyboard is hidden.\
-        if (aliceCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0) return 0;\
-        return Math.max(\
-                aliceCompat\
-                        .getInsetsIgnoringVisibility(\
-                                WindowInsetsCompat.Type.navigationBars())\
-                        .bottom,\
-                aliceCompat\
-                        .getInsetsIgnoringVisibility(\
-                                WindowInsetsCompat.Type.mandatorySystemGestures())\
-                        .bottom);\
-    }\
-    // Alice patch end 0041' "$path3"
+' "$path3"
 
 sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
     // Alice patch start 0041\
@@ -1132,11 +1115,6 @@ sed -i '/^    @Nullable$/i\
         mLastSheetHeight = sheetHeight;\
         int aliceToolbarHeight = getToolbarHeight();\
         int aliceContentHeight = Math.max(1, sheetHeight - aliceToolbarHeight);\
-        // Alice: the web contents fill the whole visible area so nothing is truncated;\
-        // the navigation-bar safe area is only exposed to the page so fixed bottom\
-        // elements shift above the navigation bar. It disappears while the keyboard\
-        // is visible because the keyboard replaces the navigation bar.\
-        ensureAliceWebViewStableHeight(aliceContentHeight);\
         ensureAliceWebViewStableHeight(aliceContentHeight);\
         int aliceWidth = mSheetContentView.getWidth();\
         if (aliceWidth <= 0) {\
@@ -1151,7 +1129,6 @@ sed -i '/^    @Nullable$/i\
         aliceViewportParams.topMargin = aliceToolbarHeight;\
         mContentViewport.setLayoutParams(aliceViewportParams);\
         mThinWebView.resizeWebContents(aliceWidth, aliceContentHeight);\
-        applyPreviewSafeArea(getBottomSafeArea());\
         mContentViewport.forceLayout();\
         mContentViewport.measure(\
                 View.MeasureSpec.makeMeasureSpec(\

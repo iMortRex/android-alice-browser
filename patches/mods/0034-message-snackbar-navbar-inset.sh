@@ -859,8 +859,18 @@ sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRes
                                 aliceRestingScreenBottomTarget,\
                                 aliceImeScreenBottomTarget)\
                         : aliceRestingScreenBottomTarget;\
+        boolean aliceHubOverlay =\
+                "alice_hub_overlay_snackbar".equals(mParent.getTag());\
+        if (aliceHubOverlay) {\
+            mContainerView.setElevation(2000f);\
+            mContainerView.setTranslationZ(2000f);\
+        }\
         int aliceBottomMargin =\
-                Math.max(0, aliceScreenBottomTarget - getAliceParentBottomInset());' "$path1"
+                aliceHubOverlay \&\& !aliceImeShowing\
+                        ? aliceNavigationBarHeight + aliceNormalSpacingAdjustment\
+                        : Math.max(\
+                                0,\
+                                aliceScreenBottomTarget - getAliceParentBottomInset());' "$path1"
 
 # 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
@@ -940,14 +950,25 @@ sed -i '/^            android.layout="@layout\/tab_switcher_view_holder" \/>$/a\
             android:layout_height="wrap_content"\
             android:layout_gravity="start|bottom" />' "$path11"
 
-# 18) Hub 的标签预览动画（ShrinkExpandImageView）是 HubContainerView 的最后一个
-#     子视图，会盖住 pane host 里的 snackbar 容器。把 snackbar 容器提升为
-#     HubContainerView 的直接子视图，并让预览动画插到它之前绘制，撤销气泡因此
-#     保持在 Hub 内容与动画之上。
+sed -i '/^    private @Nullable EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;$/a\
+    // Alice patch start 0034\
+    private @Nullable ViewGroup mAliceSnackbarRootContent;\
+    private @Nullable View mAliceSnackbarContainer;\
+    // Alice patch end 0034' "$path12"
+
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0034\
+        if (mAliceSnackbarRootContent != null \&\& mAliceSnackbarContainer != null) {\
+            mAliceSnackbarRootContent.removeView(mAliceSnackbarContainer);\
+            mAliceSnackbarRootContent = null;\
+            mAliceSnackbarContainer = null;\
+        }\
+        // Alice patch end 0034' "$path12"
+
+# 18) Hub 的 Snackbar 容器挂到 Activity 根层，避免进入 Hub 时被隐藏层覆盖或瞬隐。
 sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);$/a\
         // Alice patch start 0034\
-        // Pin the hub snackbar container to HubContainerView so the undo bubble stays\
-        // above the shrink/expand preview animation.\
+        // Host the Hub snackbar above the Hub layer so it stays visible during layout changes.\
         {\
             View alicePinnedSnackbarContainer =\
                     hubPaneHostView.findViewById(R.id.pane_host_view_snackbar_container);\
@@ -955,8 +976,52 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
                     \&\& alicePinnedSnackbarContainer.getParent() instanceof ViewGroup) {\
                 ((ViewGroup) alicePinnedSnackbarContainer.getParent())\
                         .removeView(alicePinnedSnackbarContainer);\
-                alicePinnedSnackbarContainer.setTag("alice_hub_snackbar_container");\
-                mContainerView.addView(alicePinnedSnackbarContainer);\
+                View rootView = activity.findViewById(android.R.id.content);\
+                if (rootView instanceof ViewGroup) {\
+                    ViewGroup rootContent = (ViewGroup) rootView;\
+                    View toolbarActionContainer =\
+                            hubToolbarView.findViewById(R.id.toolbar_action_container);\
+                    int toolbarHeight = 0;\
+                    if (toolbarActionContainer != null) {\
+                        ViewGroup.LayoutParams toolbarParams =\
+                                toolbarActionContainer.getLayoutParams();\
+                        if (toolbarParams != null \&\& toolbarParams.height > 0) {\
+                            toolbarHeight = toolbarParams.height;\
+                        }\
+                    }\
+                    if (toolbarHeight == 0) {\
+                        toolbarHeight = hubToolbarView.getMinimumHeight();\
+                    }\
+                    FrameLayout.LayoutParams params =\
+                            new FrameLayout.LayoutParams(\
+                                    ViewGroup.LayoutParams.MATCH_PARENT,\
+                                    ViewGroup.LayoutParams.WRAP_CONTENT);\
+                    params.gravity = android.view.Gravity.BOTTOM;\
+                    params.bottomMargin = toolbarHeight;\
+                    int extraBottomPadding =\
+                            Math.round(\
+                                    8f\
+                                            * context.getResources()\
+                                                    .getDisplayMetrics()\
+                                                    .density);\
+                    alicePinnedSnackbarContainer.setPadding(\
+                            alicePinnedSnackbarContainer.getPaddingLeft(),\
+                            alicePinnedSnackbarContainer.getPaddingTop(),\
+                            alicePinnedSnackbarContainer.getPaddingRight(),\
+                            alicePinnedSnackbarContainer.getPaddingBottom()\
+                                    + extraBottomPadding);\
+                    if (alicePinnedSnackbarContainer instanceof ViewGroup) {\
+                        ((ViewGroup) alicePinnedSnackbarContainer)\
+                                .setClipToPadding(false);\
+                    }\
+                    alicePinnedSnackbarContainer.setElevation(2000f);\
+                    alicePinnedSnackbarContainer.setTranslationZ(2000f);\
+                    alicePinnedSnackbarContainer.setTag("alice_hub_overlay_snackbar");\
+                    rootContent.addView(alicePinnedSnackbarContainer, params);\
+                    rootContent.bringChildToFront(alicePinnedSnackbarContainer);\
+                    mAliceSnackbarRootContent = rootContent;\
+                    mAliceSnackbarContainer = alicePinnedSnackbarContainer;\
+                }\
             }\
         }\
         // Alice patch end 0034' "$path12"
@@ -967,6 +1032,13 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
 sed -i '/^    protected int getYPositionForMoveAnimation() {$/,/^    }$/c\
     protected int getYPositionForMoveAnimation() {\
         // Alice patch start 0034\
+        if ("alice_hub_overlay_snackbar".equals(mParent.getTag())) {\
+            mRootContentView.getLocationInWindow(mAliceRootPosition);\
+            mContainerView.getLocationInWindow(mAliceParentPosition);\
+            int rootBottom =\
+                    mAliceRootPosition[1] + mRootContentView.getHeight();\
+            return Math.max(0, rootBottom - mAliceParentPosition[1]);\
+        }\
         return mContainerView.getHeight()\
                 + getLayoutParams().bottomMargin\
                 + getAliceParentBottomInset();\
@@ -982,13 +1054,3 @@ sed -i '/^    private void addToParent() {$/,/^    }$/c\
         mParent.addView(mContainerView);\
         mParent.addOnLayoutChangeListener(mLayoutListener);\
     }' "$path1"
-
-# 20) Hub 的 snackbar 容器贴在 HubContainerView 底部（等于窗口底部），它的屏幕位置
-#     会随首次布局 / Hub 动画变化。参与底边距补偿时，首帧会算出一个很大的 inset，
-#     把 margin 压成 0，气泡就贴在容器底边（导航栏上方）。这里识别该容器、跳过补偿，
-#     始终使用「容器底边 - target」的稳定位置。
-sed -i '/^    private int getAliceParentBottomInset() {$/a\
-        // Alice patch start 0034\
-        // Hub 内部容器贴底，其视觉位置会随首次布局 / Hub 动画变化，不做底边距补偿。\
-        if ("alice_hub_snackbar_container".equals(mParent.getTag())) return 0;\
-        // Alice patch end 0034' "$path1"

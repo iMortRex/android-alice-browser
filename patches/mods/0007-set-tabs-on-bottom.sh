@@ -96,8 +96,7 @@ sed -i '/^        super\.onLayout(changed, l, t, r, b);$/a\
         }\
         // Alice patch end 0007' "$path4"
 
-sed -i '/^    \/\*\*\
-     \* @param tabIndex The index in the RecyclerView of the tab\.$/i\
+sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/i\
     // Alice patch start 0007\
     void scrollToPositionWithOffset(int index, int offset) {\
         LinearLayoutManager layoutManager =\

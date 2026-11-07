@@ -156,6 +156,33 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
         aliceBackground.setVisibility(\
                 mAliceTabSwitcherBackgroundAlpha > 0f ? View.VISIBLE : View.INVISIBLE);\
     }\
+\
+    void refreshAliceNavigationBarBackground() {\
+        if (!FullscreenManager.FullscreenTransitionState.isPersistentFullscreen()\
+                \&\& FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
+            mAliceTabSwitcherBackgroundAlpha = 1f;\
+        }\
+        updateNavigationBarBackground();\
+    }\
+\
+    void setAliceFullscreenExitLayout(boolean exiting) {\
+        int aliceNavigationBarHeight = 0;\
+        if (exiting \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
+            aliceNavigationBarHeight = mAliceFullscreenCapturedNavigationBarHeight;\
+            if (aliceNavigationBarHeight <= 0) {\
+                aliceNavigationBarHeight = getNavigationBarHeight();\
+            }\
+            if (aliceNavigationBarHeight <= 0) {\
+                aliceNavigationBarHeight = getFullscreenSnapshotNavigationBarHeight();\
+            }\
+        }\
+        CoordinatorLayout.LayoutParams aliceLayoutParams = mControlContainer.mutateLayoutParams();\
+        if (aliceLayoutParams.bottomMargin != aliceNavigationBarHeight) {\
+            aliceLayoutParams.bottomMargin = aliceNavigationBarHeight;\
+            mControlContainer.getView().requestLayout();\
+        }\
+        mBottomControlsStacker.requestLayerUpdate(false);\
+    }\
     // Alice patch end 0033\
 ' "$path1"
 
