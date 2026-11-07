@@ -15,20 +15,20 @@ path10="chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/brow
 path11="components/browser_ui/bottomsheet/android/internal/java/src/org/chromium/components/browser_ui/bottomsheet/BottomSheetMediator.java"
 path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 path13="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
-pathTabUi="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
-pathAnimData="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
-sed -i '/^    private final int mBottomBarHeight;$/a\
-// Alice patch start 0041\
-    // Alice: generation counter for the deferred shrink/expand rect captures.\
-    private int mAliceCaptureGeneration;\
-// Alice patch end 0041\
-' "$pathTabUi"
-
+path14="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
+path15="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0041' "$path1"; then
     exit 100
 fi
+
+sed -i '/^    private final int mBottomBarHeight;$/a\
+// Alice patch start 0041\
+    // Alice: generation counter for the deferred shrink/expand rect captures.\
+    private int mAliceCaptureGeneration;\
+// Alice patch end 0041\
+' "$path14"
 
 # 0) 预览网页覆盖当前 Tab 时，背景 Tab 可能被标记为 hidden，但其 ContentView
 #    仍附着在窗口。此时保留 visual viewport inset，导航栏避让不会被清零。
@@ -483,6 +483,24 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
             return;\
 // Alice patch end 0041\
         }\
+\
+// Alice patch start 0041\
+        // Alice: restore the layout-ready callback so the regular preview image\
+        // animator can run instead of falling back on timeout.\
+        // Preserve the bitmap because it might have been supplied before the animation data.\
+        mShrinkExpandImageView.resetKeepingBitmap(animationData.getInitialRect());\
+\
+        if (animationData.shouldUseFallbackAnimation()) {\
+            supplyFallbackAnimator();\
+            return;\
+        }\
+\
+        mShrinkExpandImageView.runOnNextLayout(\
+                () -> {\
+                    mLayoutSatisfied = true;\
+                    maybeSupplyAnimation();\
+                });\
+// Alice patch end 0041\
     }\
 ' "$path12"
 
@@ -526,7 +544,7 @@ n
         final int aliceCaptureGeneration = ++mAliceCaptureGeneration;\
         if (aliceCaptureGeneration != mAliceCaptureGeneration) return;\
 // Alice patch end 0041
-}' "$pathTabUi"
+}' "$path14"
 
 
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
@@ -1309,14 +1327,14 @@ sed -i '/^    @Nullable$/i\
 sed -i '/^import android\.util\.Size;$/a\
 // Alice patch start 0041\
 import java.util.function.Supplier;\
-// Alice patch end 0041' "$pathAnimData"
+// Alice patch end 0041' "$path15"
 
 sed -i '/^    private final int mBottomMargin;$/a\
     // Alice patch start 0041\
     // Alice: live grid card rect queried on every animation frame; null falls\
     // back to the cached rects.\
     private @Nullable Supplier<@Nullable Rect> mLiveCardRectSupplier;\
-    // Alice patch end 0041' "$pathAnimData"
+    // Alice patch end 0041' "$path15"
 
 sed -i '/^    \/\*\* Returns whether to use the fallback animation\. \*\/$/,/^    }$/c\
     /** Returns whether to use the fallback animation. */\
@@ -1335,7 +1353,7 @@ sed -i '/^    \/\*\* Returns whether to use the fallback animation\. \*\/$/,/^  
     public @Nullable Supplier<@Nullable Rect> getLiveCardRectSupplier() {\
         return mLiveCardRectSupplier;\
     }\
-    // Alice patch end 0041' "$pathAnimData"
+    // Alice patch end 0041' "$path15"
 
 # Alice: attach the live card rect query when the animation data is published.
 sed -i '/^                                    bottomMargin));$/a\
@@ -1375,7 +1393,7 @@ sed -i '/^                                    bottomMargin));$/a\
                     });\
         }\
         // Alice patch end 0041
-' "$pathTabUi"
+' "$path14"
 
 # Alice: apply the live card rect on every animation frame, lerping between the
 # fixed viewport endpoint and the live card endpoint with the frame fraction.

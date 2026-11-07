@@ -29,6 +29,9 @@ path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/t
 path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 path21="chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java"
 path22="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
+path23="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListProperties.java"
+path24="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java"
+path25="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -896,11 +899,6 @@ sed -i '/^import org\.chromium\.components\.browser_ui\.widget\.scrim\.ScrimProp
 import org.chromium.components.browser_ui.widget.scrim.ScrimView;\
 // Alice patch end 0033' "$path3"
 
-sed -i '/^import org\.chromium\.chrome\.browser\.preferences\.ChromeSharedPreferences;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
-// Alice patch end 0033' "$path3"
-
 sed -i '/^                                updateScrimBottomMargin());$/a\
             // Alice patch start 0033\
             mImeBoundaryView = aliceBottomBoundary;\
@@ -1100,11 +1098,9 @@ sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }
 \
     private boolean isBottomToolbarActive() {\
         // Alice patch start 0033\
-        if (mBrowserControlsStateProvider != null) {\
-            return mBrowserControlsStateProvider.getControlsPosition()\
-                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
-        }\
-        return !AddressBarPreference.isToolbarConfiguredToShowOnTop();\
+        return mBrowserControlsStateProvider != null\
+                \&\& mBrowserControlsStateProvider.getControlsPosition()\
+                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
         // Alice patch end 0033\
     }' "$path3"
 
@@ -1684,9 +1680,8 @@ sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CHILD_TRAN
         } else if (propertyKey == SuggestionListProperties.CHILD_TRANSLATION_Y) {\
             float aliceTranslation =\
                     model.get(SuggestionListProperties.CHILD_TRANSLATION_Y);\
-            OmniboxSuggestionsDropdownEmbedder aliceEmbedder =\
-                    model.get(SuggestionListProperties.EMBEDDER);\
-            if (aliceEmbedder != null \&\& aliceEmbedder.isToolbarOnBottom()) {\
+            if (model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
+                    \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM)) {\
                 aliceTranslation = 0;\
             }\
             view.dropdown.translateChildrenVertical(aliceTranslation);\
@@ -1697,14 +1692,20 @@ sed -i '/^        } else if (propertyKey == SuggestionListProperties\.ALPHA) {$/
         // Alice patch start 0033\
         } else if (propertyKey == SuggestionListProperties.ALPHA) {\
             float aliceAlpha = model.get(SuggestionListProperties.ALPHA);\
-            OmniboxSuggestionsDropdownEmbedder aliceEmbedder =\
-                    model.get(SuggestionListProperties.EMBEDDER);\
-            if (aliceEmbedder != null \&\& aliceEmbedder.isToolbarOnBottom()) {\
+            if (model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
+                    \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM)) {\
                 aliceAlpha = 1f;\
             }\
             view.dropdown.setChildAlpha(aliceAlpha);\
         // Alice patch end 0033\
         } else if (propertyKey == SuggestionListProperties.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {' "$path6"
+
+sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CONTAINER_ALWAYS_VISIBLE) {$/i\
+        // Alice patch start 0033\
+        } else if (propertyKey == SuggestionListProperties.TOOLBAR_ON_BOTTOM) {\
+            updateColorScheme(model, view);\
+        // Alice patch end 0033\
+' "$path6"
 
 sed -i '/^    private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {$/,/^    }$/c\
     private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {\
@@ -1713,10 +1714,9 @@ sed -i '/^    private void updateColorScheme(PropertyModel model, SuggestionList
         int backgroundColor =\
                 getResourceProvider(model)\
                         .getSuggestionBackgroundColor(layoutMode, /* isDropdownContainer= */ true);\
-        OmniboxSuggestionsDropdownEmbedder aliceEmbedder =\
-                model.get(SuggestionListProperties.EMBEDDER);\
         boolean aliceBottomAnchored =\
-                aliceEmbedder != null \&\& aliceEmbedder.isToolbarOnBottom();\
+                model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
+                        \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM);\
 \
         holder.dropdown.setBackgroundColor(backgroundColor);\
 \
@@ -1760,6 +1760,41 @@ sed -i '/^            listItems\.addObserver($/,/^                    });$/c\
                         }\
                     });\
             // Alice patch end 0033' "$path6"
+
+sed -i '/^    ReadableObjectPropertyKey<ModelList> SUGGESTION_MODELS = new ReadableObjectPropertyKey<>();$/a\
+\
+    // Alice patch start 0033\
+    /** Whether the toolbar is currently anchored at the bottom. */\
+    WritableBooleanPropertyKey TOOLBAR_ON_BOTTOM = new WritableBooleanPropertyKey();\
+    // Alice patch end 0033' "$path23"
+
+sed -i '/^                SUGGESTION_MODELS,$/i\
+                // Alice patch start 0033\
+                TOOLBAR_ON_BOTTOM,\
+                // Alice patch end 0033\
+' "$path23"
+
+sed -i '/^import org\.chromium\.build\.annotations\.Nullable;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
+// Alice patch end 0033' "$path24"
+
+sed -i '/^                        \.with(SuggestionListProperties\.SUGGESTION_MODELS, listItems)$/a\
+                        // Alice patch start 0033\
+                        .with(\
+                                SuggestionListProperties.TOOLBAR_ON_BOTTOM,\
+                                locationBarDataProvider.getToolbarPositionSupplier().get()\
+                                        == ControlsPosition.BOTTOM)\
+                        // Alice patch end 0033\
+' "$path24"
+
+sed -i '/^    private void onToolbarPositionChanged() {$/a\
+        // Alice patch start 0033\
+        mListPropertyModel.set(\
+                SuggestionListProperties.TOOLBAR_ON_BOTTOM,\
+                mDataProvider.getToolbarPositionSupplier().get() == ControlsPosition.BOTTOM);\
+        // Alice patch end 0033\
+' "$path25"
 
 # 12) 全屏时隐藏 compositor 工具栏层，避免底置工具栏残留在视频画面上。
 sed -i '/^public interface FullscreenManager {$/a\
