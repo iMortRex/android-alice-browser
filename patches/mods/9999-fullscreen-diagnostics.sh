@@ -130,6 +130,123 @@ sed -i '/^    private void updateNavigationBarBackground() {$/a\
         }\
         // Alice patch end 9999' "$path2"
 
+sed -i '/^        aliceBackground\.setVisibility(aliceVisible ? View\.VISIBLE : View\.INVISIBLE);$/a\
+        // Alice patch start 9999\
+        if (FullscreenManager.FullscreenTransitionState.isPersistentFullscreen()\
+                || FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
+            View alice9999Control = mControlContainer.getView();\
+            ViewGroup alice9999Parent =\
+                    aliceBackgroundContainer == null\
+                                    || !(aliceBackgroundContainer.getParent() instanceof ViewGroup)\
+                            ? null\
+                            : (ViewGroup) aliceBackgroundContainer.getParent();\
+            int alice9999BgIndex =\
+                    alice9999Parent == null\
+                            ? -1\
+                            : alice9999Parent.indexOfChild(aliceBackgroundContainer);\
+            int alice9999ControlIndex =\
+                    alice9999Parent == null ? -1 : alice9999Parent.indexOfChild(alice9999Control);\
+            android.graphics.Rect alice9999BgRect = new android.graphics.Rect();\
+            android.graphics.Rect alice9999ContainerRect = new android.graphics.Rect();\
+            android.graphics.Rect alice9999ControlRect = new android.graphics.Rect();\
+            boolean alice9999BgGlobal =\
+                    aliceBackground.getGlobalVisibleRect(alice9999BgRect);\
+            boolean alice9999ContainerGlobal =\
+                    aliceBackgroundContainer.getGlobalVisibleRect(alice9999ContainerRect);\
+            boolean alice9999ControlGlobal =\
+                    alice9999Control.getGlobalVisibleRect(alice9999ControlRect);\
+            int alice9999ControlBottomMargin = -1;\
+            if (alice9999Control.getLayoutParams()\
+                    instanceof CoordinatorLayout.LayoutParams) {\
+                alice9999ControlBottomMargin =\
+                        ((CoordinatorLayout.LayoutParams)\
+                                        alice9999Control.getLayoutParams())\
+                                .bottomMargin;\
+            }\
+            org.chromium.base.Log.i(\
+                    "Alice9999",\
+                    "navBackgroundFinal navH=" + aliceNavigationBarHeight\
+                            + " navVisibleH=" + getNavigationBarHeight()\
+                            + " color=" + Integer.toHexString(aliceConfiguredBackgroundColor)\
+                            + " toolbarColor=" + Integer.toHexString(\
+                                    mControlContainer.getToolbarBackgroundColor())\
+                            + " storedColor=" + Integer.toHexString(\
+                                    mNavigationBarBackgroundColor)\
+                            + " parent=" + (alice9999Parent == null\
+                                    ? "null"\
+                                    : (alice9999Parent.getClass().getSimpleName()\
+                                            + ",children=" + alice9999Parent.getChildCount()\
+                                            + ",clip=" + alice9999Parent.getClipChildren()))\
+                            + " index=" + alice9999BgIndex\
+                                    + "/" + alice9999ControlIndex\
+                            + " above=" + (alice9999BgIndex > alice9999ControlIndex)\
+                            + " bg=" + aliceBackground.getVisibility()\
+                                    + "," + aliceBackground.getAlpha()\
+                                    + "," + aliceBackground.getWidth()\
+                                    + "x" + aliceBackground.getHeight()\
+                                    + ",y=" + aliceBackground.getY()\
+                                    + ",ty=" + aliceBackground.getTranslationY()\
+                                    + ",z=" + aliceBackground.getTranslationZ()\
+                                    + ",global=" + alice9999BgGlobal\
+                                    + "," + alice9999BgRect\
+                            + " container=" + aliceBackgroundContainer.getVisibility()\
+                                    + "," + aliceBackgroundContainer.getWidth()\
+                                    + "x" + aliceBackgroundContainer.getHeight()\
+                                    + ",y=" + aliceBackgroundContainer.getY()\
+                                    + ",ty=" + aliceBackgroundContainer.getTranslationY()\
+                                    + ",z=" + aliceBackgroundContainer.getTranslationZ()\
+                                    + ",global=" + alice9999ContainerGlobal\
+                                    + "," + alice9999ContainerRect\
+                            + " control=" + alice9999Control.getVisibility()\
+                                    + "," + alice9999Control.getWidth()\
+                                    + "x" + alice9999Control.getHeight()\
+                                    + ",y=" + alice9999Control.getY()\
+                                    + ",ty=" + alice9999Control.getTranslationY()\
+                                    + ",marginBottom=" + alice9999ControlBottomMargin\
+                                    + ",global=" + alice9999ControlGlobal\
+                                    + "," + alice9999ControlRect);\
+        }\
+        // Alice patch end 9999' "$path2"
+
+sed -i '0,/^            aliceSnapshot\.setVisibility(View\.VISIBLE);$/s||&\
+            // Alice patch start 9999\
+            if (mAliceFullscreenSnapshotVisible) {\
+                ViewGroup alice9999SnapshotParent =\
+                        aliceSnapshot.getParent() instanceof ViewGroup\
+                                ? (ViewGroup) aliceSnapshot.getParent()\
+                                : null;\
+                android.graphics.Rect alice9999SnapshotRect = new android.graphics.Rect();\
+                boolean alice9999SnapshotGlobal =\
+                        aliceSnapshot.getGlobalVisibleRect(alice9999SnapshotRect);\
+                org.chromium.base.Log.i(\
+                        "Alice9999",\
+                        "snapshot enabled=" + mAliceFullscreenSnapshotVisible\
+                                + " ready=" + aliceReady\
+                                + " vis=" + aliceSnapshot.getVisibility()\
+                                + " size=" + aliceSnapshot.getWidth()\
+                                + "x" + aliceSnapshot.getHeight()\
+                                + " bitmap=" + (mSearchToolbarSnapshotBitmap == null\
+                                        ? "null"\
+                                        : (mSearchToolbarSnapshotBitmap.getWidth()\
+                                                + "x"\
+                                                + mSearchToolbarSnapshotBitmap.getHeight()))\
+                                + " parent=" + (alice9999SnapshotParent == null\
+                                        ? "null"\
+                                        : alice9999SnapshotParent.getClass().getSimpleName())\
+                                + " index=" + (alice9999SnapshotParent == null\
+                                        ? -1\
+                                        : alice9999SnapshotParent.indexOfChild(aliceSnapshot))\
+                                        + "/" + (alice9999SnapshotParent == null\
+                                                ? -1\
+                                                : alice9999SnapshotParent.getChildCount())\
+                                + " attached=" + aliceSnapshot.isAttachedToWindow()\
+                                + " ty=" + aliceSnapshot.getTranslationY()\
+                                + " z=" + aliceSnapshot.getTranslationZ()\
+                                + " global=" + alice9999SnapshotGlobal\
+                                + "," + alice9999SnapshotRect);\
+            }\
+            // Alice patch end 9999|' "$path2"
+
 sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 9999\
         if (layer == mBottomToolbarLayer\

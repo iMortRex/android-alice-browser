@@ -38,6 +38,7 @@ sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
     // Alice patch start 0042\
     private final HubAnimationConstants.AliceHubAnimationProgressObserver\
             mAliceHubAnimationProgressObserver;\
+    private int mAliceFullscreenExitReadyFrames;\
     // Alice patch end 0042' "$path2"
 
 sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
@@ -784,26 +785,6 @@ sed -i 's|^                aliceBottomControlsInset = aliceToolbarHeight + alice
 # 快照并恢复原生 controls，避免快照在第一帧布局前就被移除。
 sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch start 0042\
-    private boolean aliceCanFinishFullscreenExit() {\
-        if (!FullscreenManager.FullscreenTransitionState\
-                        .isViewportSyncEnabled()\
-                || mBrowserControlsManager == null) {\
-            return true;\
-        }\
-        int aliceRequiredBottomControlsHeight =\
-                getResources()\
-                                .getDimensionPixelSize(\
-                                        R.dimen.toolbar_height_no_shadow)\
-                        + getResources()\
-                                .getDimensionPixelSize(\
-                                        R.dimen.toolbar_hairline_height)\
-                        + mAliceExitFrozenNavigationBarHeight;\
-        return mBrowserControlsManager.getBottomControlsHeight()\
-                        >= aliceRequiredBottomControlsHeight\
-                \&\& BrowserControlsUtils.areBrowserControlsIdle(\
-                        mBrowserControlsManager);\
-    }\
-\
     public void finishAliceFullscreenExit() {\
         if (!FullscreenManager.FullscreenTransitionState\
                 .isViewportSyncEnabled()) {\
@@ -820,10 +801,6 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                 aliceContentView.postInvalidateOnAnimation();\
             }\
             runAliceExitTransitionReadyCallback();\
-            return;\
-        }\
-        if (!aliceCanFinishFullscreenExit()) {\
-            postOnAnimation(this::finishAliceFullscreenExit);\
             return;\
         }\
         mControlsResizeView = true;\
@@ -864,7 +841,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
             aliceContentView.requestLayout();\
             aliceContentView.invalidate();\
         }\
-        requestRender(this::finishAliceFullscreenExit);\
+        requestRender();\
     }\
 \
     public void applyAliceFullscreenEntryViewport() {\
@@ -1461,6 +1438,34 @@ sed -i '/^        \/\/ Notify the compositor layout that the size has changed\./
 # 处理地址栏/底栏在导航栏 inset 恢复后的第二次布局。
 sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch start 0042\
+    private void finishAliceFullscreenToolbarExitWhenReady() {\
+        if (!FullscreenManager.FullscreenTransitionState\
+                        .isExitingFullscreen()\
+                || mToolbarPositionController == null) {\
+            mAliceFullscreenExitReadyFrames = 0;\
+            return;\
+        }\
+        int aliceRequiredBottomControlsHeight =\
+                mControlContainer.getToolbarHeight()\
+                        + mControlContainer.getToolbarHairlineHeight()\
+                        + mToolbarPositionController\
+                                .getAliceFullscreenCapturedNavigationBarHeight();\
+        boolean aliceReady =\
+                BrowserControlsUtils.areBrowserControlsIdle(mBrowserControlsSizer)\
+                        \&\& mBottomControlsStacker.getTotalHeight()\
+                                >= aliceRequiredBottomControlsHeight;\
+        mAliceFullscreenExitReadyFrames =\
+                aliceReady ? mAliceFullscreenExitReadyFrames + 1 : 0;\
+        if (mAliceFullscreenExitReadyFrames < 3) {\
+            mControlContainer.getView()\
+                    .postOnAnimation(\
+                            this::finishAliceFullscreenToolbarExitWhenReady);\
+            return;\
+        }\
+        mAliceFullscreenExitReadyFrames = 0;\
+        mCompositorViewHolder.finishAliceFullscreenExit();\
+    }\
+\
     private void refreshToolbarAfterFullscreen() {\
         View aliceControlContainer = mControlContainer.getView();\
         if (!FullscreenManager.FullscreenTransitionState\
@@ -1485,6 +1490,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                         }\
                     };\
             aliceControlContainer.postOnAnimation(aliceRefresh);\
+            finishAliceFullscreenToolbarExitWhenReady();\
             return;\
         }\
         aliceControlContainer.postOnAnimation(\
@@ -1501,6 +1507,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
                                 updateToolbarSceneLayerSuppression();\
                             });\
                 });\
+        finishAliceFullscreenToolbarExitWhenReady();\
     }\
     // Alice patch end 0042
 ' "$path2"
@@ -1508,6 +1515,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
 sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
     // Alice patch start 0042\
     private void finishAliceFullscreenToolbarExit() {\
+        mAliceFullscreenExitReadyFrames = 0;\
         FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(false);\
         if (mToolbarPositionController != null) {\
             mToolbarPositionController.releaseFullscreenToolbarSnapshot();\
@@ -1527,6 +1535,7 @@ sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
 sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
                         // Alice patch start 0042\
                         FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(false);\
+                        mAliceFullscreenExitReadyFrames = 0;\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController.refreshAliceNavigationBarBackground();\
                         }\

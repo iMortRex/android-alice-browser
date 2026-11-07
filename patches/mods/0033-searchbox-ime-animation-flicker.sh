@@ -166,19 +166,9 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     }\
 \
     void setAliceFullscreenExitLayout(boolean exiting) {\
-        int aliceNavigationBarHeight = 0;\
-        if (exiting \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM) {\
-            aliceNavigationBarHeight = mAliceFullscreenCapturedNavigationBarHeight;\
-            if (aliceNavigationBarHeight <= 0) {\
-                aliceNavigationBarHeight = getNavigationBarHeight();\
-            }\
-            if (aliceNavigationBarHeight <= 0) {\
-                aliceNavigationBarHeight = getFullscreenSnapshotNavigationBarHeight();\
-            }\
-        }\
         CoordinatorLayout.LayoutParams aliceLayoutParams = mControlContainer.mutateLayoutParams();\
-        if (aliceLayoutParams.bottomMargin != aliceNavigationBarHeight) {\
-            aliceLayoutParams.bottomMargin = aliceNavigationBarHeight;\
+        if (aliceLayoutParams.bottomMargin != 0) {\
+            aliceLayoutParams.bottomMargin = 0;\
             mControlContainer.getView().requestLayout();\
         }\
         mBottomControlsStacker.requestLayerUpdate(false);\
@@ -564,7 +554,11 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                             ViewGroup.LayoutParams.MATCH_PARENT,\
                             ViewGroup.LayoutParams.MATCH_PARENT));\
             int aliceIndex = aliceOverlayParent.indexOfChild(aliceControlContainer);\
-            if (aliceIndex < 0) aliceIndex = aliceOverlayParent.getChildCount();\
+            if (aliceIndex < 0) {\
+                aliceIndex = aliceOverlayParent.getChildCount();\
+            } else {\
+                aliceIndex++;\
+            }\
             aliceOverlayParent.addView(aliceBackgroundContainer, aliceIndex, aliceParams);\
             aliceOverlayParent.setClipChildren(false);\
             aliceOverlayParent.setClipToPadding(false);\

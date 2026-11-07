@@ -381,6 +381,19 @@ sed -i '/^    private void updateAliceNavBarHeight() {$/,/^    }$/c\
     // Alice patch end 0041\
 ' "$path9"
 
+# Alice: the preview toolbar keeps the progress bar's space while hidden so the\
+# toolbar height never changes and the page does not shift when it hides.\
+sed -i '/^    public void setProgressVisible(boolean visible) {$/,/^    }$/c\
+    public void setProgressVisible(boolean visible) {\
+        // Alice patch start 0041\
+        // Alice: INVISIBLE keeps the progress bar layout space so the toolbar\
+        // height never changes; hiding it used to shift the whole page up.\
+        ProgressBar progressBar = mToolbarView.findViewById(R.id.progress_bar);\
+        progressBar.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);\
+// Alice patch end 0041\
+    }\
+' "$path3"
+
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     // Alice patch start 0041\
     private void onInsetChanged() {\

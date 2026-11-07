@@ -995,9 +995,8 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
                     FrameLayout.LayoutParams params =\
                             new FrameLayout.LayoutParams(\
                                     ViewGroup.LayoutParams.MATCH_PARENT,\
-                                    ViewGroup.LayoutParams.WRAP_CONTENT);\
+                                    ViewGroup.LayoutParams.MATCH_PARENT);\
                     params.gravity = android.view.Gravity.BOTTOM;\
-                    params.bottomMargin = toolbarHeight;\
                     int extraBottomPadding =\
                             Math.round(\
                                     8f\
@@ -1009,6 +1008,7 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
                             alicePinnedSnackbarContainer.getPaddingTop(),\
                             alicePinnedSnackbarContainer.getPaddingRight(),\
                             alicePinnedSnackbarContainer.getPaddingBottom()\
+                                    + toolbarHeight\
                                     + extraBottomPadding);\
                     if (alicePinnedSnackbarContainer instanceof ViewGroup) {\
                         ((ViewGroup) alicePinnedSnackbarContainer)\
