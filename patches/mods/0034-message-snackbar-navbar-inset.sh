@@ -905,8 +905,9 @@ sed -i '/^                        : mCurrentInsetSupplier\.get()\.visualViewport
 
 # 16) 底部工具栏在 IME 动画期间会从 minibar 切回完整工具栏。
 #     WebContents 如果读取动态控件高度，会跟着 minibar 重新布局并短暂绘制到底部。
-#     地址栏位于底部时固定预留 toolbar_height_no_shadow + toolbar_hairline_height；
-#     导航栏仍由后续 inset 单独叠加。
+#     地址栏位于底部时固定预留 toolbar_height_no_shadow + toolbar_hairline_height，
+#     导航栏仍由后续 inset 单独叠加；地址栏位于顶部时也预留系统导航栏高度，
+#     让网页绘制区域不伸到系统导航栏下面。
 sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
         // Alice patch start 0034\
         int aliceTopControlsInset = 0;\
@@ -927,11 +928,17 @@ sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
                         getResources()\
                                 .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
                 aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;\
-            } else if (!mBrowserControlsManager.hasHidingTokens()) {\
-                aliceBottomControlsInset =\
-                        mControlsResizeView\
-                                ? mBrowserControlsManager.getBottomControlsHeight()\
-                                : mBrowserControlsManager.getBottomControlsMinHeight();\
+            } else {\
+                if (!mBrowserControlsManager.hasHidingTokens()) {\
+                    aliceBottomControlsInset =\
+                            mControlsResizeView\
+                                    ? mBrowserControlsManager.getBottomControlsHeight()\
+                                    : mBrowserControlsManager.getBottomControlsMinHeight();\
+                }\
+                if (mBrowserControlsManager.getControlsPosition()\
+                        == BrowserControlsStateProvider.ControlsPosition.TOP) {\
+                    aliceBottomControlsInset += mAliceNavigationBarInset;\
+                }\
             }\
         }\
         // Alice patch end 0034\

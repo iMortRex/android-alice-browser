@@ -65,7 +65,7 @@ import java.util.Set;\
 
 sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/i\
     // Alice patch start 0040\
-    public static final float ALICE_SNAPSHOT_VERTICAL_STRETCH_PX = 2.0f;\
+    public static final float ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX = 8.0f;\
     // Alice patch end 0040\
 ' "$path2"
 
@@ -327,11 +327,6 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
                             : toolbarBitmap.getPixel(\
                                     0, Math.max(0, toolbarBitmap.getHeight() - 1)));\
             Canvas canvas = new Canvas(result);\
-            if (toolbarOnBottom) {\
-                canvas.scale(\
-                        1.0f,\
-                        (resultHeight + ALICE_SNAPSHOT_VERTICAL_STRETCH_PX) / resultHeight);\
-            }\
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);\
             canvas.drawBitmap(thumbnail, 0, contentTop, paint);\
             Rect destination = new Rect();\
