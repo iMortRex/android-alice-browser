@@ -896,6 +896,11 @@ sed -i '/^import org\.chromium\.components\.browser_ui\.widget\.scrim\.ScrimProp
 import org.chromium.components.browser_ui.widget.scrim.ScrimView;\
 // Alice patch end 0033' "$path3"
 
+sed -i '/^import org\.chromium\.chrome\.browser\.preferences\.ChromeSharedPreferences;$/a\
+// Alice patch start 0033\
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
+// Alice patch end 0033' "$path3"
+
 sed -i '/^                                updateScrimBottomMargin());$/a\
             // Alice patch start 0033\
             mImeBoundaryView = aliceBottomBoundary;\
@@ -1095,9 +1100,11 @@ sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }
 \
     private boolean isBottomToolbarActive() {\
         // Alice patch start 0033\
-        return mBrowserControlsStateProvider != null\
-                \&\& mBrowserControlsStateProvider.getControlsPosition()\
-                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
+        if (mBrowserControlsStateProvider != null) {\
+            return mBrowserControlsStateProvider.getControlsPosition()\
+                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
+        }\
+        return !AddressBarPreference.isToolbarConfiguredToShowOnTop();\
         // Alice patch end 0033\
     }' "$path3"
 

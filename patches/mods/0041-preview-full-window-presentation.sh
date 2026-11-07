@@ -17,7 +17,7 @@ path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser
 path13="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
 pathTabUi="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneBase.java"
 pathAnimData="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
-sed -i '/^    private int mBottomBarHeight;$/a\
+sed -i '/^    private final int mBottomBarHeight;$/a\
 // Alice patch start 0041\
     // Alice: generation counter for the deferred shrink/expand rect captures.\
     private int mAliceCaptureGeneration;\
@@ -421,7 +421,7 @@ sed -i '/^    private void updateHeightAndVisibility() {$/,/^        int newHeig
                                 \&\& (mIsDrawingToEdge\
                                         || mEdgeToEdgeBottomInsetPx > 0));\
         int newHeight = aliceDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;\
-'
+' "$path13"
 # Alice: capture the pre-fullscreen inset on enter, restore it at the exit
 # instant (the fullscreen flag and the inset event clear a moment late), and
 # drop the force once the authoritative inset state arrives.
@@ -468,7 +468,7 @@ sed -i '/^        boolean newVisibility =$/,/^                        \&\& !isKe
                         \&\& isBottomChinAllowed(\
                                 mLayoutManager.getActiveLayoutType(), mEdgeToEdgeBottomInsetPx)\
                         \&\& !isKeyboardVisible;\
-'
+' "$path13"
 
 # Alice: hide the stale shrink/expand preview image when a newer animation
 # supersedes it; rapid switching and grid scrolling left it lingering offset.
@@ -482,10 +482,11 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
             mShrinkExpandImageView.setVisibility(View.INVISIBLE);\
             return;\
 // Alice patch end 0041\
-        }
+        }\
+    }\
 ' "$path12"
 
-sed -i '/^    private void updateAliceNavBarHeight() {$/,/^    }$/c\
+sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
     private void updateAliceNavBarHeight() {\
         if (mAliceNavBarView == null) return;\
@@ -516,19 +517,16 @@ sed -i '/^    public void setProgressVisible(boolean visible) {$/,/^    }$/c\
 # Alice: capture the shrink animation's thumbnail rect one frame after the tab
 # grid layout settles; capturing inline occasionally reads a not-yet-final card
 # position, which offsets the animated preview.
-sed -i '/^        Runnable provideAnimationData =$/i\
+sed -i '/^        Runnable provideAnimationData =$/{
+n
+/^                () -> {$/a\
 // Alice patch start 0041\
         // Alice: rapid tab switching can leave several deferred captures in flight;\
         // only the newest one may publish its rects.\
         final int aliceCaptureGeneration = ++mAliceCaptureGeneration;\
-// Alice patch end 0041\
-' "$pathTabUi"
-
-sed -i '/^        Runnable provideAnimationData =$/a\
-// Alice patch start 0041\
         if (aliceCaptureGeneration != mAliceCaptureGeneration) return;\
-// Alice patch end 0041\
-' "$pathTabUi"
+// Alice patch end 0041
+}' "$pathTabUi"
 
 
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
@@ -715,7 +713,7 @@ sed -i '/^        float translationY =$/i\
                 shouldFollowImeForSheetPosition()\
                         ? getAliceNavigationBarInset()\
                         : bottomInset;\
-
+\
         if (!mRestoringFullWindowImeCrop\
                 \&\& shouldFollowImeForSheetPosition()\
                 \&\& (isKeyboardShowing() || mFullWindowImeAnimationRunning)) {\
