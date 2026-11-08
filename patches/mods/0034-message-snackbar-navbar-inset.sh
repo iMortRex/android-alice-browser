@@ -11,6 +11,7 @@ path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedNavigationBarColorController.java"
 path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeControllerImpl.java"
 path7="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/EdgeToEdgeSystemBarColorHelper.java"
+path8="content/public/android/java/src/org/chromium/content/browser/input/ImeAdapterImpl.java"
 path9="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDelegate.java"
 path10="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path11="chrome/android/java/res_app/layout/main.xml"
@@ -879,6 +880,52 @@ sed -i '/^        if (isKeyboardInsetTallerThanNavBar()) {$/,/^        }$/c\
         // ADJUST_RESIZE already accounts for the keyboard. Do not add its height\
         // to content padding a second time.\
         // Alice patch end 0034' "$path6"
+
+# 14.5) 底置工具栏使用 ADJUST_NOTHING 时，部分 IME 不会触发
+#       onResizeScrollableViewport，网页焦点输入框会停在键盘下方。等待 IME
+#       可见后主动滚动；正常 resize 回调先到达时，mFocusPreOSKViewportRect
+#       已被清空，这里的兜底会直接退出。
+sed -i '/^import androidx\.core\.view\.inputmethod\.EditorInfoCompat;$/a\
+// Alice patch start 0034\
+import androidx.core.view.ViewCompat;\
+import androidx.core.view.WindowInsetsCompat;\
+// Alice patch end 0034' "$path8"
+
+sed -i '/^            containerView\.getWindowVisibleDisplayFrame(mFocusPreOSKViewportRect);$/a\
+            // Alice patch start 0034\
+            int[] aliceScrollAttempts = {0};\
+            Runnable aliceScrollFocusedEditable =\
+                    new Runnable() {\
+                        @Override\
+                        public void run() {\
+                            if (!isValid()\
+                                    || !ViewUtils.hasFocus(containerView)\
+                                    || mFocusPreOSKViewportRect.isEmpty()) {\
+                                return;\
+                            }\
+                            WindowInsetsCompat aliceInsets =\
+                                    ViewCompat.getRootWindowInsets(containerView);\
+                            boolean aliceImeVisible =\
+                                    aliceInsets != null\
+                                            \&\& aliceInsets.isVisible(\
+                                                    WindowInsetsCompat.Type.ime());\
+                            if (!aliceImeVisible \&\& aliceScrollAttempts[0]++ < 6) {\
+                                containerView.postDelayed(this, 100);\
+                                return;\
+                            }\
+                            mWebContents.scrollFocusedEditableNodeIntoView();\
+                            cancelRequestToScrollFocusedEditableNodeIntoView();\
+                            containerView.postDelayed(\
+                                    () -> {\
+                                        if (isValid() \&\& ViewUtils.hasFocus(containerView)) {\
+                                            mWebContents.scrollFocusedEditableNodeIntoView();\
+                                        }\
+                                    },\
+                                    300);\
+                        }\
+                    };\
+            containerView.postDelayed(aliceScrollFocusedEditable, 100);\
+            // Alice patch end 0034' "$path8"
 
 # 15) visual viewport 的高度已经基于工具栏上方的 View 高度计算，IME inset
 #     因此重复扣除了工具栏高度。键盘可见时补偿回工具栏高度。
