@@ -1,6 +1,6 @@
 #!/bin/bash
 # 让预览网页使用稳定的全窗口展示：同步布局标题栏，并在打开前铺好遮罩。
-# 预览面板不再避让导航栏，网页内容底部保留导航栏高度的安全区。
+# 预览面板的 0.9 高度按屏幕计算，并扣除导航栏高度，避免顶部被额外抬高。
 
 set -e
 
@@ -506,10 +506,38 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
 
 sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
+    private int getAliceNavigationBarVisualHeight() {\
+        WindowInsetsCompat aliceRawInsets = mInsetObserver.getLastRawWindowInsets();\
+        if (aliceRawInsets != null) {\
+            int aliceVisualHeight = Math.max(\
+                    aliceRawInsets\
+                            .getInsetsIgnoringVisibility(\
+                                    WindowInsetsCompat.Type.navigationBars())\
+                            .bottom,\
+                    aliceRawInsets\
+                            .getInsetsIgnoringVisibility(\
+                                    WindowInsetsCompat.Type.mandatorySystemGestures())\
+                            .bottom);\
+            if (aliceVisualHeight > 0) return aliceVisualHeight;\
+        }\
+        return getEdgeToEdgeBottomInset();\
+    }\
+\
+    private int getAliceCurrentImeInset() {\
+        return mFullWindowImeAnimationRunning\
+                ? Math.max(0, mFullWindowCurrentImeInset)\
+                : Math.max(\
+                        0,\
+                        mInsetObserver.getSupplierForKeyboardInset().get());\
+    }\
+\
     private void updateAliceNavBarHeight() {\
         if (mAliceNavBarView == null) return;\
-        if (mEdgeToEdgeBottomInsetSupplier.get() == null) return;\
-        int aliceNavBarHeight = getEdgeToEdgeBottomInset();\
+        int aliceNavigationBarHeight = getAliceNavigationBarVisualHeight();\
+        int aliceNavBarHeight =\
+                getAliceCurrentImeInset() > aliceNavigationBarHeight\
+                        ? 0\
+                        : aliceNavigationBarHeight;\
         ViewGroup.LayoutParams aliceNavBarParams = mAliceNavBarView.getLayoutParams();\
         if (aliceNavBarParams.height != aliceNavBarHeight) {\
             aliceNavBarParams.height = aliceNavBarHeight;\
@@ -707,7 +735,7 @@ sed -i '/^        if (isFullHeightWrapContent() \&\& state == SheetState\.FULL) 
         if (content != null\
                 \&\& content.shouldUseFullWindowPresentation()\
                 \&\& state == SheetState.FULL) {\
-            return FULL_WINDOW_PREVIEW_HEIGHT_RATIO * getMaxSheetHeight();\
+            return getFullWindowPreviewHeight();\
         }\
         // Alice patch end 0041' "$path9"
 
@@ -718,7 +746,9 @@ sed -i '/^        if (isFullHeightWrapContent() \&\& state == SheetState\.FULL) 
 sed -i '/^        if (mContainerHeight <= 0 || content == null) return 0;$/a\
         // Alice patch start 0041\
         if (content.shouldUseFullWindowPresentation()) {\
-            return FULL_WINDOW_PREVIEW_HEIGHT_RATIO;\
+            int maxSheetHeight = getMaxSheetHeight();\
+            if (maxSheetHeight <= 0) return 0;\
+            return getFullWindowPreviewHeight() / maxSheetHeight;\
         }\
         // Alice patch end 0041' "$path9"
 
@@ -752,8 +782,14 @@ sed -i '/^        float translationY =$/i\
                                 mFullWindowPreviewHeightBeforeIme - imeInset);\
                 int croppedHeight = (int) effectiveOffset;\
                 int clipWidth = mContainerWidth;\
-                mView.setClipBounds(\
-                        new Rect(0, 0, clipWidth, croppedHeight));\
+                if (imeInset > getAliceNavigationBarVisualHeight()) {\
+                    mView.setClipBounds(\
+                            new Rect(0, 0, clipWidth, croppedHeight));\
+                } else {\
+                    // Alice: reveal the fake navigation bar as soon as the closing IME\
+                    // becomes shorter than it, without waiting for the animation to end.\
+                    mView.setClipBounds(null);\
+                }\
                 mFullWindowImeCropped = true;\
                 positionBottomInset = imeInset + navigationBarInset;\
                 updateContentContainerHeight();\
@@ -840,6 +876,13 @@ sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
                     .bottom;\
         }\
         return getEdgeToEdgeBottomInset();\
+    }\
+\
+    private float getFullWindowPreviewHeight() {\
+        return Math.max(\
+                0f,\
+                FULL_WINDOW_PREVIEW_HEIGHT_RATIO * getMaxSheetHeight()\
+                        - getAliceNavigationBarInset());\
     }\
     // Alice patch end 0041\
 \
@@ -1230,6 +1273,25 @@ sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
         int toolbarHeight = mToolbarView.getHeight();\
         if (toolbarHeight == 0) toolbarHeight = mToolbarView.getMeasuredHeight();\
         return Math.max(0, toolbarHeight - shadowHeight);\
+    }\
+    // Alice patch end 0041' "$path3"
+
+sed -i '/^    private int getMaxSheetHeight(int maxViewHeight) {$/,/^    }$/c\
+    // Alice patch start 0041\
+    private int getAliceNavigationBarInset() {\
+        if (mSheetContentView == null) return 0;\
+        WindowInsets aliceInsets = mSheetContentView.getRootWindowInsets();\
+        if (aliceInsets == null) return 0;\
+        return WindowInsetsCompat.toWindowInsetsCompat(\
+                        aliceInsets, mSheetContentView)\
+                .getInsetsIgnoringVisibility(\
+                        WindowInsetsCompat.Type.navigationBars())\
+                .bottom;\
+    }\
+\
+    private int getMaxSheetHeight(int maxViewHeight) {\
+        int aliceSheetHeight = (int) (maxViewHeight * FULL_HEIGHT_RATIO);\
+        return Math.max(0, aliceSheetHeight - getAliceNavigationBarInset());\
     }\
     // Alice patch end 0041' "$path3"
 
