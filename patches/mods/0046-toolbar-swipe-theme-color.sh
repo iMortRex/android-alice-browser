@@ -11,6 +11,8 @@ path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/to
 path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarLayout.java"
 path6="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 path7="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/ToolbarSwipeLayout.java"
+path8="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerImpl.java"
+path9="chrome/browser/ui/android/theme/java/src/org/chromium/chrome/browser/theme/ToolbarThemeColorProvider.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0046' "$path1"; then
@@ -44,6 +46,7 @@ sed -i 's|^    public int getToolbarHeight() {$|    // Alice patch start 0046\
         if (mToolbar != null) {\
             mToolbar.setToolbarColorsForSwipe(toolbarColor, locationBarColor);\
         }\
+        getToolbarResourceAdapter().invalidate(/* dirtyRect= */ null);\
     }\
     // Alice patch end 0046\
 \
@@ -99,14 +102,20 @@ sed -i '/^    private void updateToolbarBackgroundFromState(@VisualState int vis
 ' "$path6"
 
 # 7) ToolbarSwipeLayout 按滑动进度混合相邻标签页的主题色。
-sed -i '/^import org\.chromium\.ui\.interpolators\.Interpolators;$/a\
+sed -i '/^import org\.chromium\.ui\.resources\.ResourceManager;$/a\
 // Alice patch start 0046\
 import org.chromium.ui.util.ColorUtils;\
+// Alice patch end 0046' "$path7"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.theme\.ToolbarThemeColorProvider;$/i\
+// Alice patch start 0046\
+import org.chromium.chrome.browser.theme.ThemeUtils;\
 // Alice patch end 0046' "$path7"
 
 sed -i '/^    private final @Nullable View mControlView;$/a\
     // Alice patch start 0046\
     private final @Nullable ControlContainer mControlContainer;\
+    private final ToolbarThemeColorProvider mToolbarThemeColorProvider;\
     private boolean mAliceSwipeThemeEnabled;\
     private int mAliceSwipeStartToolbarColor;\
     private int mAliceSwipeEndToolbarColor;\
@@ -117,6 +126,7 @@ sed -i '/^    private final @Nullable View mControlView;$/a\
 sed -i '/^        mControlView = controlContainer instanceof View ? (View) controlContainer : null;$/i\
         // Alice patch start 0046\
         mControlContainer = controlContainer;\
+        mToolbarThemeColorProvider = toolbarColorProvider;\
         // Alice patch end 0046' "$path7"
 
 sed -i '/^            @ScrollDirection int direction, int fromIndex, int toIndex) {$/a\
@@ -131,18 +141,37 @@ sed -i '/^        List<Integer> visibleTabs = new ArrayList<>();$/i\
         if (mAliceSwipeThemeEnabled) {\
             @Nullable LayoutTab aliceTargetTab =\
                     mFromTab == mLeftTab ? mRightTab : mLeftTab;\
-            mAliceSwipeStartToolbarColor =\
-                    mFromTab != null ? mFromTab.getToolbarBackgroundColor() : 0;\
-            mAliceSwipeEndToolbarColor =\
-                    aliceTargetTab != null\
-                            ? aliceTargetTab.getToolbarBackgroundColor()\
-                            : mAliceSwipeStartToolbarColor;\
-            mAliceSwipeStartLocationBarColor =\
-                    mFromTab != null ? mFromTab.getTextBoxBackgroundColor() : 0;\
-            mAliceSwipeEndLocationBarColor =\
-                    aliceTargetTab != null\
-                            ? aliceTargetTab.getTextBoxBackgroundColor()\
-                            : mAliceSwipeStartLocationBarColor;\
+            @Nullable Tab aliceFromTab = mTabModelSelector.getTabById(fromTabId);\
+            @Nullable Tab aliceToTab = mTabModelSelector.getTabById(toTabId);\
+            if (aliceFromTab != null \&\& aliceToTab != null) {\
+                mAliceSwipeStartToolbarColor =\
+                        mToolbarThemeColorProvider.getToolbarBackgroundColorForTab(\
+                                aliceFromTab);\
+                mAliceSwipeEndToolbarColor =\
+                        mToolbarThemeColorProvider.getToolbarBackgroundColorForTab(\
+                                aliceToTab);\
+                mAliceSwipeStartLocationBarColor =\
+                        ThemeUtils.getTextBoxColorForToolbarBackground(\
+                                getContext(),\
+                                aliceFromTab,\
+                                mAliceSwipeStartToolbarColor);\
+                mAliceSwipeEndLocationBarColor =\
+                        ThemeUtils.getTextBoxColorForToolbarBackground(\
+                                getContext(), aliceToTab, mAliceSwipeEndToolbarColor);\
+            } else {\
+                mAliceSwipeStartToolbarColor =\
+                        mFromTab != null ? mFromTab.getToolbarBackgroundColor() : 0;\
+                mAliceSwipeEndToolbarColor =\
+                        aliceTargetTab != null\
+                                ? aliceTargetTab.getToolbarBackgroundColor()\
+                                : mAliceSwipeStartToolbarColor;\
+                mAliceSwipeStartLocationBarColor =\
+                        mFromTab != null ? mFromTab.getTextBoxBackgroundColor() : 0;\
+                mAliceSwipeEndLocationBarColor =\
+                        aliceTargetTab != null\
+                                ? aliceTargetTab.getTextBoxBackgroundColor()\
+                                : mAliceSwipeStartLocationBarColor;\
+            }\
             updateAliceToolbarThemeColor(0f);\
         }\
         // Alice patch end 0046' "$path7"
@@ -168,6 +197,11 @@ sed -i '/^    public void swipeUpdated(long time, float x, float y, float dx, fl
 \
 ' "$path7"
 
+sed -i '/^        mOffsetTarget = MathUtils\.clamp(mOffsetStart + tx, 0, getWidth()) - mOffsetStart;$/a\
+        // Alice patch start 0046\
+        updateAliceToolbarThemeColor(Math.abs(mOffsetTarget) / getWidth());\
+        // Alice patch end 0046' "$path7"
+
 sed -i '/^        mOffset = smoothInput(mOffset, mOffsetTarget);$/a\
         // Alice patch start 0046\
         updateAliceToolbarThemeColor(Math.abs(mOffset) / getWidth());\
@@ -187,3 +221,22 @@ sed -i '/^                    mOffsetTarget = mOffset;$/a\
                     // Alice patch start 0046\
                     updateAliceToolbarThemeColor(Math.abs(mOffset) / getWidth());\
                     // Alice patch end 0046' "$path7"
+
+# 9) 底部工具栏模式下也按目标标签页计算实际颜色，避免相邻 Tab 共用当前色。
+sed -i '/^    public @ColorInt int getToolbarBackgroundColor(Tab tab) {$/i\
+    // Alice patch start 0046\
+    /**\
+     * Returns the resolved toolbar color for a specific tab without depending on the currently\
+     * active top/bottom provider. Used to cache both endpoints before a tab swipe.\
+     */\
+    public @ColorInt int getToolbarBackgroundColorForTab(Tab tab) {\
+        return mTopUiThemeColorProvider.getToolbarBackgroundColor(tab);\
+    }\
+    // Alice patch end 0046\
+\
+' "$path9"
+
+sed -i 's|^        @ColorInt int toolbarBackgroundColor = toolbarTheme\.getToolbarBackgroundColor(tab);$|        // Alice patch start 0046\
+        @ColorInt int toolbarBackgroundColor =\
+                toolbarTheme.getToolbarBackgroundColorForTab(tab);\
+        // Alice patch end 0046|' "$path8"

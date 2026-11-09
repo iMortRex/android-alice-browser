@@ -107,14 +107,20 @@ sed -i '/^import java\.util\.function\.Supplier;$/i\
 import java.util.List;\
 // Alice patch end 0033' "$path1"
 
+sed -i '/^import android\.view\.ViewGroup;$/a\
+// Alice patch start 0033\
+import android.view.ViewTreeObserver;\
+// Alice patch end 0033' "$path1"
+
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
     private @Nullable ViewGroup mNavigationBarBackgroundContainer;\
     private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;\
-    private final View.OnLayoutChangeListener mAliceNavigationBarLayoutListener =\
-            (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->\
-                    updateNavigationBarBackground();\
+    private static final long ALICE_NAVIGATION_BAR_RETRY_TIMEOUT_MS = 3000;\
+    private ViewTreeObserver.@Nullable OnPreDrawListener\
+            mAliceNavigationBarRetryListener;\
+    private long mAliceNavigationBarRetryDeadline;\
     private float mAliceTabSwitcherBackgroundAlpha = -1f;\
     private @Nullable ImageView mSearchToolbarSnapshot;\
     private @Nullable Bitmap mSearchToolbarSnapshotBitmap;\
@@ -364,22 +370,17 @@ sed -i '/^        mHandler = handler;$/a\
         mControlContainer\
                 .getView()\
                 .postOnAnimation(ToolbarPositionController.this::updateNavigationBarBackground);\
-        mControlContainer\
-                .getView()\
-                .addOnLayoutChangeListener(mAliceNavigationBarLayoutListener);\
         // Alice patch end 0033' "$path1"
 
 # 2) 销毁时注销动画监听。
 sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgressBarCallback);$/a\
         // Alice patch start 0033\
-        mControlContainer\
-                .getView()\
-                .removeOnLayoutChangeListener(mAliceNavigationBarLayoutListener);\
         mControlContainer.removeTouchEventObserver(mToolbarTouchObserver);\
         InsetObserver imeInsetObserver = mWindowAndroid.getInsetObserver();\
         if (imeInsetObserver != null) {\
             imeInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\
         }\
+        removeAliceNavigationBarBackgroundRetry();\
         if (mNavigationBarBackground != null\
                 \&\& mNavigationBarBackgroundContainer != null\
                 \&\& mNavigationBarBackgroundContainer.getParent() instanceof ViewGroup) {\
@@ -468,8 +469,24 @@ sed -i '/^    private float getLocationBarTranslationY() {$/a\
         }\
         // Alice patch end 0033' "$path20"
 
+# 只在视觉状态真的变化时刷新工具栏颜色，避免布局帧反复把滑动混合色刷回旧色。
+sed -i 's|^        if (mTabSwitcherState != EXITING_TAB_SWITCHER) {$|        // Alice patch start 0033\
+        if (visualStateChanged\
+                \&\& mTabSwitcherState != EXITING_TAB_SWITCHER) {\
+        // Alice patch end 0033|' "$path20"
+
+sed -i 's|^                updateToolbarBackgroundFromState(VisualState.BRAND_COLOR);$|                // Alice patch start 0033\
+                // Toolbar color changes are event-driven; do not refresh it on every layout.\
+                // Alice patch end 0033|' "$path20"
+
 # 5) 搜索页位于底部时，无论 normal 或 overlay 键盘模式都由上面的 inset
 #    驱动，避免 resize mode 功能开关把键盘高度清零后产生跳位。
+sed -i '/^                    public void onConfigurationChanged(Configuration configuration) {$/a\
+                        // Alice patch start 0033\
+                        // Theme mode changes are configuration events; refresh once here.\
+                        mToolbar.onPrimaryColorChanged(/* shouldAnimate= */ false);\
+                        // Alice patch end 0033' "$path2"
+
 sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^    }$/c\
     private boolean shouldIgnoreKeyboardHeightInResizeMode() {\
         // Alice patch start 0033\
@@ -576,6 +593,61 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
                         .bottom);\
     }\
 \
+    private void scheduleAliceNavigationBarBackgroundRetry() {\
+        if (mAliceNavigationBarRetryListener != null) return;\
+        View aliceToolbarView = mControlContainer.getView();\
+        long aliceNow = android.os.SystemClock.uptimeMillis();\
+        if (mAliceNavigationBarRetryDeadline == 0) {\
+            mAliceNavigationBarRetryDeadline =\
+                    aliceNow + ALICE_NAVIGATION_BAR_RETRY_TIMEOUT_MS;\
+        }\
+        if (!aliceToolbarView.isAttachedToWindow()) {\
+            if (aliceNow < mAliceNavigationBarRetryDeadline) {\
+                aliceToolbarView.postOnAnimation(\
+                        ToolbarPositionController.this::\
+                                scheduleAliceNavigationBarBackgroundRetry);\
+            } else {\
+                mAliceNavigationBarRetryDeadline = 0;\
+            }\
+            return;\
+        }\
+        mAliceNavigationBarRetryListener =\
+                () -> {\
+                    if (getNavigationBarHeight() > 0\
+                            \&\& aliceToolbarView.isAttachedToWindow()\
+                            \&\& mLayerVisibility != LayerVisibility.HIDDEN) {\
+                        if (mNavigationBarBackground != null\
+                                \&\& mNavigationBarBackground.getVisibility()\
+                                        == View.VISIBLE) {\
+                            removeAliceNavigationBarBackgroundRetry();\
+                        } else {\
+                            aliceToolbarView.postOnAnimation(\
+                                    ToolbarPositionController.this::\
+                                            updateNavigationBarBackground);\
+                        }\
+                    } else if (android.os.SystemClock.uptimeMillis()\
+                            >= mAliceNavigationBarRetryDeadline) {\
+                        removeAliceNavigationBarBackgroundRetry();\
+                    }\
+                    return true;\
+                };\
+        ViewTreeObserver aliceObserver = aliceToolbarView.getViewTreeObserver();\
+        if (aliceObserver.isAlive()) {\
+            aliceObserver.addOnPreDrawListener(mAliceNavigationBarRetryListener);\
+        }\
+    }\
+\
+    private void removeAliceNavigationBarBackgroundRetry() {\
+        if (mAliceNavigationBarRetryListener == null) return;\
+        View aliceToolbarView = mControlContainer.getView();\
+        ViewTreeObserver aliceObserver = aliceToolbarView.getViewTreeObserver();\
+        if (aliceObserver.isAlive()) {\
+            aliceObserver.removeOnPreDrawListener(mAliceNavigationBarRetryListener);\
+        }\
+        mAliceNavigationBarRetryListener = null;\
+        mAliceNavigationBarRetryDeadline = 0;\
+    }\
+\
     private void updateNavigationBarBackground() {\
         View aliceControlContainer = mControlContainer.getView();\
         if (!(aliceControlContainer instanceof ViewGroup)\
@@ -599,6 +671,10 @@ sed -i '/^    private void updateControlContainerHeight(int height) {$/,/^    }$
             aliceContainer.requestLayout();\
         }\
         int aliceNavigationBarHeight = getNavigationBarHeight();\
+        if (mNavigationBarBackground == null \&\& aliceNavigationBarHeight <= 0) {\
+            scheduleAliceNavigationBarBackgroundRetry();\
+            return;\
+        }\
         if (mNavigationBarBackground == null) {\
             View aliceBackground = new View(aliceContainer.getContext());\
             aliceBackground.setClickable(false);\

@@ -1030,24 +1030,24 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
                     if (toolbarHeight == 0) {\
                         toolbarHeight = hubToolbarView.getMinimumHeight();\
                     }\
+                    int toolbarHairlineHeight =\
+                            Math.round(\
+                                    context.getResources()\
+                                            .getDisplayMetrics()\
+                                            .density);\
                     FrameLayout.LayoutParams params =\
                             new FrameLayout.LayoutParams(\
                                     ViewGroup.LayoutParams.MATCH_PARENT,\
                                     ViewGroup.LayoutParams.MATCH_PARENT);\
                     params.gravity = android.view.Gravity.BOTTOM;\
-                    int extraBottomPadding =\
-                            Math.round(\
-                                    8f\
-                                            * context.getResources()\
-                                                    .getDisplayMetrics()\
-                                                    .density);\
+                    // The normal bottom_container includes the 1dp toolbar hairline in its\
+                    // measured height. Match that baseline so the Hub overlay and tab page\
+                    // place the snackbar at the same vertical position.\
                     alicePinnedSnackbarContainer.setPadding(\
                             alicePinnedSnackbarContainer.getPaddingLeft(),\
                             alicePinnedSnackbarContainer.getPaddingTop(),\
                             alicePinnedSnackbarContainer.getPaddingRight(),\
-                            alicePinnedSnackbarContainer.getPaddingBottom()\
-                                    + toolbarHeight\
-                                    + extraBottomPadding);\
+                            toolbarHeight + toolbarHairlineHeight);\
                     if (alicePinnedSnackbarContainer instanceof ViewGroup) {\
                         ((ViewGroup) alicePinnedSnackbarContainer)\
                                 .setClipToPadding(false);\
@@ -1091,6 +1091,13 @@ sed -i '/^    private void addToParent() {$/,/^    }$/c\
         // Alice patch end 0034\
         mParent.addView(mContainerView);\
         mParent.addOnLayoutChangeListener(mLayoutListener);\
+        // Alice patch start 0034\
+        // Window insets can settle after the Hub overlay is first attached. Recalculate\
+        // once on the next frame so the initial and returned positions share the same base.\
+        if ("alice_hub_overlay_snackbar".equals(mParent.getTag())) {\
+            mParent.postOnAnimation(this::adjustViewPosition);\
+        }\
+        // Alice patch end 0034\
     }' "$path1"
 
 # 21) IME 动画逐帧更新 Blink inner visual viewport。抬升量从 IME 高度中扣除
@@ -1839,7 +1846,7 @@ sed -i '/^void RenderWidgetHostViewAndroid::SetNeedsBeginFrameForFlingProgress()
 // Alice patch start 0034\
 void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
     float translation_y) {\
-  ime_viewport_translation_y_ = translation_y;\
+  SetImeViewportTouchTranslation(translation_y);\
   if (!delegated_frame_host_)\
     return;\
   auto* layer = delegated_frame_host_->content_layer();\
@@ -1850,6 +1857,36 @@ void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
 }\
 // Alice patch end 0034
 ;}' "$path36"
+fi
+
+if ! grep -q 'void SetImeViewportTouchTranslation(float translation_y);' "$path35"; then
+sed -i '/^  void SetImeViewportTranslation(float translation_y);$/a\
+  // Alice patch start 0034\
+  void SetImeViewportTouchTranslation(float translation_y);\
+  // Alice patch end 0034' "$path35"
+fi
+
+if ! grep -q 'void RenderWidgetHostViewAndroid::SetImeViewportTouchTranslation' "$path36"; then
+sed -i '/^void RenderWidgetHostViewAndroid::SetImeViewportTranslation($/,/^}$/{/^}$/a\
+\
+// Alice patch start 0034\
+void RenderWidgetHostViewAndroid::SetImeViewportTouchTranslation(\
+    float translation_y) {\
+  const float scale = GetDeviceScaleFactor();\
+  ime_viewport_translation_y_ =\
+      scale > 0.f ? translation_y / scale : translation_y;\
+}\
+// Alice patch end 0034
+;}' "$path36"
+fi
+
+if ! grep -q 'rwhva->SetImeViewportTouchTranslation' "$path30"; then
+sed -i '/^void WebContentsAndroid::SetImeViewportTranslation(JNIEnv\* env,$/,/^}$/{/^  auto\* input_handler = web_contents_->GetFocusedFrameWidgetInputHandler();$/i\
+  // Alice patch start 0034\
+  if (auto* rwhva = GetRenderWidgetHostViewAndroid())\
+    rwhva->SetImeViewportTouchTranslation(translation_y);\
+  // Alice patch end 0034
+;}' "$path30"
 fi
 
 if ! grep -q 'adjusted_event' "$path36"; then

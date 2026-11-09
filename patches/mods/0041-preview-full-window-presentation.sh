@@ -230,6 +230,20 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
 
 sed -i '/^    default boolean coversBottomControls() {$/i\
     // Alice patch start 0041\
+    /**\
+     * Requests the page background color used by the simulated navigation bar.\
+     *\
+     * @param callback Receives an ARGB color, or transparent when unavailable.\
+     */\
+    default void getPageBackgroundColor(org.chromium.base.Callback<Integer> callback) {\
+        org.chromium.base.Callback.runNullSafe(callback, Color.TRANSPARENT);\
+    }\
+    // Alice patch end 0041\
+\
+' "$path1"
+
+sed -i '/^    default boolean coversBottomControls() {$/i\
+    // Alice patch start 0041\
     default int getToolbarBackgroundHeight() {\
         return 0;\
     }\
@@ -538,14 +552,81 @@ sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
                 getAliceCurrentImeInset() > aliceNavigationBarHeight\
                         ? 0\
                         : aliceNavigationBarHeight;\
+        int aliceNavBarLayoutHeight =\
+                aliceNavBarHeight > 0 ? aliceNavBarHeight + 1 : 0;\
         ViewGroup.LayoutParams aliceNavBarParams = mAliceNavBarView.getLayoutParams();\
-        if (aliceNavBarParams.height != aliceNavBarHeight) {\
-            aliceNavBarParams.height = aliceNavBarHeight;\
+        if (aliceNavBarParams.height != aliceNavBarLayoutHeight) {\
+            aliceNavBarParams.height = aliceNavBarLayoutHeight;\
             mAliceNavBarView.setLayoutParams(aliceNavBarParams);\
         }\
+        mAliceNavBarView.setTranslationY(\
+                Math.max(0f, getFullWindowPreviewHeight() - 1f));\
+        if (aliceNavBarLayoutHeight > 0) {\
+            scheduleAliceNavBarColorSample();\
+        }\
+    }\
+\
+    private void scheduleAliceNavBarColorSample() {\
+        View aliceNavBarView = mAliceNavBarView;\
+        if (aliceNavBarView == null\
+                || mAliceNavBarColorSamplePending\
+                || (!mAliceNavBarHasOpaqueColor\
+                        \&\& mAliceNavBarColorSampleAttempts >= 60)) {\
+            return;\
+        }\
+        BottomSheetContent alicePreviewContent = getCurrentSheetContent();\
+        if (alicePreviewContent == null) {\
+            aliceNavBarView.setBackgroundColor(mAliceNavBarFallbackColor);\
+            return;\
+        }\
+        mAliceNavBarColorSamplePending = true;\
+        alicePreviewContent.getPageBackgroundColor(\
+                aliceColor -> {\
+                    mAliceNavBarColorSamplePending = false;\
+                    if (mAliceNavBarView != aliceNavBarView) return;\
+                    if (android.graphics.Color.alpha(aliceColor) == 0xFF) {\
+                        mAliceNavBarHasOpaqueColor = true;\
+                        mAliceNavBarColorSampleAttempts = 0;\
+                        aliceNavBarView.setBackgroundColor(aliceColor);\
+                        scheduleAliceNavBarColorPoll();\
+                    } else {\
+                        mAliceNavBarHasOpaqueColor = false;\
+                        mAliceNavBarColorSampleAttempts++;\
+                        aliceNavBarView.setBackgroundColor(mAliceNavBarFallbackColor);\
+                        if (mAliceNavBarColorSampleAttempts < 60) {\
+                            scheduleAliceNavBarColorPoll();\
+                        }\
+                    }\
+                });\
+    }\
+\
+    private void scheduleAliceNavBarColorPoll() {\
+        View aliceNavBarView = mAliceNavBarView;\
+        if (aliceNavBarView == null || mAliceNavBarColorPollScheduled) return;\
+        mAliceNavBarColorPollScheduled = true;\
+        int alicePollDelayMs = mAliceNavBarHasOpaqueColor ? 500 : 50;\
+        aliceNavBarView.postDelayed(\
+                () -> {\
+                    mAliceNavBarColorPollScheduled = false;\
+                    BottomSheetContent alicePreviewContent = getCurrentSheetContent();\
+                    if (mAliceNavBarView == aliceNavBarView\
+                            \&\& alicePreviewContent != null\
+                            \&\& alicePreviewContent.shouldUseFullWindowPresentation()) {\
+                        scheduleAliceNavBarColorSample();\
+                    }\
+                },\
+                alicePollDelayMs);\
     }\
     // Alice patch end 0041\
 ' "$path9"
+
+sed -i '/^        onSheetContentChanged(content);$/a\
+        // Alice patch start 0041\
+        if (content != null \&\& content.shouldUseFullWindowPresentation()) {\
+            updateAliceNavBarHeight();\
+            scheduleAliceNavBarColorSample();\
+        }\
+        // Alice patch end 0041' "$path9"
 
 # Alice: the preview toolbar keeps the progress bar's space while hidden so the\
 # toolbar height never changes and the page does not shift when it hides.\
@@ -809,6 +890,11 @@ sed -i '/^        float translationY =$/i\
 sed -i '/^    private final BottomSheetView mView;$/a\
 // Alice patch start 0041\
     private View mAliceNavBarView;\
+    private boolean mAliceNavBarColorSamplePending;\
+    private boolean mAliceNavBarColorPollScheduled;\
+    private boolean mAliceNavBarHasOpaqueColor;\
+    private int mAliceNavBarFallbackColor;\
+    private int mAliceNavBarColorSampleAttempts;\
 // Alice patch end 0041\
 ' "$path9"
 
@@ -819,6 +905,9 @@ sed -i '/^        mSheetContainer\.removeView(mView);$/i\
         // child of the sheet view it follows every preview window animation.\
         Context aliceNavBarContext = mView.getContext();\
         mAliceNavBarView = new View(aliceNavBarContext);\
+        mAliceNavBarFallbackColor =\
+                SemanticColorUtils.getDefaultBgColor(aliceNavBarContext)\
+                        | 0xFF000000;\
         Drawable aliceNavBarSource = aliceNavBarContext.getDrawable(\
                 org.chromium.components.browser_ui.widget.R.drawable\
                         .bottom_sheet_background);\
@@ -829,8 +918,10 @@ sed -i '/^        mSheetContainer\.removeView(mView);$/i\
                 aliceNavBarSource.draw(new Canvas(aliceNavBarSample));\
                 // Alice: sample below the rounded top corners of the drawable, which\
                 // are transparent and would otherwise give a fully transparent bar.\
+                mAliceNavBarFallbackColor =\
+                        aliceNavBarSample.getPixel(32, 56) | 0xFF000000;\
                 mAliceNavBarView.setBackground(\
-                        new ColorDrawable(aliceNavBarSample.getPixel(32, 56)));\
+                        new ColorDrawable(mAliceNavBarFallbackColor));\
             } finally {\
                 aliceNavBarSample.recycle();\
             }\
@@ -838,7 +929,11 @@ sed -i '/^        mSheetContainer\.removeView(mView);$/i\
         mView.addView(\
                 mAliceNavBarView,\
                 new FrameLayout.LayoutParams(\
-                        ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.BOTTOM));\
+                        ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP));\
+        mAliceNavBarView.addOnLayoutChangeListener(\
+                (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {\
+                    if (view.getHeight() > 0) scheduleAliceNavBarColorSample();\
+                });\
 // Alice patch end 0041\
 ' "$path9"
 
@@ -1017,32 +1112,76 @@ import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0041\
 ' "$path3"
 
+sed -i '/^    private static final String ALICE_EXTENSION_FIT_SCRIPT =$/i\
+    // Alice patch start 0041\
+    private static final String ALICE_PAGE_BACKGROUND_COLOR_SCRIPT =\
+            """\
+            (() => {\
+              const aliceParseBackgroundColor = (color) => {\
+                if (!color || color === "transparent") return 0;\
+                const canvas = document.createElement("canvas");\
+                canvas.width = 1;\
+                canvas.height = 1;\
+                const context = canvas.getContext("2d", {willReadFrequently: true});\
+                if (!context) return 0;\
+                context.clearRect(0, 0, 1, 1);\
+                context.fillStyle = color;\
+                context.fillRect(0, 0, 1, 1);\
+                const data = context.getImageData(0, 0, 1, 1).data;\
+                if (data[3] <= 0) return 0;\
+                return (((data[3] << 24)\
+                        | (data[0] << 16)\
+                        | (data[1] << 8)\
+                        | data[2]) >>> 0);\
+              };\
+              if (document.documentElement) {\
+                const htmlColor = aliceParseBackgroundColor(\
+                        getComputedStyle(document.documentElement).backgroundColor);\
+                if (htmlColor) return htmlColor;\
+              }\
+              if (document.body) {\
+                return aliceParseBackgroundColor(\
+                        getComputedStyle(document.body).backgroundColor);\
+              }\
+              return 0;\
+            })()\
+            """;\
+    // Alice patch end 0041\
+\
+' "$path3"
+
 sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
     // Alice patch start 0041\
     private static final String ALICE_EXTENSION_FIT_SCRIPT =\
             """\
             if (location.protocol === "chrome-extension:") {\
               document.documentElement.style.setProperty(\
-                      "height", "100%", "important");\
-              document.documentElement.style.setProperty(\
-                      "min-height", "0", "important");\
-              document.documentElement.style.setProperty(\
-                      "overflow", "auto", "important");\
-              document.documentElement.style.setProperty(\
                       "overflow-y", "auto", "important");\
               document.documentElement.style.setProperty(\
                       "touch-action", "pan-y", "important");\
+              document.documentElement.style.setProperty(\
+                      "width", "100%", "important");\
+              document.documentElement.style.setProperty(\
+                      "max-width", "none", "important");\
+              document.documentElement.style.setProperty(\
+                      "min-width", "0px", "important");\
+              document.documentElement.style.setProperty(\
+                      "box-sizing", "border-box", "important");\
+              document.documentElement.style.setProperty(\
+                      "margin", "0px", "important");\
               if (document.body) {\
                 document.body.style.setProperty(\
-                        "height", "auto", "important");\
-                document.body.style.setProperty(\
-                        "min-height", "100%", "important");\
-                document.body.style.setProperty(\
-                        "overflow", "visible", "important");\
-                document.body.style.setProperty(\
-                        "overflow-y", "visible", "important");\
+                        "overflow-y", "auto", "important");\
                 document.body.style.setProperty(\
                         "touch-action", "pan-y", "important");\
+                document.body.style.setProperty(\
+                        "width", "100%", "important");\
+                document.body.style.setProperty(\
+                        "max-width", "none", "important");\
+                document.body.style.setProperty(\
+                        "min-width", "0px", "important");\
+                document.body.style.setProperty(\
+                        "box-sizing", "border-box", "important");\
               }\
             }\
             (() => {\
@@ -1325,6 +1464,34 @@ sed -i '/^                        if (mSheetContent != null) mSheetContent\.setP
 
 sed -i '/^    @Nullable$/i\
     // Alice patch start 0041\
+    @Override\
+    public void getPageBackgroundColor(org.chromium.base.Callback<Integer> callback) {\
+        if (mWebContents == null || mWebContents.isDestroyed()) {\
+            org.chromium.base.Callback.runNullSafe(\
+                    callback, android.graphics.Color.TRANSPARENT);\
+            return;\
+        }\
+        mWebContents\
+                .getMainFrame()\
+                .executeJavaScriptInIsolatedWorld(\
+                        ALICE_PAGE_BACKGROUND_COLOR_SCRIPT,\
+                        1,\
+                        jsonResult -> {\
+                            int aliceColor = android.graphics.Color.TRANSPARENT;\
+                            try {\
+                                long alicePackedColor =\
+                                        (long) Double.parseDouble(jsonResult.trim());\
+                                if (alicePackedColor > 0\
+                                        \&\& alicePackedColor <= 0xFFFFFFFFL) {\
+                                    aliceColor = (int) alicePackedColor;\
+                                }\
+                            } catch (NumberFormatException ignored) {\
+                            }\
+                            org.chromium.base.Callback.runNullSafe(\
+                                    callback, aliceColor);\
+                        });\
+    }\
+\
     @Override\
     public boolean shouldUseFullWindowPresentation() {\
         return true;\
