@@ -112,6 +112,9 @@ sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     private @Nullable View mNavigationBarBackground;\
     private @Nullable ViewGroup mNavigationBarBackgroundContainer;\
     private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;\
+    private final View.OnLayoutChangeListener mAliceNavigationBarLayoutListener =\
+            (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->\
+                    updateNavigationBarBackground();\
     private float mAliceTabSwitcherBackgroundAlpha = -1f;\
     private @Nullable ImageView mSearchToolbarSnapshot;\
     private @Nullable Bitmap mSearchToolbarSnapshotBitmap;\
@@ -171,6 +174,8 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
         mNavigationBarBackgroundColor = color;\
         if (mNavigationBarBackground != null) {\
             mNavigationBarBackground.setBackgroundColor(color);\
+        } else {\
+            updateNavigationBarBackground();\
         }\
     }\
 \
@@ -318,6 +323,7 @@ sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$
                 new TopToolbarCoordinator.ToolbarColorObserver() {\
                     @Override\
                     public void onToolbarColorChanged(int color) {\
+                        mAliceLastToolbarBackgroundColor = color;\
                         statusBarColorController.onToolbarColorChanged(color);\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController.setNavigationBarBackgroundColor(color);\
@@ -331,6 +337,23 @@ sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$
                 });\
         // Alice patch end 0033|' "$path2"
 
+# Toolbar 颜色回调可能早于 ToolbarPositionController 创建。保存最近一次实际
+# 工具栏背景色，并在控制器创建后补发，避免启动时模拟导航栏停留在旧色。
+sed -i '/^    private @Nullable ToolbarPositionController mToolbarPositionController;$/a\
+    // Alice patch start 0033\
+    private int mAliceLastToolbarBackgroundColor = Integer.MIN_VALUE;\
+    // Alice patch end 0033' "$path2"
+
+sed -i '/^                        mWindowAndroid);$/a\
+        // Alice patch start 0033\
+        // Toolbar color callbacks can arrive before ToolbarPositionController is created.\
+        if (mAliceLastToolbarBackgroundColor != Integer.MIN_VALUE\
+                \&\& mToolbarPositionController != null) {\
+            mToolbarPositionController.setNavigationBarBackgroundColor(\
+                    mAliceLastToolbarBackgroundColor);\
+        }\
+        // Alice patch end 0033' "$path2"
+
 sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(this);$/a\
         // Alice patch start 0033\
         mControlContainer.addTouchEventObserver(mToolbarTouchObserver);\
@@ -341,11 +364,17 @@ sed -i '/^        mHandler = handler;$/a\
         mControlContainer\
                 .getView()\
                 .postOnAnimation(ToolbarPositionController.this::updateNavigationBarBackground);\
+        mControlContainer\
+                .getView()\
+                .addOnLayoutChangeListener(mAliceNavigationBarLayoutListener);\
         // Alice patch end 0033' "$path1"
 
 # 2) 销毁时注销动画监听。
 sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgressBarCallback);$/a\
         // Alice patch start 0033\
+        mControlContainer\
+                .getView()\
+                .removeOnLayoutChangeListener(mAliceNavigationBarLayoutListener);\
         mControlContainer.removeTouchEventObserver(mToolbarTouchObserver);\
         InsetObserver imeInsetObserver = mWindowAndroid.getInsetObserver();\
         if (imeInsetObserver != null) {\
