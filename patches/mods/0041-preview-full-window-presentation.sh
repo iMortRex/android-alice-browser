@@ -506,10 +506,38 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
 
 sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
+    private int getAliceNavigationBarVisualHeight() {\
+        WindowInsetsCompat aliceRawInsets = mInsetObserver.getLastRawWindowInsets();\
+        if (aliceRawInsets != null) {\
+            int aliceVisualHeight = Math.max(\
+                    aliceRawInsets\
+                            .getInsetsIgnoringVisibility(\
+                                    WindowInsetsCompat.Type.navigationBars())\
+                            .bottom,\
+                    aliceRawInsets\
+                            .getInsetsIgnoringVisibility(\
+                                    WindowInsetsCompat.Type.mandatorySystemGestures())\
+                            .bottom);\
+            if (aliceVisualHeight > 0) return aliceVisualHeight;\
+        }\
+        return getEdgeToEdgeBottomInset();\
+    }\
+\
+    private int getAliceCurrentImeInset() {\
+        return mFullWindowImeAnimationRunning\
+                ? Math.max(0, mFullWindowCurrentImeInset)\
+                : Math.max(\
+                        0,\
+                        mInsetObserver.getSupplierForKeyboardInset().get());\
+    }\
+\
     private void updateAliceNavBarHeight() {\
         if (mAliceNavBarView == null) return;\
-        if (mEdgeToEdgeBottomInsetSupplier.get() == null) return;\
-        int aliceNavBarHeight = getEdgeToEdgeBottomInset();\
+        int aliceNavigationBarHeight = getAliceNavigationBarVisualHeight();\
+        int aliceNavBarHeight =\
+                getAliceCurrentImeInset() > aliceNavigationBarHeight\
+                        ? 0\
+                        : aliceNavigationBarHeight;\
         ViewGroup.LayoutParams aliceNavBarParams = mAliceNavBarView.getLayoutParams();\
         if (aliceNavBarParams.height != aliceNavBarHeight) {\
             aliceNavBarParams.height = aliceNavBarHeight;\
@@ -752,8 +780,14 @@ sed -i '/^        float translationY =$/i\
                                 mFullWindowPreviewHeightBeforeIme - imeInset);\
                 int croppedHeight = (int) effectiveOffset;\
                 int clipWidth = mContainerWidth;\
-                mView.setClipBounds(\
-                        new Rect(0, 0, clipWidth, croppedHeight));\
+                if (imeInset > getAliceNavigationBarVisualHeight()) {\
+                    mView.setClipBounds(\
+                            new Rect(0, 0, clipWidth, croppedHeight));\
+                } else {\
+                    // Alice: reveal the fake navigation bar as soon as the closing IME\
+                    // becomes shorter than it, without waiting for the animation to end.\
+                    mView.setClipBounds(null);\
+                }\
                 mFullWindowImeCropped = true;\
                 positionBottomInset = imeInset + navigationBarInset;\
                 updateContentContainerHeight();\

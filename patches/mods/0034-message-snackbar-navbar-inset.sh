@@ -1610,7 +1610,7 @@ if ! grep -q 'SetImeViewportTranslation(float translation_y);' "$path24"; then
 sed -i '/^  ScrollFocusedEditableNodeIntoView();$/a\
 \
   // Alice patch start 0034\
-  // Sets a Blink visual viewport IME translation in device-independent pixels.\
+  // Sets a compositor-only IME viewport translation in physical pixels.\
   SetImeViewportTranslation(float translation_y);\
   // Alice patch end 0034' "$path24"
 fi
