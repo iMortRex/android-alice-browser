@@ -782,14 +782,14 @@ sed -i '/^        float translationY =$/i\
                                 mFullWindowPreviewHeightBeforeIme - imeInset);\
                 int croppedHeight = (int) effectiveOffset;\
                 int clipWidth = mContainerWidth;\
-                if (imeInset > getAliceNavigationBarVisualHeight()) {\
-                    mView.setClipBounds(\
-                            new Rect(0, 0, clipWidth, croppedHeight));\
-                } else {\
-                    // Alice: reveal the fake navigation bar as soon as the closing IME\
-                    // becomes shorter than it, without waiting for the animation to end.\
-                    mView.setClipBounds(null);\
-                }\
+                // Alice: reveal the fake navigation bar progressively as the closing IME\
+                // becomes shorter than it instead of exposing the whole sheet at once.\
+                int navbarReveal =\
+                        Math.max(\
+                                0,\
+                                getAliceNavigationBarVisualHeight() - imeInset);\
+                mView.setClipBounds(\
+                        new Rect(0, 0, clipWidth, croppedHeight + navbarReveal));\
                 mFullWindowImeCropped = true;\
                 positionBottomInset = imeInset + navigationBarInset;\
                 updateContentContainerHeight();\
