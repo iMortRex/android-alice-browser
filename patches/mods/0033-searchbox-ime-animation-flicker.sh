@@ -1820,10 +1820,10 @@ sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
                             .setExitingFullscreen(false);\
                     // Alice patch end 0033\
 ' "$path15"
-sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
-        // Alice patch start 0033\
-        FullscreenManager.FullscreenTransitionState.setExitingFullscreen(true);\
-        // Alice patch end 0033\
+sed -i '/^        if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {$/a\
+            // Alice patch start 0033\
+            FullscreenManager.FullscreenTransitionState.setExitingFullscreen(true);\
+            // Alice patch end 0033\
 ' "$path15"
 
 # 退出全屏时直接把 controls 设为 SHOWN，明确禁止 show 动画；否则 BOTH 会让

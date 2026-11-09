@@ -9,6 +9,8 @@ path2="chrome/browser/devtools/android/java/src/org/chromium/chrome/browser/devt
 path3="chrome/browser/devtools/devtools_window.cc"
 path4="chrome/browser/devtools/devtools_window.h"
 path5="chrome/browser/devtools/android/devtools_window_android.cc"
+path6="chrome/android/java/src/org/chromium/chrome/browser/contextmenu/ContextMenuHelper.java"
+path7="chrome/browser/contextmenu/java/src/org/chromium/chrome/browser/contextmenu/ContextMenuNativeDelegateImpl.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0025' "$path1"; then
@@ -93,7 +95,10 @@ void DevToolsWindow::SetAndroidTargetBrowserWindow(int64_t ptr) {\
 ' "$path3"
 
 # 7) devtools_window.cc：插到当前活动标签页之后，而不是固定插到第 0 个
-sed -i 's|^  tab_list->InsertWebContentsAt(0, std::move(owned_web_contents), false,$|  // Alice patch start 0025\n  const int insert_index =\n  std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());\n  tab_list->InsertWebContentsAt(insert_index, std::move(owned_web_contents), false,|' "$path3"
+sed -i 's|^  tab_list->InsertWebContentsAt(0, std::move(owned_web_contents), false,$|  // Alice patch start 0025\n  const int insert_index =\n      std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());\n  tab_list->InsertWebContentsAt(insert_index, std::move(owned_web_contents), false,|' "$path3"
+
+sed -i '/^                                std::nullopt);$/a\
+  // Alice patch end 0025' "$path3"
 
 # 8) devtools_window.h：声明
 sed -i '/^  static DevToolsWindow\* AsDevToolsWindow(BrowserWindowInterface\* browser);$/a\
@@ -113,3 +118,61 @@ static void JNI_DevToolsWindowAndroid_SetTargetBrowserWindow(\
 }\
 // Alice patch end 0025\
 ' "$path5"
+
+# 10) 长按页面菜单：创建 delegate 时解析当前窗口，选中“检查”时再设置目标，
+#     避免未经“检查”操作就留下全局目标窗口。
+sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/i\
+// Alice patch start 0025\
+import org.chromium.chrome.browser.devtools.DevToolsWindowAndroid;\
+// Alice patch end 0025' "$path6"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
+// Alice patch start 0025\
+import org.chromium.chrome.browser.profiles.Profile;\
+import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskTrackerFactory;\
+// Alice patch end 0025' "$path6"
+
+sed -i '/^        mCurrentNativeDelegate =$/i\
+        // Alice patch start 0025\
+        Runnable aliceSetDevToolsTarget =\
+                () -> {\
+                    var aliceDevToolsTask =\
+                            ChromeAndroidTaskTrackerFactory.getInstance()\
+                                    .get(activity.getTaskId());\
+                    @Nullable Profile aliceDevToolsProfile =\
+                            Profile.fromWebContents(mWebContents);\
+                    if (aliceDevToolsTask != null \&\& aliceDevToolsProfile != null) {\
+                        DevToolsWindowAndroid.setTargetBrowserWindow(\
+                                aliceDevToolsTask.getOrCreateNativeBrowserWindowPtr(\
+                                        aliceDevToolsProfile));\
+                    }\
+                };\
+        // Alice patch end 0025\
+' "$path6"
+
+sed -i 's|^                new ContextMenuNativeDelegateImpl(mWebContents, renderFrameHost, params);$|                new ContextMenuNativeDelegateImpl(\
+                        mWebContents,\
+                        renderFrameHost,\
+                        params,\
+                        aliceSetDevToolsTarget);|' "$path6"
+
+sed -i '/^    private final RenderFrameHost mRenderFrameHost;$/a\
+\
+    // Alice patch start 0025\
+    private final Runnable mDevToolsTargetSetter;\
+    // Alice patch end 0025' "$path7"
+
+sed -i 's|^            ContextMenuParams contextMenuParams) {$|            ContextMenuParams contextMenuParams,\
+            // Alice patch start 0025\
+            Runnable devToolsTargetSetter) {\
+        // Alice patch end 0025|' "$path7"
+
+sed -i '/^        mRenderFrameHost = renderFrameHost;$/a\
+        // Alice patch start 0025\
+        mDevToolsTargetSetter = devToolsTargetSetter;\
+        // Alice patch end 0025' "$path7"
+
+sed -i '/^        ContextMenuNativeDelegateImplJni\.get()\.inspectElement(mNativePtr, mRenderFrameHost, x, y);$/i\
+        // Alice patch start 0025\
+        mDevToolsTargetSetter.run();\
+        // Alice patch end 0025' "$path7"

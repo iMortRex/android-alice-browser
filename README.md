@@ -49,5 +49,6 @@ I built this browser for my own use for the time being, so I’m not accepting i
 - Adjusted menu button functions.
 - Moved the top buttons on the tab management page to the bottom and adjusted their order.
 - When the homepage is set to a custom URL, new tabs will also use that custom URL.
+- Transition theme color when swiping the toolbar to switch tabs.
 - Fixed many animation details.
 - And more...
