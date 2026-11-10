@@ -158,8 +158,15 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0039\
 ' "$path4"
 
-# 5) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）。
-sed -i '/^    <!-- Alice patch end 0021 -->$/a\
+# 5) 外观 Fragment 增加读取开关所需的偏好依赖。
+sed -i '/^import org\.chromium\.chrome\.browser\.preferences\.ChromePreferenceKeys;$/a\
+// Alice patch start 0039\
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
+// Alice patch end 0039\
+' "$path3"
+
+# 6) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）。
+sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&\
 \
     <!-- Alice patch start 0039 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
@@ -167,11 +174,10 @@ sed -i '/^    <!-- Alice patch end 0021 -->$/a\
         android:order="4"\
         android:title="Fade the search page background"\
         android:summary="Fade the search page background and end the focus scrim at the top of the search box when the address bar is active" />\
-    <!-- Alice patch end 0039 -->\
-' "$path2"
+    <!-- Alice patch end 0039 -->|' "$path2"
 
-# 6) Fragment：读/写开关（默认关，与行为默认值一致）。
-sed -i '/^    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =$/i\
+# 7) Fragment：读/写开关（默认关，与行为默认值一致）。
+sed -i '/^    public static final String PREF_UI_THEME = "ui_theme";$/a\
     // Alice patch start 0039\
     public static final String PREF_ALICE_SEARCH_PAGE_GRADIENT =\
             "alice_search_page_gradient_switch";\

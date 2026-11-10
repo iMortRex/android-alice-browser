@@ -1,42 +1,39 @@
 #!/bin/bash
 # 地址栏建议的「修改搜索查询」(refine) 按钮：填入搜索框的文本末尾是否补空格
-# 开关在 设置 - 外观，默认开（= 上游行为）
+# 开关在 设置 - 标签页和标签页分组，默认开（= 上游行为）
 
 set -e
 
 # 目标文件路径
 path1="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
-path2="chrome/android/java/res/xml/appearance_preferences.xml"
-path3="chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AppearanceSettingsFragment.java"
+path2="chrome/android/features/tab_ui/java/res/xml/tabs_settings.xml"
+path3="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabsSettings.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0021' "$path1"; then
     exit 100
 fi
 
-# 1) 行为：末尾是否补空格由 设置-外观 的开关决定（默认补）
+# 1) 行为：末尾是否补空格由 设置-标签页和标签页分组 的开关决定（默认补）
 sed -i 's|^import org.chromium.chrome.browser.omnibox.R;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.omnibox.R;\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\n// Alice patch end 0021|' "$path1"
 
 # 修改对应源码以完成本补丁功能。
-sed -i 's|^        if (isSearchSuggestion) refineText = TextUtils.concat(refineText, " ").toString();$|        // Alice patch start 0021\n        // Alice: no-refine-trailing-space -- 末尾是否补空格由 设置-外观 里的开关决定（默认补）。\n        if (isSearchSuggestion\n                \&\& ChromeSharedPreferences.getInstance()\n                        .readBoolean("alice_refine_trailing_space", true)) {\n            refineText = TextUtils.concat(refineText, " ").toString();\n        }\n        // Alice patch end 0021|' "$path1"
+sed -i 's|^        if (isSearchSuggestion) refineText = TextUtils.concat(refineText, " ").toString();$|        // Alice patch start 0021\n        // Alice: no-refine-trailing-space -- 末尾是否补空格由 设置-标签页和标签页分组 里的开关决定（默认补）。\n        if (isSearchSuggestion\n                \&\& ChromeSharedPreferences.getInstance()\n                        .readBoolean("alice_refine_trailing_space", true)) {\n            refineText = TextUtils.concat(refineText, " ").toString();\n        }\n        // Alice patch end 0021|' "$path1"
 
-# 2) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）
-sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&\n\n    <!-- Alice patch start 0021 -->\n    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\n        android:key="alice_refine_trailing_space_switch"\n        android:order="3"\n        android:title="Add a trailing space to refined search queries"\n        android:summary="Adds a trailing space after you choose to refine a search query" />\n    <!-- Alice patch end 0021 -->|' "$path2"
+# 2) 标签页和标签页分组设置页加开关（默认英文，简体中文由 Fragment 覆盖）
+sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0021 -->\n    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\n        android:key="alice_refine_trailing_space_switch"\n        android:title="Add a trailing space to refined search queries"\n        android:summary="Adds a trailing space after you choose to refine a search query" />\n    <!-- Alice patch end 0021 -->\n</PreferenceScreen>|' "$path2"
 
 # 3) fragment：读/写开关（默认开，与行为默认值一致）
-sed -i 's|^import org.chromium.chrome.browser.preferences.Pref;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\nimport org.chromium.chrome.browser.preferences.Pref;\n// Alice patch end 0021|' "$path3"
+sed -i 's|^    static final String PREF_CCT_ALWAYS_OPEN_IN_BROWSER = "cct_always_open_in_browser";$|&\n    // Alice patch start 0021\n    static final String PREF_ALICE_REFINE_TRAILING_SPACE =\n            "alice_refine_trailing_space_switch";\n    // Alice patch end 0021|' "$path3"
 
 # 修改对应源码以完成本补丁功能。
-sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n    // Alice patch start 0021\n    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =\n            "alice_refine_trailing_space_switch";\n    // Alice patch end 0021|' "$path3"
+sed -i 's|^        configureCctAlwaysOpenInBrowserSwitch();$|&\n        // Alice patch start 0021\n        configureAliceRefineTrailingSpaceSwitch();\n        // Alice patch end 0021|' "$path3"
 
 # 修改对应源码以完成本补丁功能。
-sed -i 's|^        initTabPositionPref();$|        // Alice patch start 0021\n        initTabPositionPref();\n        initAliceRefinePref();\n        // Alice patch end 0021|' "$path3"
-
-# 修改对应源码以完成本补丁功能。
-sed -i '/^    private void updateUiThemePref() {$/i\
+sed -i '/^    @Override$/i\
     // Alice patch start 0021\
     /** Alice: 地址栏建议 refine 后是否补空格的开关。 */\
-    private void initAliceRefinePref() {\
+    private void configureAliceRefineTrailingSpaceSwitch() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference) findPreference(PREF_ALICE_REFINE_TRAILING_SPACE);\
         boolean aliceUseChinese = false;\
