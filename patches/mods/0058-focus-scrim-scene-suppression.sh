@@ -100,6 +100,31 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     // Alice patch end 0058\
 ' "$path1"
 
+# 退出搜索页时搜索框已不存在，遮罩直接停在工具栏 hairline 顶部。
+sed -i '/^    public void setVisibility(boolean shouldShow, boolean animate) {$/,/^    }$/c\
+    // Alice patch start 0058\
+    public void setVisibility(boolean shouldShow, boolean animate) {\
+        if (shouldShow == mScrimShown) return;\
+\
+        if (shouldShow) {\
+            mScrimManager.showScrim(mScrimModel);\
+        } else {\
+            // Alice patch start 0039\
+            int aliceToolbarTopInset =\
+                    Math.max(\
+                            0,\
+                            mBottomControlsStacker.getHeightFromLayerToBottom(\
+                                    LayerType.BOTTOM_TOOLBAR));\
+            mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, aliceToolbarTopInset);\
+            // Alice patch end 0039\
+            mScrimManager.hideScrim(mScrimModel, animate);\
+        }\
+\
+        mScrimShown = shouldShow;\
+    }\
+    // Alice patch end 0058\
+' "$path1"
+
 # ToolbarManager 记录地址栏聚焦状态并提供导航栏工具栏颜色。
 sed -i '/^    private boolean mIsXrFsm;$/a\
     // Alice patch start 0058\

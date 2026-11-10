@@ -151,20 +151,12 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch end 0039\
 ' "$path1"
 
-# 4) 地址栏聚焦遮罩保留原颜色，底边收缩到搜索框顶部。
-sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
-// Alice patch start 0039\
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
-// Alice patch end 0039\
-' "$path4"
-
-# 地址栏聚焦遮罩底边收缩到搜索框顶部。
+# 4) 地址栏聚焦遮罩底边收缩到搜索框顶部；与背景渐隐开关无关。
 sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }$/c\
     // Alice patch start 0039\
     private void updateScrimBottomMargin(int bottomMargin) {\
         int aliceSearchBoxTopInset = 0;\
-        if (ChromeSharedPreferences.getInstance()\
-                .readBoolean("alice_search_page_gradient", false)) {\
+        if (mScrimShown) {\
             aliceSearchBoxTopInset =\
                     Math.max(\
                             0,\
