@@ -22,12 +22,14 @@ import android.graphics.LinearGradient;\
 // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.graphics\.Outline;$/a\
 // Alice patch start 0039\
 import android.graphics.Paint;\
 // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.graphics\.Point;$/a\
 // Alice patch start 0039\
 import android.graphics.PorterDuff;\
@@ -35,18 +37,21 @@ import android.graphics.PorterDuffXfermode;\
 // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0039\
 import android.graphics.Shader;\
 // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.omnibox\.suggestions\.OmniboxSuggestionsDropdownScrollListener;$/a\
 // Alice patch start 0039\
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private static final int URL_CLEAR_FOCUS_TABSTACK_DELAY_MS = 200;$/a\
     // Alice patch start 0039\
     private static final String ALICE_SEARCH_PAGE_GRADIENT_PREF =\
@@ -54,6 +59,7 @@ sed -i '/^    private static final int URL_CLEAR_FOCUS_TABSTACK_DELAY_MS = 200;$
     // Alice patch end 0039\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    protected ColorDrawable mToolbarBackground;$/a\
     // Alice patch start 0039\
     private final Paint mAliceSearchPageBackgroundPaint =\
@@ -100,6 +106,7 @@ sed -i '/^    private void updateBackground(final boolean hasFocus) {$/,/^    }$
 # 3) 搜索页纯色背景改为顶部实色、底部完全透明，搜索框背景不动。
 sed -i 's|^        if (!mTextureCaptureMode \&\& mToolbarBackground.getColor() != Color.TRANSPARENT) {$|        // Alice patch start 0039\n        if (!mTextureCaptureMode\n                \&\& mAliceSearchPageGradientEnabled\n                \&\& urlHasFocus()) {\n            drawAliceSearchPageBackgroundGradient(canvas);\n        } else if (!mTextureCaptureMode\n                \&\& mToolbarBackground.getColor() != Color.TRANSPARENT) {\n        // Alice patch end 0039|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch start 0039\
     private void drawAliceSearchPageBackgroundGradient(Canvas canvas) {\
@@ -151,25 +158,6 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0039\
 ' "$path4"
 
-sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }$/c\
-    // Alice patch start 0039\
-    private void updateScrimBottomMargin(int bottomMargin) {\
-        int aliceSearchBoxTopInset = 0;\
-        if (ChromeSharedPreferences.getInstance()\
-                .readBoolean("alice_search_page_gradient", false)) {\
-            aliceSearchBoxTopInset =\
-                    Math.max(\
-                            0,\
-                            mBottomControlsStacker.getHeightFromLayerToBottom(\
-                                    LayerType.BOTTOM_TOOLBAR));\
-        }\
-        mScrimModel.set(\
-                ScrimProperties.BOTTOM_MARGIN,\
-                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
-    }\
-    // Alice patch end 0039\
-' "$path4"
-
 # 5) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）。
 sed -i '/^    <!-- Alice patch end 0021 -->$/a\
 \
@@ -190,12 +178,14 @@ sed -i '/^    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =$/i\
     // Alice patch end 0039\
 ' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        initTabPositionPref();$/a\
         // Alice patch start 0039\
         initAliceSearchPageGradientPref();\
         // Alice patch end 0039\
 ' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateUiThemePref() {$/i\
     // Alice patch start 0039\
     /** Alice: 点击地址栏后是否让搜索页背景竖向渐隐。 */\

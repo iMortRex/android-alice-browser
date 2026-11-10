@@ -1,14 +1,13 @@
 #!/bin/bash
-# 工具栏滑动时保持显示，且不干扰手势本身
+# 工具栏滑动时保持显示，并处理底置工具栏横滑时的接缝。
 
 set -e
 
 # 目标文件路径
 path1="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/ToolbarSwipeLayout.java"
-path2="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
-path3="chrome/android/java/src/org/chromium/chrome/browser/compositor/scene_layer/ToolbarSwipeSceneLayer.java"
-path4="chrome/browser/android/compositor/scene_layer/toolbar_swipe_scene_layer.cc"
-path5="chrome/browser/android/compositor/scene_layer/toolbar_swipe_scene_layer.h"
+path2="chrome/android/java/src/org/chromium/chrome/browser/compositor/scene_layer/ToolbarSwipeSceneLayer.java"
+path3="chrome/browser/android/compositor/scene_layer/toolbar_swipe_scene_layer.cc"
+path4="chrome/browser/android/compositor/scene_layer/toolbar_swipe_scene_layer.h"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0022' "$path1"; then
@@ -22,6 +21,7 @@ sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRight
     private boolean mAliceHideControlView;\
     // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getNativePage() : null;$/i\
         // Alice patch start 0022\
         Tab aliceSwipeSourceTab = model.getTabAtChecked(fromIndex);\
@@ -39,8 +39,10 @@ sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getN
         }\
         // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        layoutTab\.setShowToolbar(mMoveToolbar);$|        // Alice patch start 0022\n        layoutTab.setShowToolbar(mMoveToolbar \&\& !mAliceDisableCompositorToolbar);\n        // Alice patch end 0022|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (mLeftToolbarOverlay != null) {$/,/^            }$/c\
             // Alice patch start 0022\
             if (mLeftToolbarOverlay != null) {\
@@ -54,6 +56,7 @@ sed -i '/^            if (mLeftToolbarOverlay != null) {$/,/^            }$/c\
             }\
             // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (mRightToolbarOverlay != null) {$/,/^            }$/c\
             // Alice patch start 0022\
             if (mRightToolbarOverlay != null) {\
@@ -84,32 +87,23 @@ sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/
     }\
     // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        super\.doneHiding();$/a\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void init() {$/a\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        super\.destroy();$/i\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
-
-# B) 全屏时隐藏 Android 工具栏。底置工具栏固定使用 Android view，
-#    顶部工具栏继续使用 Chrome 原有的 compositor/Android 二选一逻辑。
-sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0022\n        if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\n            return false;\n        }\n        if (getControlsPosition() == ControlsPosition.BOTTOM) return true;\n        return !BrowserControlsUtils.drawControlsAsTexture(this);\n        // Alice patch end 0022|' "$path2"
-
-# C) 切 Tab 时不再 transient show browser controls。这个调用会把 constraints
-#    推到 SHOWN，并由 native 启动约 200ms 的 controls 动画。
-sed -i '/^                mBrowserVisibilityDelegate.showControlsTransient();$/c\
-                // Alice patch start 0022\
-                // Tab switches must not force controls to SHOWN.\
-                // Alice patch end 0022
-' "$path2"
 
 # D) 底置工具栏横滑时，让页面内容向下延伸 1px 覆盖工具栏顶部缝隙。
 sed -i '/^    public void update(@Nullable LayoutTab tab, boolean isLeftTab, int backgroundColor) {$/,/^    }$/c\
@@ -136,8 +130,9 @@ sed -i '/^    public void update(@Nullable LayoutTab tab, boolean isLeftTab, int
                         stretchPx);\
         // Alice patch end 0022\
     }\
-    // Alice patch end 0022' "$path3"
+    // Alice patch end 0022' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        void updateLayer($/,/^                float y);$/c\
         // Alice patch start 0022\
         void updateLayer(\
@@ -151,19 +146,24 @@ sed -i '/^        void updateLayer($/,/^                float y);$/c\
                 // Alice patch start 0022\
                 float stretchDownHeight,\
                 float stretchPx);\
-        // Alice patch end 0022' "$path3"
+        // Alice patch end 0022' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mSceneLayer\.update(mLeftTab, true, backgroundColor);$|            // Alice patch start 0022\n            float stretchDownHeight =\n                    mBrowserControlsVisibilityManager.getControlsPosition()\n                                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM\n                            ? contentViewport.height()\n                                    * getContext().getResources().getDisplayMetrics().density\n                            : 0f;\n            float stretchPx =\n                    stretchDownHeight > 0\n                            ? TabContentManager.ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX\n                            : 0f;\n            // Alice patch end 0022\n            // Alice patch start 0022\n            mSceneLayer.update(\n                    mLeftTab, true, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mSceneLayer\.update(mRightTab, false, backgroundColor);$|            // Alice patch start 0022\n            mSceneLayer.update(\n                    mRightTab, false, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^#include "ui\/gfx\/geometry\/size.h"$/a\
 // Alice patch start 0022\
 #include "ui/gfx/geometry/transform.h"\
-// Alice patch end 0022' "$path4"
+// Alice patch end 0022' "$path3"
 
-sed -i 's|^                                         float y) {$|                                         float y,\n                                         // Alice patch start 0022\n                                         float stretch_down_height,\n                                         float stretch_px) {\n  // Alice patch end 0022|' "$path4"
+# 修改对应源码以完成本补丁功能。
+sed -i 's|^                                         float y) {$|                                         float y,\n                                         // Alice patch start 0022\n                                         float stretch_down_height,\n                                         float stretch_px) {\n  // Alice patch end 0022|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^  content_layer->layer()->SetPosition(gfx::PointF(x, y));$/a\
   // Alice patch start 0022\
   content_layer->layer()->SetTransformOrigin(gfx::PointF());\
@@ -173,6 +173,7 @@ sed -i '/^  content_layer->layer()->SetPosition(gfx::PointF(x, y));$/a\
   } else {\
     content_layer->layer()->SetTransform(gfx::Transform());\
   }\
-  // Alice patch end 0022' "$path4"
+  // Alice patch end 0022' "$path3"
 
-sed -i 's|^                   float y);$|                   float y,\n                   // Alice patch start 0022\n                   float stretch_down_height,\n                   float stretch_px);\n  // Alice patch end 0022|' "$path5"
+# 修改对应源码以完成本补丁功能。
+sed -i 's|^                   float y);$|                   float y,\n                   // Alice patch start 0022\n                   float stretch_down_height,\n                   float stretch_px);\n  // Alice patch end 0022|' "$path4"

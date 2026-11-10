@@ -28,6 +28,7 @@ sed -i '/^            DevToolsWindowAndroid\.openDevTools(webContents);$/i\
             }\
             // Alice patch end 0025' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            DevToolsWindowAndroid\.openDevToolsConsole(webContents);$/i\
             // Alice patch start 0025\
             ChromeAndroidTask aliceDevToolsTask = getChromeAndroidTaskSupplier().get();\
@@ -38,6 +39,7 @@ sed -i '/^            DevToolsWindowAndroid\.openDevToolsConsole(webContents);$/
             }\
             // Alice patch end 0025' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            DevToolsWindowAndroid\.openDevToolsInspect(webContents);$/i\
             // Alice patch start 0025\
             ChromeAndroidTask aliceDevToolsTask = getChromeAndroidTaskSupplier().get();\
@@ -97,6 +99,7 @@ void DevToolsWindow::SetAndroidTargetBrowserWindow(int64_t ptr) {\
 # 7) devtools_window.cc：插到当前活动标签页之后，而不是固定插到第 0 个
 sed -i 's|^  tab_list->InsertWebContentsAt(0, std::move(owned_web_contents), false,$|  // Alice patch start 0025\n  const int insert_index =\n      std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());\n  tab_list->InsertWebContentsAt(insert_index, std::move(owned_web_contents), false,|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^                                std::nullopt);$/a\
   // Alice patch end 0025' "$path3"
 
@@ -126,12 +129,14 @@ sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/i\
 import org.chromium.chrome.browser.devtools.DevToolsWindowAndroid;\
 // Alice patch end 0025' "$path6"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 // Alice patch start 0025\
 import org.chromium.chrome.browser.profiles.Profile;\
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskTrackerFactory;\
 // Alice patch end 0025' "$path6"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mCurrentNativeDelegate =$/i\
         // Alice patch start 0025\
         Runnable aliceSetDevToolsTarget =\
@@ -150,28 +155,33 @@ sed -i '/^        mCurrentNativeDelegate =$/i\
         // Alice patch end 0025\
 ' "$path6"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^                new ContextMenuNativeDelegateImpl(mWebContents, renderFrameHost, params);$|                new ContextMenuNativeDelegateImpl(\
                         mWebContents,\
                         renderFrameHost,\
                         params,\
                         aliceSetDevToolsTarget);|' "$path6"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final RenderFrameHost mRenderFrameHost;$/a\
 \
     // Alice patch start 0025\
     private final Runnable mDevToolsTargetSetter;\
     // Alice patch end 0025' "$path7"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^            ContextMenuParams contextMenuParams) {$|            ContextMenuParams contextMenuParams,\
             // Alice patch start 0025\
             Runnable devToolsTargetSetter) {\
         // Alice patch end 0025|' "$path7"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mRenderFrameHost = renderFrameHost;$/a\
         // Alice patch start 0025\
         mDevToolsTargetSetter = devToolsTargetSetter;\
         // Alice patch end 0025' "$path7"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        ContextMenuNativeDelegateImplJni\.get()\.inspectElement(mNativePtr, mRenderFrameHost, x, y);$/i\
         // Alice patch start 0025\
         mDevToolsTargetSetter.run();\

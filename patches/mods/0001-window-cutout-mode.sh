@@ -7,16 +7,13 @@ set -e
 path1="components/browser_ui/display_cutout/android/java/src/org/chromium/components/browser_ui/display_cutout/DisplayCutoutController.java"
 path2="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
 path3="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/layout/EdgeToEdgeLayoutCoordinator.java"
-path4="ui/android/java/src/org/chromium/ui/insets/InsetObserver.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0001' "$path1"; then
     exit 100
 fi
 
-# 横屏和竖屏 HTML 全屏都覆盖整个挖孔区域；普通竖屏页面仍沿用短边模式。
-# 竖屏全屏若继续使用 SHORT_EDGES，顶部 144px 挖孔安全区会让可见帧和
-# SurfaceControl 子层比 WebContents 矮 144px，导致页面底部固定控件被裁掉。
+# 根据横屏或 HTML 全屏状态切换窗口挖孔模式，避免全屏页面继续避让挖孔。
 sed -i '/^        final int displayCutoutMode = computeDisplayCutoutMode();$/,/^        setWindowAttributes(attributes);$/c\
         // Alice patch start 0001\
         android.app.Activity aliceActivity = mDelegate.getAttachedActivity();\
@@ -36,13 +33,13 @@ sed -i '/^        final int displayCutoutMode = computeDisplayCutoutMode();$/,/^
         setWindowAttributes(attributes);\
         // Alice patch end 0001' "$path1"
 
-# 所有 Chrome Activity 共用同一横屏挖孔策略，设置页等非标签页也不会再避让挖孔。
-# 在 super.onCreate 前设置，避免窗口已附加后才切换 cutout 模式。
+# 所有 Chrome Activity 在 onCreate 阶段同步一次窗口挖孔策略。
 sed -i '/^        applyThemeOverlays();$/a\
         // Alice patch start 0001\
         updateAliceDisplayCutoutMode(getResources().getConfiguration());\
         // Alice patch end 0001' "$path2"
 
+# 新增窗口挖孔模式更新方法，并在配置变化时重新应用。
 sed -i '/^    protected void onStart() {$/i\
     // Alice patch start 0001\
     private void updateAliceDisplayCutoutMode(Configuration configuration) {\
@@ -70,48 +67,35 @@ sed -i '/^    protected void onStart() {$/i\
     // Alice patch end 0001\
 ' "$path2"
 
-# `onStart()` 上方原本带有 @Override；在新方法前插入后，该注解会错误地
-# 作用于 private 的 updateAliceDisplayCutoutMode()。
+# 修正新方法插入后错误保留在方法上的 @Override 注解。
 sed -i '/^    @Override$/{N;/^    @Override\n    \/\/ Alice patch start 0001$/s/^    @Override\n//}' "$path2"
 
+# 首次启动后同步一次挖孔模式。
 sed -i '/^        super\.onConfigurationChanged(newConfig);$/a\
         // Alice patch start 0001\
         updateAliceDisplayCutoutMode(newConfig);\
         // Alice patch end 0001' "$path2"
 
-# Edge-to-edge 根布局只在需要安全区时绘制挖孔；ALWAYS 模式让背景自然铺满挖孔区域。
-# 逐行替换，避免范围 sed 在版本差异时吞掉后续方法。
+# Edge-to-edge 根布局按窗口挖孔模式决定是否保留左右安全区。
 sed -i 's|^        Insets cutout = windowInsets\.getInsets(Type\.displayCutout());$|        // Alice patch start 0001\
         Insets cutout = windowInsets.getInsets(Type.displayCutout());\
         boolean shouldPadDisplayCutout =\
                 WindowInsetsUtils.shouldPadDisplayCutout(windowInsets, mContext);\
         // Alice patch end 0001|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        if (WindowInsetsUtils\.shouldPadDisplayCutout(windowInsets, mContext)) {$|        // Alice patch start 0001\
         if (shouldPadDisplayCutout) {\
         // Alice patch end 0001|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mView\.setDisplayCutoutInsetLeft(cutout\.left > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
             mView.setDisplayCutoutInsetLeft(\
                     shouldPadDisplayCutout \&\& cutout.left > 0 ? cutout : Insets.NONE);\
             // Alice patch end 0001|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mView\.setDisplayCutoutInsetRight(cutout\.right > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
             mView.setDisplayCutoutInsetRight(\
                     shouldPadDisplayCutout \&\& cutout.right > 0 ? cutout : Insets.NONE);\
             // Alice patch end 0001|' "$path3"
-
-# 全屏时导航栏不可见，但 mandatorySystemGestures 仍会拦截底部触摸。
-# safe-area-inset-bottom 必须至少包含该手势热区，页面才能把可点击控件放到
-# 系统手势区上方；否则底部会出现看得见但点不到的窄条。
-sed -i 's|^        newSafeArea.bottom += mBottomInsetsForEdgeToEdge;$|        // Alice patch start 0001\
-        int aliceMandatoryGestureBottom = 0;\
-        if (getLastRawWindowInsets() != null) {\
-            aliceMandatoryGestureBottom =\
-                    getLastRawWindowInsets()\
-                            .getInsets(mandatorySystemGestures())\
-                            .bottom;\
-        }\
-        newSafeArea.bottom +=\
-                Math.max(mBottomInsetsForEdgeToEdge, aliceMandatoryGestureBottom);\
-        // Alice patch end 0001|' "$path4"

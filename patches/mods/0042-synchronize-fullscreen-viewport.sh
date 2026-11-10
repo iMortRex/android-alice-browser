@@ -10,224 +10,39 @@ path3="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserCon
 path4="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerBase.java"
 path5="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
 path6="chrome/browser/ui/android/edge_to_edge/internal/java/src/org/chromium/chrome/browser/ui/edge_to_edge/EdgeToEdgeBottomChinMediator.java"
-path7="chrome/browser/browser_controls/android/java/src/org/chromium/chrome/browser/browser_controls/BottomControlsStacker.java"
-path8="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerCompat.java"
-path9="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
-path10="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
-path11="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubAnimationConstants.java"
-path12="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
-path13="chrome/android/java/src/org/chromium/chrome/browser/hub/HubLayout.java"
-path14="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewTabAnimationLayout.java"
+path7="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerCompat.java"
+path8="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
 
-sed -i '/^import org\.chromium\.chrome\.browser\.hub\.HubExitNavigationHelper;$/a\
-// Alice patch start 0042\
-import org.chromium.chrome.browser.hub.HubAnimationConstants;\
-// Alice patch end 0042' "$path2"
-
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 // Alice patch start 0042\
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
-// Alice patch end 0042' "$path9"
+// Alice patch end 0042' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
     // Alice patch start 0042\
-    private final HubAnimationConstants.AliceHubAnimationProgressObserver\
-            mAliceHubAnimationProgressObserver;\
     private int mAliceFullscreenExitReadyFrames;\
     // Alice patch end 0042' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
                             \/\/ Alice patch start 0042\
                             finishAliceFullscreenToolbarExit();\
                             \/\/ Alice patch end 0042/}' "$path2"
 
-sed -i 's|^\( *\)mInTabSwitcherTransition = true;$|\1mInTabSwitcherTransition = true;\
-\1\/\/ Alice patch start 0042\
-\1mCompositorViewHolder.setAliceHubViewportTransition(true);\
-\1\/\/ Alice patch end 0042|' "$path2"
-
-sed -i '/^        mHubManagerSupplier = hubManagerSupplier;$/a\
-        // Alice patch start 0042\
-        mAliceHubAnimationProgressObserver =\
-                (showingHub, fraction) -> {\
-                    if (mToolbarPositionController == null) return;\
-                    mToolbarPositionController.setAliceTabSwitcherBackgroundAlpha(\
-                            (showingHub || fraction < 0.95f) ? 0f : 1f);\
-                };\
-        HubAnimationConstants.setAliceHubAnimationProgressObserver(\
-                mAliceHubAnimationProgressObserver);\
-        // Alice patch end 0042' "$path2"
-
-sed -i '/^        mIsDestroyed = true;$/a\
-        // Alice patch start 0042\
-        HubAnimationConstants.removeAliceHubAnimationProgressObserver(\
-                mAliceHubAnimationProgressObserver);\
-        // Alice patch end 0042' "$path2"
-
-sed -i '/^                        if (layoutType == LayoutType.BROWSING) {$/a\
-                            // Alice patch start 0042\
-                            mCompositorViewHolder.setAliceHubViewportTransition(false);\
-                            // Alice patch end 0042\
-' "$path2"
-
-sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
-// Alice patch start 0042\
-import org.chromium.build.annotations.Nullable;\
-// Alice patch end 0042' "$path11"
-
-sed -i '/^public class HubAnimationConstants {$/a\
-    // Alice patch start 0042\
-    public interface AliceHubAnimationProgressObserver {\
-        void onProgress(boolean showingHub, float fraction);\
-    }\
-\
-    private static volatile @Nullable AliceHubAnimationProgressObserver\
-            sAliceHubAnimationProgressObserver;\
-\
-    public static void setAliceHubAnimationProgressObserver(\
-            @Nullable AliceHubAnimationProgressObserver observer) {\
-        sAliceHubAnimationProgressObserver = observer;\
-    }\
-\
-    public static void removeAliceHubAnimationProgressObserver(\
-            AliceHubAnimationProgressObserver observer) {\
-        if (sAliceHubAnimationProgressObserver == observer) {\
-            sAliceHubAnimationProgressObserver = null;\
-        }\
-    }\
-\
-    public static void notifyAliceHubAnimationProgress(boolean showingHub, float fraction) {\
-        AliceHubAnimationProgressObserver observer = sAliceHubAnimationProgressObserver;\
-        if (observer != null) observer.onProgress(showingHub, fraction);\
-    }\
-    // Alice patch end 0042\
-' "$path11"
-
-sed -i '/^        if (mAnimationTracker != null) {$/,/^        }$/c\
-        // Alice patch start 0042\
-        shrinkExpandAnimator.addUpdateListener(\
-                animation -> {\
-                    if (mAnimationTracker != null) mAnimationTracker.onUpdate();\
-                    notifyAliceHubAnimationProgress(animation.getAnimatedFraction());\
-                });\
-        // Alice patch end 0042' "$path12"
-
-sed -i '/^                        if (mAnimationTracker != null) mAnimationTracker.onStart();$/a\
-                        // Alice patch start 0042\
-                        notifyAliceHubAnimationProgress(0f);\
-                        // Alice patch end 0042' "$path12"
-
-sed -i '/^                            mAnimationTracker.onEnd();$/a\
-                        // Alice patch start 0042\
-                        notifyAliceHubAnimationProgress(1f);\
-                        // Alice patch end 0042' "$path12"
-
-sed -i '/^    private void resetState() {$/i\
-    // Alice patch start 0042\
-    private void notifyAliceHubAnimationProgress(float fraction) {\
-        if (mAnimationType != HubLayoutAnimationType.SHRINK_TAB\
-                \&\& mAnimationType != HubLayoutAnimationType.EXPAND_TAB) {\
-            return;\
-        }\
-        HubAnimationConstants.notifyAliceHubAnimationProgress(\
-                mAnimationType == HubLayoutAnimationType.SHRINK_TAB, fraction);\
-    }\
-    // Alice patch end 0042\
-\
-' "$path12"
-
-sed -i '/^        mOnToolbarAlphaChange = dependencyHolder\.getOnOverviewAlphaChange();$/c\
-        // Alice patch start 0042\
-        DoubleConsumer onToolbarAlphaChange =\
-                dependencyHolder.getOnOverviewAlphaChange();\
-        mOnToolbarAlphaChange =\
-                alpha -> {\
-                    onToolbarAlphaChange.accept(alpha);\
-                    if (isStartingToHide()) {\
-                        HubAnimationConstants.notifyAliceHubAnimationProgress(\
-                                false, 1f - (float) alpha);\
-                    } else if (isStartingToShow()) {\
-                        HubAnimationConstants.notifyAliceHubAnimationProgress(\
-                                true, (float) alpha);\
-                    }\
-                };\
-        // Alice patch end 0042' "$path13"
-
-sed -i '/^        mRootView = dependencyHolder\.getHubRootView();$/a\
-        // Alice patch start 0042\
-        View aliceHubAnimationLayer = mRootView;\
-        while (aliceHubAnimationLayer.getParent() instanceof View) {\
-            aliceHubAnimationLayer.setTranslationZ(1000f);\
-            View aliceHubAnimationParent = (View) aliceHubAnimationLayer.getParent();\
-            if (aliceHubAnimationParent.getId() == android.R.id.content) break;\
-            aliceHubAnimationLayer = aliceHubAnimationParent;\
-        }\
-        // Alice patch end 0042' "$path13"
-
-sed -i '/^        mAnimationHostView = animationHostView;$/a\
-        // Alice patch start 0042\
-        View aliceAnimationLayer = mAnimationHostView;\
-        while (aliceAnimationLayer.getParent() instanceof View) {\
-            aliceAnimationLayer.setTranslationZ(1000f);\
-            View aliceAnimationParent = (View) aliceAnimationLayer.getParent();\
-            if (aliceAnimationParent.getId() == android.R.id.content) break;\
-            aliceAnimationLayer = aliceAnimationParent;\
-        }\
-        // Alice patch end 0042' "$path14"
-
-# 进入全屏的窗口旋转阶段，保持 bottom controls 在 shown 位置。Android controls
-# 本身可以隐藏并由快照覆盖，但不能让 renderer 提前把页面底部展开一个工具栏高度。
-# 竖屏不进入该过渡状态；横屏保留完整同步。
-sed -i '/^    final class FullscreenTransitionState {$/a\
-        // Alice patch start 0042\
-        private static volatile boolean sAliceViewportSyncEnabled;\
-        private static volatile boolean sAliceEnteringFullscreen;\
-\
-        public static void setViewportSyncEnabled(boolean enabled) {\
-            sAliceViewportSyncEnabled = enabled;\
-        }\
-\
-        public static boolean isViewportSyncEnabled() {\
-            return sAliceViewportSyncEnabled;\
-        }\
-\
-        public static void setEnteringFullscreen(boolean entering) {\
-            sAliceEnteringFullscreen = entering;\
-        }\
-\
-        public static boolean isEnteringFullscreen() {\
-            return sAliceEnteringFullscreen;\
-        }\
-\
-        private static volatile boolean sAlicePersistentFullscreen;\
-\
-        public static void setPersistentFullscreen(boolean fullscreen) {\
-            sAlicePersistentFullscreen = fullscreen;\
-        }\
-\
-        public static boolean isPersistentFullscreen() {\
-            return sAlicePersistentFullscreen;\
-        }\
-\
-        // Alice patch end 0042\
-' "$path10"
-
-# Hub 转场开始释放快照后，updateForLayout 不能再立刻重新捕获一份。
-sed -i '/^    private void updateForLayout(@LayoutType int layoutType) {$/,/^    }$/s|            mToolbarPositionController.requestSearchToolbarSnapshotCapture();|            if (layoutType != LayoutType.HUB) {\
-                mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
-            }|' "$path2"
-
 # 全屏退出只捕获系统导航栏高度；不再使用独立的工具栏 Bitmap 快照。
 sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
     // Alice patch start 0042\
     private int mAliceFullscreenCapturedNavigationBarHeight;\
-    // Alice patch end 0042' "$path9"
+    // Alice patch end 0042' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
     // Alice patch start 0042\
     void captureFullscreenNavigationBarHeight() {\
@@ -240,8 +55,9 @@ sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
     }\
     // Alice patch end 0042\
 \
-' "$path9"
+' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
     // Alice patch start 0042\
     private int getFullscreenSnapshotNavigationBarHeight() {\
@@ -262,8 +78,9 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
     }\
     // Alice patch end 0042\
 \
-' "$path9"
+' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void updateSearchToolbarSnapshot() {$/c\
     private void captureSearchToolbarSnapshot() {\
         View aliceControlContainer = mControlContainer.getView();\
@@ -372,8 +189,9 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void
         aliceSnapshot.setVisibility(View.INVISIBLE);\
     }\
 \
-    private void updateSearchToolbarSnapshot() {' "$path9"
+    private void updateSearchToolbarSnapshot() {' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateSearchToolbarSnapshot() {$/,/^    }$/c\
     private void updateSearchToolbarSnapshot() {\
         boolean aliceFocused = mIsOmniboxFocusedSupplier.get();\
@@ -407,7 +225,7 @@ sed -i '/^    private void updateSearchToolbarSnapshot() {$/,/^    }$/c\
             moveSearchToolbarSnapshotBelowScrim();\
             aliceSnapshot.setVisibility(View.VISIBLE);\
         }\
-    }' "$path9"
+    }' "$path8"
 
 # System UI 退出动画期间，原生逻辑会延迟 500ms 再更新 viewport。日志确认
 # 导航栏避让恰好在这段延迟后才恢复；现在由显式全屏同步处理，不再等待。
@@ -415,18 +233,9 @@ sed -i 's|^    private static final long SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS = 50
     private static final long SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS = 0;\
     // Alice patch end 0042|' "$path1"
 
-# 旋转会改变 View 宽度，但退出全屏期间不能因此丢掉捕获的系统导航栏高度。
-sed -i '/^            mAliceNavigationBarInset = 0;$/c\
-            // Alice patch start 0042\
-            mAliceNavigationBarInset =\
-                    FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
-                    ? mAliceExitFrozenNavigationBarHeight\
-                    : 0;\
-            // Alice patch end 0042' "$path1"
-
 # persistent fullscreen 在 controls 尚未隐藏时就会先变成 true。直接观察
 # supplier，确保进入 PENDING 阶段的第一刻就把底部避设置零。
-sed -i '/^    private int mAliceNavigationBarWidth;$/a\
+sed -i '/^    private @Nullable BrowserControlsManager mBrowserControlsManager;$/a\
     // Alice patch start 0042\
     private static final long ALICE_ENTRY_VIEWPORT_SETTLE_MS = 320;\
     private @Nullable NonNullObservableSupplier<Boolean> mAliceFullscreenModeSupplier;\
@@ -444,7 +253,6 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
     private int mAliceExitFrozenNavigationBarHeight;\
     private int mAliceLastRequestedWebContentsWidth;\
     private int mAliceLastRequestedWebContentsHeight;\
-    private boolean mAliceHubViewportTransition;\
     private final Runnable mAliceEntryViewportCommit = this::finishAliceEntryViewport;\
     private final Runnable mAliceExitViewportCommit = this::finishAliceExitViewport;\
     private boolean aliceIsLandscapeLayout() {\
@@ -484,27 +292,6 @@ sed -i '/^    private int mAliceNavigationBarWidth;$/a\
                 \&\& !aliceIsLandscapeLayout();\
     }\
     // Alice patch end 0042' "$path1"
-
-# 进入 persistent fullscreen 时底部避让必须立即归零，不能读取正在隐藏的
-# controls offset；普通状态继续使用包含导航栏 chin 的 browser controls 总高度。
-sed -i '/^        int verticalViewportInsets =$/,/^                        + (aliceInFullscreen ? 0 : mAliceNavigationBarInset);$/c\
-        // Alice patch start 0042\
-        int verticalViewportInsets;\
-        if (aliceInFullscreen\
-                \&\& (FullscreenManager.FullscreenTransitionState\
-                                .isViewportSyncEnabled()\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isEnteringFullscreen())) {\
-            verticalViewportInsets =\
-                    aliceTopControlsInset\
-                            + webContentsHeightInset;\
-        } else {\
-            verticalViewportInsets =\
-                    aliceTopControlsInset\
-                            + aliceBottomControlsInset\
-                            + webContentsHeightInset;\
-        }\
-        // Alice patch end 0042' "$path1"
 
 # 进入全屏后系统栏隐藏和屏幕旋转会连续改变 view 高度。过渡期间保持旧
 # WebContents 高度；横屏、系统栏隐藏和连续稳定帧全部就绪后，再一次性提交。
@@ -570,22 +357,11 @@ sed -i '/^    void showSystemBars(View contentView) {$/,/^    }$/c\
             unsetLayoutFullscreen(contentView);\
         }\
         // Alice patch end 0042\
-    }' "$path8"
+    }' "$path7"
 
-# 0034 在底置工具栏时使用固定高度。改为至少取 browser controls 的总高度，
-# 这样包含系统导航栏 chin，且不再需要在 Compositor 额外叠加导航栏。
-sed -i 's|^                aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;$|                // Alice patch start 0042\
-                aliceBottomControlsInset =\
-                        Math.max(\
-                                aliceToolbarHeight\
-                                        + aliceToolbarHairlineHeight\
-                                        + mAliceNavigationBarInset,\
-                                mBrowserControlsManager.getBottomControlsHeight());\
-                // Alice patch end 0042|' "$path1"
-
-# 替换 0033 的退出收尾：提交退出视口后等待该帧真正完成合成，再释放工具栏
-# 快照并恢复原生 controls，避免快照在第一帧布局前就被移除。
-sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
+# 提交退出视口后等待该帧真正完成合成，再释放工具栏快照并恢复原生 controls。
+# 方法块依赖上游已有的 BrowserControlsManager setter，不能依赖其他补丁的标记。
+sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manager) {$/i\
     // Alice patch start 0042\
     public void finishAliceFullscreenExit() {\
         if (!FullscreenManager.FullscreenTransitionState\
@@ -848,6 +624,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     // Alice patch end 0042
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manager) {$/,/^    }$/s|^        mBrowserControlsManager.addObserver(this);$|        // Alice patch start 0042\
         mBrowserControlsManager.addObserver(this);\
         if (mAliceFullscreenModeSupplier != null) {\
@@ -861,6 +638,7 @@ sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manag
                 mAliceFullscreenModeObserver);\
         // Alice patch end 0042|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControlsManager.removeObserver(this);$|            // Alice patch start 0042\
             mBrowserControlsManager.removeObserver(this);\
             if (mAliceFullscreenModeSupplier != null) {\
@@ -944,25 +722,6 @@ sed -i '/^    private void scheduleVisibilityUpdate() {$/i\
 \
 ' "$path3"
 
-# 进入全屏观察者执行时 persistent fullscreen 已为 true，立即把视口底部
-# 避让置零，不能等待正在隐藏的 browser controls 发完 offset。
-sed -i '/^                                \.setExitingFullscreen(false);$/a\
-                        // Alice patch start 0042\
-                        FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(true);\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.refreshAliceNavigationBarBackground();\
-                        }\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController\
-                                    .captureFullscreenNavigationBarHeight();\
-                            mToolbarPositionController.setAliceFullscreenExitLayout(false);\
-                        }\
-                        if (FullscreenManager.FullscreenTransitionState\
-                                .isEnteringFullscreen()) {\
-                            mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
-                        }\
-                        // Alice patch end 0042\
-' "$path2"
 # 0033 在 tab 校验之前就标记“正在退出”。只有真正会通知观察者的退出才
 # 开启退出同步，避免错误 tab 或重复退出把控件永久留在隐藏状态。
 sed -i '/^    private boolean shouldSkipEnterFullscreenRequest(FullscreenOptions options) {$/i\
@@ -975,6 +734,7 @@ sed -i '/^    private boolean shouldSkipEnterFullscreenRequest(FullscreenOptions
 \
 ' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
         // Alice patch start 0042\
         FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(false);\
@@ -982,6 +742,7 @@ sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) 
         // Alice patch end 0042\
 ' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
                     // Alice patch start 0042\
                     FullscreenManager.FullscreenTransitionState\
@@ -990,6 +751,7 @@ sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
 \
 ' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|        if (shouldSkipEnterFullscreenRequest(options)) {\
             // Alice patch start 0042\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
@@ -997,6 +759,7 @@ sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|     
             return;\
         }|' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
         // Alice patch start 0042\
         if (tab != mTab \&\& tab != mTabInFullscreen) return;\
@@ -1006,6 +769,7 @@ sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
         // Alice patch end 0042\
 ' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscreenMode();$/a\
         // Alice patch start 0042\
         if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {\
@@ -1017,6 +781,7 @@ sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscree
 sed -i 's|^\( *\)mTab, BrowserControlsState.SHOWN, true);$|\1// Alice patch start 0042\
 \1mTab, BrowserControlsState.SHOWN, false);\
 \1// Alice patch end 0042|' "$path4"
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)TabBrowserControlsConstraintsHelper\.update(mTab, BrowserControlsState\.SHOWN, true);$|\1// Alice patch start 0042\
 \1TabBrowserControlsConstraintsHelper.update(mTab, BrowserControlsState.SHOWN, false);\
 \1// Alice patch end 0042|' "$path4"
@@ -1033,65 +798,6 @@ sed -i '/^    private void updateEnabledState() {$/,/^    }$/c\
         }\
         // Alice patch end 0042\
     }' "$path5"
-
-# 0033 原本在退出期间跳过 WebContents sizing；这里恢复逐帧同步。
-sed -i '/^            \/\/ Alice patch start 0033$/,/^            \/\/ Alice patch end 0033$/c\
-            // Alice patch start 0042\
-            tryUpdateControlsAndWebContentsSizing();\
-            // Alice patch end 0042' "$path1"
-
-# Hub 期间网页虽然不可见，但仍会因为顶部工具栏暂时脱离而提交整屏尺寸。
-# 顶部地址栏必须保持进入 Hub 前的尺寸，直到返回 BROWSING 的动画完全结束。
-sed -i '/^    private void onBrowserControlsHeightChanged() {$/,/^    }$/{
-    /^    }$/a\
-    // Alice patch start 0042\
-    private boolean aliceShouldDeferBrowserControlsViewportForHub() {\
-        return mBrowserControlsManager != null\
-                \&\& mBrowserControlsManager.getControlsPosition()\
-                        == BrowserControlsStateProvider.ControlsPosition.TOP\
-                \&\& (mAliceHubViewportTransition\
-                        || (mLayoutManager != null\
-                                \&\& (mLayoutManager.getActiveLayoutType()\
-                                                == org.chromium.chrome.browser.layouts.LayoutType.HUB\
-                                        || mLayoutManager.getNextLayoutType()\
-                                                == org.chromium.chrome.browser.layouts.LayoutType.HUB)));\
-    }\
-\
-    public void setAliceHubViewportTransition(boolean transition) {\
-        if (mAliceHubViewportTransition == transition) return;\
-        mAliceHubViewportTransition = transition;\
-        if (transition\
-                || mBrowserControlsManager == null\
-                || mBrowserControlsManager.getControlsPosition()\
-                        != BrowserControlsStateProvider.ControlsPosition.TOP) {\
-            return;\
-        }\
-        onBrowserControlsHeightChanged();\
-        onViewportChanged();\
-        tryUpdateControlsAndWebContentsSizing();\
-        updateWebContentsSize(getCurrentTab());\
-        requestRender();\
-    }\
-    // Alice patch end 0042
-}' "$path1"
-
-sed -i '/^    private void onBrowserControlsHeightChanged() {$/a\
-        // Alice patch start 0042\
-        if (aliceShouldDeferBrowserControlsViewportForHub()) return;\
-        // Alice patch end 0042\
-' "$path1"
-
-sed -i '/^        if (tab == null) return;$/a\
-        // Alice patch start 0042\
-        if (tab == mTabVisible \&\& aliceShouldDeferBrowserControlsViewportForHub()) return;\
-        // Alice patch end 0042\
-' "$path1"
-
-sed -i '/^    private void tryUpdateControlsAndWebContentsSizing() {$/a\
-        // Alice patch start 0042\
-        if (aliceShouldDeferBrowserControlsViewportForHub()) return;\
-        // Alice patch end 0042\
-' "$path1"
 
 # 全屏退出和系统栏恢复期间必须让 renderer 以 resize-content 模式重新布局，
 # 否则只会改变绘制高度，fixed 底部栏仍停在 overlay 的旧位置。
@@ -1223,7 +929,7 @@ sed -i '/^        \/\/ Notify the compositor layout that the size has changed\./
 
 # 退出时不再轮询 controls idle。一次布局后立即刷新视口和工具栏，再补一帧
 # 处理地址栏/底栏在导航栏 inset 恢复后的第二次布局。
-sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
+sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
     // Alice patch start 0042\
     private void finishAliceFullscreenToolbarExitWhenReady() {\
         if (!FullscreenManager.FullscreenTransitionState\
@@ -1299,7 +1005,7 @@ sed -i '/^    \/\/ Alice patch start 0033$/,/^    \/\/ Alice patch end 0033$/c\
     }\
     // Alice patch end 0042
 ' "$path2"
-
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
     // Alice patch start 0042\
     private void finishAliceFullscreenToolbarExit() {\
@@ -1313,28 +1019,4 @@ sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
     }\
     // Alice patch end 0042\
 \
-' "$path2"
-
-# persistent fullscreen 刚变为 false 就立即按已恢复的导航栏停止避让高度更新，
-# 不等待 refreshToolbarAfterFullscreen() 的下一动画帧。
-sed -i '/^                        refreshToolbarAfterFullscreen();$/i\
-                        // Alice patch start 0042\
-                        FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(false);\
-                        mAliceFullscreenExitReadyFrames = 0;\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.refreshAliceNavigationBarBackground();\
-                        }\
-                        if (mToolbarPositionController != null) {\
-                            mCompositorViewHolder.setAliceFullscreenExitNavigationBarHeight(\
-                                    mToolbarPositionController\
-                                            .getAliceFullscreenCapturedNavigationBarHeight());\
-                            mToolbarPositionController.setAliceFullscreenExitLayout(true);\
-                        }\
-                        mControlContainer.getView().post(\
-                                () -> {\
-                                    mBottomControlsStacker.requestLayerUpdate(false);\
-                                    mCompositorViewHolder.applyAliceFullscreenExitViewport();\
-                                });\
-                        updateToolbarSceneLayerSuppression();\
-                        // Alice patch end 0042\
 ' "$path2"

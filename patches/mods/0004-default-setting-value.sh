@@ -21,10 +21,12 @@ fi
 
 # --- 密码管理工具：保存密码 / 自动登录 关闭 ---
 sed -i 's|^\( *\)prefs::kCredentialsEnableService, true,$|\1// Alice patch start 0004\n\1prefs::kCredentialsEnableService, false,\n\1// Alice patch end 0004|' "$path1"
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)prefs::kCredentialsEnableAutosignin, true,$|\1// Alice patch start 0004\n\1prefs::kCredentialsEnableAutosignin, false,\n\1// Alice patch end 0004|' "$path1"
 
 # --- 支付方式 / 地址信息：自动填充关闭 ---
 sed -i 's|^\( *\)kAutofillCreditCardEnabled, true,$|\1// Alice patch start 0004\n\1kAutofillCreditCardEnabled, false,\n\1// Alice patch end 0004|' "$path3"
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)kAutofillProfileEnabled, true,$|\1// Alice patch start 0004\n\1kAutofillProfileEnabled, false,\n\1// Alice patch end 0004|' "$path3"
 
 # --- 标签页和标签页分组：移植「闲置」部分 - 一律不 ---
@@ -39,21 +41,16 @@ sed -i 's|^\( *\)\(\.readBoolean(ADAPTIVE_TOOLBAR_CUSTOMIZATION_ENABLED, true);\
 sed -i '/^  registry->RegisterBooleanPref(prefs::kAccessibilityForceEnableZoom,$/{n;s|^\( *\)pref_defaults\.force_enable_zoom);$|\1// Alice patch start 0004\n\1true);\n\1// Alice patch end 0004|}' "$path6"
 
 # --- 搜索引擎：添加必应并设为默认；重复执行时不再追加副本 ---
-if ! grep -q '^[[:space:]]*"cnbing":[[:space:]]' "$path7"; then
     sed -i '/^  "elements": {$/a\
 // Alice patch start 0004\
     "cnbing": {"name": "必应", "keyword": "cn.bing.com", "favicon_url": "https://cn.bing.com/favicon.ico", "search_url": "https://cn.bing.com/search?q={searchTerms}", "suggest_url": "https://cn.bing.com/osjson.aspx?query={searchTerms}\&language={language}", "type": "SEARCH_ENGINE_BING", "id": 118},\
 // Alice patch end 0004' "$path7"
-fi
 
-if ! grep -q '^[[:space:]]*"kMaxPrepopulatedEngineID": 118,$' "$path7"; then
     sed -i 's|^\( *\)"kMaxPrepopulatedEngineID": 117,$|\1// Alice patch start 0004\n\1"kMaxPrepopulatedEngineID": 118,\n\1// Alice patch end 0004|' "$path7"
-fi
 
-if ! grep -q '^[[:space:]]*"\&cnbing",[[:space:]]*$' "$path8"; then
     sed -i '/^    "CN": {/,/^    },/ s|^\( *\)"search_engines": \[$|\1// Alice patch start 0004\n\1"search_engines": [\n\1"\&cnbing",\n\1// Alice patch end 0004|' "$path8"
-fi
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(/,/^}$/ s|^  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,$|  // Alice patch start 0004\n  for (const auto\& engine : regional_prepopulated_engines) {\n    if (engine->id == 118) {\n      return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,\n                                            118,\n                                            /*use_first_as_fallback=*/false);\n    }\n  }\n  // Alice patch end 0004\n\n  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,|' "$path9"
 
 # --- 地址栏默认底部（这里有两条互相牵制的替换，保持原样加 TODO 注释） ---

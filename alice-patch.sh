@@ -32,7 +32,7 @@ for p in "${skipped[@]}"; do
 done
 
 if [ ${#pending[@]} -gt 0 ]; then
-    echo "=== 应用 patch ==="
+    echo "=== 应用 Alice patch ==="
     for p in "${pending[@]}"; do
         echo "应用: $(basename "$p")"
         git apply --whitespace=nowarn "$p" || {
@@ -46,7 +46,7 @@ fi
 mod_files=("$PROJECT_DIR"/patches/mods/*.sh)
 
 if [ ${#mod_files[@]} -gt 0 ]; then
-    echo "=== 应用 mod ==="
+    echo "=== 应用 Alice mod ==="
     for m in "${mod_files[@]}"; do
         [ -f "$m" ] || continue
         name=$(basename "$m")

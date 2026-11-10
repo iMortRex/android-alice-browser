@@ -1,74 +1,73 @@
 #!/bin/bash
-# 捕获网页快照时仅在地址栏位于底部时合成工具栏和系统导航栏区域。
+# 标签预览：在网页快照中合成底部工具栏和系统导航栏区域。
 
 set -e
 
-path1="chrome/browser/tab_ui/android/java/src/org/chromium/chrome/browser/tab_ui/TabThumbnailView.java"
-path2="chrome/browser/tab_ui/android/java/src/org/chromium/chrome/browser/tab_ui/TabContentManager.java"
-path3="chrome/browser/android/compositor/tab_content_manager.cc"
-path4="chrome/browser/android/compositor/tab_content_manager.h"
-path5="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
-path6="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/ToolbarSwipeLayout.java"
+path1="chrome/browser/tab_ui/android/java/src/org/chromium/chrome/browser/tab_ui/TabContentManager.java"
+path2="chrome/browser/android/compositor/tab_content_manager.cc"
+path3="chrome/browser/android/compositor/tab_content_manager.h"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0040' "$path1"; then
     exit 100
 fi
 
-# 1) TabThumbnailView 只保留说明标记，工具栏在网页快照捕获阶段处理
-sed -i '/^import android\.widget\.ImageView;$/a\
-// Alice patch start 0040\
-// Alice: 工具栏在网页快照捕获阶段合成，不在标签管理页卡片中实时叠加。\
-// Alice patch end 0040' "$path1"
-
-# 2) TabContentManager：补 import
+# 补充工具栏合成所需的 Android import。
 sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0040\
 import android.app.Activity;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.graphics\.Matrix;$/a\
 // Alice patch start 0040\
 import android.graphics.Paint;\
 import android.graphics.Rect;\
 import android.graphics.drawable.RippleDrawable;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/a\
 // Alice patch start 0040\
 import android.view.ViewGroup;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
 // Alice patch start 0040\
 import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.base\.CommandLine;$/a\
 // Alice patch start 0040\
 import org.chromium.base.ContextUtils;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.DeviceFormFactor;$/a\
 // Alice patch start 0040\
 import org.chromium.ui.base.ViewUtils;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import java\.util\.List;$/a\
 // Alice patch start 0040\
 import java.util.HashMap;\
 import java.util.HashSet;\
 import java.util.Map;\
 import java.util.Set;\
-// Alice patch end 0040' "$path2"
+// Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/i\
     // Alice patch start 0040\
     public static final float ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX = 8.0f;\
     // Alice patch end 0040\
-' "$path2"
+' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/a\
     // Alice patch start 0040\
     private final Set<Integer> mAliceCompositingTabIds = new HashSet<>();\
@@ -77,9 +76,9 @@ sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new 
     private int mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
     private @Nullable Bitmap mAliceRecentCompositedThumbnail;\
     private @Nullable Bitmap mAliceLastToolbarBitmap;\
-    // Alice patch end 0040' "$path2"
+    // Alice patch end 0040' "$path1"
 
-# 3) TabContentManager：捕获工具栏并合成到网页 Bitmap
+# 增加工具栏合成状态、缓存和异步回读请求结构。
 sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$/i\
     // Alice patch start 0040\
     private static class AlicePendingThumbnailRequest {\
@@ -349,8 +348,9 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
     }\
     // Alice patch end 0040\
 \
-' "$path2"
+' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        getTabThumbnailFromDisk(tabId, thumbnailSize, callback);$/c\
         // Alice patch start 0040\
         if (mAliceCompositingTabIds.contains(tabId)) {\
@@ -375,8 +375,9 @@ sed -i '/^        getTabThumbnailFromDisk(tabId, thumbnailSize, callback);$/c\
             }\
         }\
         getTabThumbnailFromDisk(tabId, thumbnailSize, callback);\
-        // Alice patch end 0040' "$path2"
+        // Alice patch end 0040' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/,/^    }$/c\
     // Alice patch start 0040\
     public void destroy() {\
@@ -394,9 +395,9 @@ sed -i '/^    public void destroy() {$/,/^    }$/c\
             mNativeTabContentManager = 0;\
         }\
     }\
-    // Alice patch end 0040' "$path2"
+    // Alice patch end 0040' "$path1"
 
-# 4) TabContentManager：网页内容回读完成后合成浏览器界面并刷新缓存
+# 网页内容回读完成后合成工具栏并刷新缩略图缓存。
 sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^                            wrappedCallback);$/c\
             // Alice patch start 0040\
             if (mAliceRecentCompositedTabId == tab.getId()) {\
@@ -481,8 +482,9 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                             mThumbnailScale,\
                             /* returnBitmap= */ deferCache || returnBitmap,\
                             /* deferCache= */ deferCache,\
-                            wrappedCallback);' "$path2"
+                            wrappedCallback);' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (!forceRemoval \&\& !mTabWindowManager\.canTabThumbnailBeDeleted(tabId)) {$/,/^        }$/c\
         if (!forceRemoval \&\& !mTabWindowManager.canTabThumbnailBeDeleted(tabId)) {\
             return;\
@@ -500,9 +502,9 @@ sed -i '/^        if (!forceRemoval \&\& !mTabWindowManager\.canTabThumbnailBeDe
                 Callback.runNullSafe(request.mCallback, null);\
             }\
         }\
-        // Alice patch end 0040' "$path2"
+        // Alice patch end 0040' "$path1"
 
-# 5) TabContentManager：JNI 捕获接口增加延迟缓存参数
+# 为 JNI 捕获接口增加延迟缓存参数。
 sed -i '/^        void captureThumbnail($/,/^                Callback<@Nullable Bitmap> callback);$/c\
         // Alice patch start 0040\
         void captureThumbnail(\
@@ -512,9 +514,9 @@ sed -i '/^        void captureThumbnail($/,/^                Callback<@Nullable 
                 boolean returnBitmap,\
                 boolean deferCache,\
                 Callback<@Nullable Bitmap> callback);\
-        // Alice patch end 0040' "$path2"
+        // Alice patch end 0040' "$path1"
 
-# 6) TabContentManager：JNI 实现增加延迟缓存参数
+# 同步 C++ 捕获接口签名。
 sed -i '/^void TabContentManager::CaptureThumbnail($/,/^    const base::android::JavaRef<jobject>& j_callback) {$/c\
   // Alice patch start 0040\
 void TabContentManager::CaptureThumbnail(\
@@ -524,8 +526,9 @@ void TabContentManager::CaptureThumbnail(\
     bool return_bitmap,\
     bool defer_cache,\
     const base::android::JavaRef<jobject>& j_callback) {\
-  // Alice patch end 0040' "$path3"
+  // Alice patch end 0040' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^  TabReadbackCallback readback_done_callback =$/,/^                     return_bitmap);$/c\
   // Alice patch start 0040\
   TabReadbackCallback readback_done_callback =\
@@ -534,9 +537,9 @@ sed -i '/^  TabReadbackCallback readback_done_callback =$/,/^                   
                      base::BindOnce(&RunObjectCallbackAndroid,\
                                     ScopedJavaGlobalRef<jobject>(j_callback)),\
                      return_bitmap, defer_cache);\
-  // Alice patch end 0040' "$path3"
+  // Alice patch end 0040' "$path2"
 
-# 7) 合成后的 Bitmap 可以强制替换刚回读的无工具栏快照
+# 合成后的 Bitmap 强制替换未带工具栏的原始回读快照。
 sed -i '/^  \/\/ Native pages have their own throttling behavior so force the update if that$/,/^                  \/\*return_bitmap=\*\/false, thumbnail_scale, skbitmap);$/c\
   // Alice patch start 0040\
   // Deferred snapshots compose the toolbar in Java and must replace the raw\
@@ -561,9 +564,9 @@ sed -i '/^  \/\/ Native pages have their own throttling behavior so force the up
     OnFinishedThumbnailRead(tab_id);\
   } else if (deferred_tracker) {\
     deferred_tracker->MarkCaptureFailed();\
-  // Alice patch end 0040' "$path3"
+  // Alice patch end 0040' "$path2"
 
-# 8) 延迟缓存时保留完整分辨率，并交给 Java 合成工具栏
+# 延迟缓存时保留完整分辨率，并交给 Java 合成工具栏。
 sed -i '/^void TabContentManager::OnTabReadback(int tab_id,$/,/^                                      const SkBitmap& bitmap) {$/c\
   // Alice patch start 0040\
 void TabContentManager::OnTabReadback(\
@@ -574,8 +577,9 @@ void TabContentManager::OnTabReadback(\
                                       bool defer_cache,\
                                       float thumbnail_scale,\
                                       const SkBitmap& bitmap) {\
-  // Alice patch end 0040' "$path3"
+  // Alice patch end 0040' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^  SendThumbnailToJava(std::move(callback), \/\*need_downsampling=\*\/true,$/,/^                      return_bitmap, bitmap);$/c\
   // Alice patch start 0040\
   if (defer_cache) {\
@@ -592,9 +596,9 @@ sed -i '/^  SendThumbnailToJava(std::move(callback), \/\*need_downsampling=\*\/t
                       return_bitmap, bitmap);\
 \
   if (defer_cache) return;\
-  // Alice patch end 0040' "$path3"
+  // Alice patch end 0040' "$path2"
 
-# 9) 同步更新 C++ 头文件声明
+# 同步更新 C++ 头文件中的捕获和回读声明。
 sed -i '/^  void CaptureThumbnail(JNIEnv\* env,$/,/^                        const base::android::JavaRef<jobject>& j_callback);$/c\
   // Alice patch start 0040\
   void CaptureThumbnail(JNIEnv* env,\
@@ -603,8 +607,9 @@ sed -i '/^  void CaptureThumbnail(JNIEnv\* env,$/,/^                        cons
                         bool return_bitmap,\
                         bool defer_cache,\
                         const base::android::JavaRef<jobject>& j_callback);\
-  // Alice patch end 0040' "$path4"
+  // Alice patch end 0040' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^  void OnTabReadback(int tab_id,$/,/^                     const SkBitmap& bitmap);$/c\
   // Alice patch start 0040\
   void OnTabReadback(int tab_id,\
@@ -616,28 +621,15 @@ sed -i '/^  void OnTabReadback(int tab_id,$/,/^                     const SkBitm
                      const SkBitmap& bitmap);\
   absl::flat_hash_map<thumbnail::TabId, ThumbnailCaptureTrackerPtr>\
       deferred_capture_trackers_;\
-  // Alice patch end 0040' "$path4"
+  // Alice patch end 0040' "$path3"
 
-# 10) 工具栏已经包含在快照中，不再创建会遮挡它的底部纯色动画
-sed -i '/^        int aliceToolbarHeight = toolbarView == null ? 0 : toolbarView.getHeight();$/,/^                                : Math.max(0, bottomControlsHeight - bottomMargin);$/c\
-        // Alice patch start 0040\
-        boolean aliceUseBottomToolbarGeometry =\
-                toolbarView != null \&\& !animationData.isTopToolbar();\
-        int animatingHeight =\
-                mAnimationType == HubLayoutAnimationType.EXPAND_NEW_TAB\
-                                || animationData.isTopToolbar()\
-                        ? 0\
-                        : aliceUseBottomToolbarGeometry\
-                                ? 0\
-                                : Math.max(0, bottomControlsHeight - bottomMargin);\
-        // Alice patch end 0040' "$path5"
-
-# 11) 用整数目标宽度对应的实际比例计算高度，避免网页与工具栏缩放基准不一致
+# 用整数目标宽度对应的实际比例计算高度，统一网页和工具栏缩放基准。
 sed -i '/^#include <cstdint>$/i\
 // Alice patch start 0040\
 #include <cmath>\
-// Alice patch end 0040' "$path3"
+// Alice patch end 0040' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    gfx::Size thumbnail_size($/,/^        gfx::ScaleToCeiledSize(view_size_in_pixels, thumbnail_scale_));$/c\
         // Alice patch start 0040\
         const int thumbnail_width =\
@@ -647,9 +639,9 @@ sed -i '/^    gfx::Size thumbnail_size($/,/^        gfx::ScaleToCeiledSize(view_
         const int thumbnail_height =\
             std::lround(view_size_in_pixels.height() * aligned_scale);\
         gfx::Size thumbnail_size(thumbnail_width, thumbnail_height);\
-        // Alice patch end 0040' "$path3"
+        // Alice patch end 0040' "$path2"
 
-# 12) 不降采样时直接桥接原始 Bitmap，避免同尺寸 Resize 把网页底边重采样发糊
+# 不降采样时直接桥接原始 Bitmap，避免同尺寸 Resize 让网页底边发糊。
 sed -i '/^    SkIRect dest_subset = {0, 0, width, height};$/,/^        dest_subset));$/c\
     // Alice patch start 0040\
     bool needs_resize = width != bitmap.width() || height != bitmap.height();\
@@ -661,19 +653,10 @@ sed -i '/^    SkIRect dest_subset = {0, 0, width, height};$/,/^        dest_subs
           bitmap, skia::ImageOperations::RESIZE_BETTER, width, height,\
           dest_subset));\
     }\
-    // Alice patch end 0040' "$path3"
+    // Alice patch end 0040' "$path2"
 
-# 13) 删除标签时同时清理等待 Java 合成的 capture tracker
+# 删除标签时清理等待 Java 合成的 capture tracker。
 sed -i '/^  in_flight_captures_\.erase(tab_id);$/a\
   // Alice patch start 0040\
   deferred_capture_trackers_.erase(tab_id);\
-  // Alice patch end 0040' "$path3"
-
-# 14) 工具栏横滑切换前缓存当前网页标签，避免离开后缩略图仍为空
-sed -i '/^        if (tab != null [&][&] tab\.isNativePage()) {$/,/^        }$/c\
-        // Alice patch start 0040\
-        if (tab != null) {\
-            assumeNonNull(mTabContentManager);\
-            mTabContentManager.cacheTabThumbnail(tab);\
-        }\
-        // Alice patch end 0040' "$path6"
+  // Alice patch end 0040' "$path2"

@@ -19,21 +19,20 @@ cd "$CHROMIUM"
 
 # 恢复干净（撤销上次所有 patch 和 mod 的修改）
 echo "=== 恢复工作区 ==="
-git reset -q
-git checkout -- .
-git clean -fd
+"$SCRIPT_DIR/restore-paths.sh" --all alice-state-00
 
 export VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' \
     "$SCRIPT_DIR/vanadium/args.gn")
 # 应用 patch.sh
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    echo "=== 应用 common.sh ==="
-    source "$SCRIPT_DIR/common.sh" || exit 1
-fi
-if [ -f "$SCRIPT_DIR/patch.sh" ]; then
-    echo "=== 应用 patch.sh ==="
-    source "$SCRIPT_DIR/patch.sh" || exit 1
-fi
+# if [ -f "$SCRIPT_DIR/common.sh" ]; then
+#     echo "=== 应用 common.sh ==="
+#     source "$SCRIPT_DIR/common.sh" || exit 1
+# fi
+# if [ -f "$SCRIPT_DIR/patch.sh" ]; then
+#     echo "=== 应用 patch.sh ==="
+#     source "$SCRIPT_DIR/patch.sh" || exit 1
+# fi
+source "$SCRIPT_DIR/alice-patch.sh" || exit 1
 
 # GN 构建兜底
 mkdir -p out/Default out/tmp out/Release

@@ -17,6 +17,7 @@ fi
 # 1) 行为：末尾是否补空格由 设置-外观 的开关决定（默认补）
 sed -i 's|^import org.chromium.chrome.browser.omnibox.R;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.omnibox.R;\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\n// Alice patch end 0021|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        if (isSearchSuggestion) refineText = TextUtils.concat(refineText, " ").toString();$|        // Alice patch start 0021\n        // Alice: no-refine-trailing-space -- 末尾是否补空格由 设置-外观 里的开关决定（默认补）。\n        if (isSearchSuggestion\n                \&\& ChromeSharedPreferences.getInstance()\n                        .readBoolean("alice_refine_trailing_space", true)) {\n            refineText = TextUtils.concat(refineText, " ").toString();\n        }\n        // Alice patch end 0021|' "$path1"
 
 # 2) 外观设置页加开关（默认英文，简体中文由 Fragment 覆盖）
@@ -25,10 +26,13 @@ sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&
 # 3) fragment：读/写开关（默认开，与行为默认值一致）
 sed -i 's|^import org.chromium.chrome.browser.preferences.Pref;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\nimport org.chromium.chrome.browser.preferences.Pref;\n// Alice patch end 0021|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n    // Alice patch start 0021\n    public static final String PREF_ALICE_REFINE_TRAILING_SPACE =\n            "alice_refine_trailing_space_switch";\n    // Alice patch end 0021|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        initTabPositionPref();$|        // Alice patch start 0021\n        initTabPositionPref();\n        initAliceRefinePref();\n        // Alice patch end 0021|' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateUiThemePref() {$/i\
     // Alice patch start 0021\
     /** Alice: 地址栏建议 refine 后是否补空格的开关。 */\

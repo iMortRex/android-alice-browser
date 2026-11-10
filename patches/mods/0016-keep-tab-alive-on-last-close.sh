@@ -12,6 +12,7 @@ if grep -q 'Alice patch start 0016' "$path1"; then
     exit 100
 fi
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                        }$/c\
                         // Alice patch start 0016\
                         private void closeIfNoTabsAndHomepageEnabled(\

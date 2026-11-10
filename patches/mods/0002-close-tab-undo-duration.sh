@@ -12,8 +12,10 @@ if grep -q 'Alice patch start 0002' "$path1"; then
     exit 100
 fi
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 10000;$|\1// Alice patch start 0002\n\1public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 3000;\n\1// Alice patch end 0002|' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public long get(@MessageIdentifier int messageIdentifier, long customDuration) {$/a\
         // Alice patch start 0002\
         if (messageIdentifier == MessageIdentifier.DOWNLOAD_PROGRESS) {\

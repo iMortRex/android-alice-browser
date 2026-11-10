@@ -181,7 +181,7 @@ sed -i 's/|| mSupportedProfileType == SupportedProfileType.REGULAR) {/|| mSuppor
 sed -i 's/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD) {/|| mSupportedProfileType == SupportedProfileType.OFF_THE_RECORD || mSupportedProfileType == SupportedProfileType.MIXED) {/' chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
 
 # 修正 gritdeps 里 alice 条目的位置
-echo "=== 修正 gritdeps ==="
+echo "=== 修正 gritdeps 文件 ==="
 for GRITDEPS in \
     "components/components_strings.grd.gritdeps" \
     ; do
@@ -191,8 +191,24 @@ for GRITDEPS in \
     [ -z "$ALICE_LINE" ] && continue
     sed -i "\|^${ALICE_LINE}$|d" "$GRITDEPS"
     sed -i "1i ${ALICE_LINE}" "$GRITDEPS"
-    echo "Fixed: $GRITDEPS"
+    echo "已修正: $GRITDEPS"
 done
+
+# 如果 alice-state-00 快照不存在，则创建 Git tag 和 third_party tar 快照
+ALICE_SNAPSHOT_TAG="alice-state-00"
+ALICE_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ALICE_SNAPSHOT_SCRIPT="$ALICE_ROOT_DIR/alice-snapshot.sh"
+
+echo "=== 生成快照 ==="
+if git -C "$ALICE_ROOT_DIR/chromium/src" rev-parse -q --verify "refs/tags/$ALICE_SNAPSHOT_TAG" >/dev/null 2>&1; then
+    echo "快照已存在，跳过: $ALICE_SNAPSHOT_TAG"
+else
+    [ -x "$ALICE_SNAPSHOT_SCRIPT" ] || {
+        echo "快照脚本不存在或不可执行: $ALICE_SNAPSHOT_SCRIPT" >&2
+        exit 1
+    }
+    "$ALICE_SNAPSHOT_SCRIPT" -t "$ALICE_SNAPSHOT_TAG"
+fi
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/alice-patch.sh"
 

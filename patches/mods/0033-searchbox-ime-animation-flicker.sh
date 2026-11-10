@@ -1,8 +1,6 @@
 #!/bin/bash
-# 触摸工具栏时预先保存工具栏和导航栏区域，聚焦后再固定显示；弹出输入法
-# 时用 IME 动画每一帧的当前 inset 驱动搜索框，并让建议列表止于搜索框
-# 上沿。输入法活跃时工具栏背景继续延伸到系统导航栏。顶部地址栏的搜索页
-# 背景和遮罩保持全屏，不随输入法缩短。
+# 底置工具栏 IME 动画：用逐帧 inset 驱动搜索框和工具栏，处理导航栏背景、
+# 聚焦遮罩和底置工具栏位置。
 
 set -e
 
@@ -12,26 +10,10 @@ path2="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManage
 path3="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarFocusScrimHandler.java"
 path4="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarCoordinator.java"
 path5="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsContainer.java"
-path6="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListViewBinder.java"
-path7="chrome/android/java/res/layout/search_activity.xml"
-path8="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java"
-path9="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPageCoordinator.java"
-path10="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdownEmbedder.java"
-path11="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/OmniboxSuggestionsDropdownEmbedderImpl.java"
-path12="chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java"
-path13="chrome/browser/fullscreen/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenManager.java"
-path14="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
-path15="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/FullscreenHtmlApiHandlerBase.java"
-path16="chrome/android/java/src/org/chromium/chrome/browser/fullscreen/BrowserControlsManager.java"
-path17="chrome/android/java/src/org/chromium/chrome/browser/tab/TabBrowserControlsConstraintsHelper.java"
-path18="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayMediator.java"
-path19="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/TopToolbarOverlayCoordinator.java"
-path20="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
-path21="chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java"
-path22="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
-path23="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListProperties.java"
-path24="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java"
-path25="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
+path6="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdownEmbedder.java"
+path7="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/OmniboxSuggestionsDropdownEmbedderImpl.java"
+path8="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path9="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
@@ -42,9 +24,10 @@ fi
 sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/i\
 // Alice patch start 0033\
 import org.chromium.ui.insets.InsetObserver;\
-// Alice patch end 0033' "$path10"
+// Alice patch end 0033' "$path6"
 
-sed -i '/^    View getAnchorView();$/a\
+# 接口方法只依赖上游已有声明，避免与 0049 的 getAnchorView 修改交叉。
+sed -i '/^    boolean isWideWindow();$/a\
     // Alice patch start 0033\
     default @Nullable InsetObserver getInsetObserver() {\
         return null;\
@@ -53,17 +36,16 @@ sed -i '/^    View getAnchorView();$/a\
     default int getWindowHeight() {\
         return 0;\
     }\
-    // Alice patch end 0033' "$path10"
+    // Alice patch end 0033' "$path6"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
 // Alice patch start 0033\
 import org.chromium.ui.insets.InsetObserver;\
-// Alice patch end 0033' "$path11"
+// Alice patch end 0033' "$path7"
 
-sed -i '/^    public View getAnchorView() {$/,/^    }$/c\
-    public View getAnchorView() {\
-        return mAnchorView;\
-    }\
+# 实现方法插在上游 isPhoneStyleWindow() 后，不替换 0049 的 getAnchorView。
+sed -i '/^    public boolean isPhoneStyleWindow() {$/,/^    }$/ { /^    }$/a\
 \
     // Alice patch start 0033\
     @Override\
@@ -75,43 +57,52 @@ sed -i '/^    public View getAnchorView() {$/,/^    }$/c\
     public int getWindowHeight() {\
         return mWindowAndroid.getDisplay().getDisplayHeight();\
     }\
-    // Alice patch end 0033' "$path11"
+    // Alice patch end 0033
+; }' "$path7"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.content\.SharedPreferences\.OnSharedPreferenceChangeListener;$/a\
 // Alice patch start 0033\
 import android.graphics.Bitmap;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewGroup;$/a\
 // Alice patch start 0033\
 import android.widget.ImageView;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/i\
 // Alice patch start 0033\
 import android.view.MotionEvent;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.embedder_support\.util\.UrlUtilities;$/i\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.TouchEventObserver;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import androidx\.core\.view\.WindowInsetsCompat;$/a\
 // Alice patch start 0033\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import java\.util\.function\.Supplier;$/i\
 // Alice patch start 0033\
 import java.util.List;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewGroup;$/a\
 // Alice patch start 0033\
 import android.view.ViewTreeObserver;\
 // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
@@ -173,6 +164,7 @@ sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
             };\
     // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
 \
     // Alice patch start 0033\
@@ -243,6 +235,7 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     // Alice patch end 0033\
 ' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
         mIsOmniboxFocusedObserver =\
@@ -258,6 +251,7 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
                 };\
         // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mIsTabSwitcherFinishedShowingObserver = (showing) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
         mIsTabSwitcherFinishedShowingObserver =\
@@ -324,6 +318,7 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
         }\
         // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$|        // Alice patch start 0033\
         mToolbar.setToolbarColorObserver(\
                 new TopToolbarCoordinator.ToolbarColorObserver() {\
@@ -345,11 +340,12 @@ sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$
 
 # Toolbar 颜色回调可能早于 ToolbarPositionController 创建。保存最近一次实际
 # 工具栏背景色，并在控制器创建后补发，避免启动时模拟导航栏停留在旧色。
-sed -i '/^    private @Nullable ToolbarPositionController mToolbarPositionController;$/a\
+sed -i '/^    private @Nullable Tab mLastTab;$/a\
     // Alice patch start 0033\
     private int mAliceLastToolbarBackgroundColor = Integer.MIN_VALUE;\
     // Alice patch end 0033' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mWindowAndroid);$/a\
         // Alice patch start 0033\
         // Toolbar color callbacks can arrive before ToolbarPositionController is created.\
@@ -360,11 +356,13 @@ sed -i '/^                        mWindowAndroid);$/a\
         }\
         // Alice patch end 0033' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(this);$/a\
         // Alice patch start 0033\
         mControlContainer.addTouchEventObserver(mToolbarTouchObserver);\
         // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mHandler = handler;$/a\
         // Alice patch start 0033\
         mControlContainer\
@@ -432,7 +430,7 @@ sed -i '/^                        WindowManager.LayoutParams.SOFT_INPUT_STATE_AL
                                                 .isToolbarConfiguredToShowOnTop()\
                                         ? WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE\
                                         : WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING));\
-                        // Alice patch end 0033' "$path22"
+                        // Alice patch end 0033' "$path9"
 
 # 4) 工具栏底边取 IME 与导航栏 inset 的较大值。导航栏区域由独立的背景
 #    延伸层覆盖，工具栏本身不再为了填背景而永久上移。
@@ -446,11 +444,13 @@ sed -i '/^            int maxHeight = windowHeight - keyboardHeight - statusBarH
             int maxHeight = windowHeight - aliceBottomInset - statusBarHeight;\
             // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            int maxTranslation = -(windowHeight - layer\.getHeight() - statusBarHeight);$/c\
             // Alice patch start 0033\
             // Use the current IME frame as the minimum absolute bottom offset.\
             // Alice patch end 0033' "$path1"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^            layerYOffset = Math\.max(layerYOffset - keyboardHeight, maxTranslation);$/c\
             // Alice patch start 0033\
             layerYOffset = Math.min(layerYOffset, -aliceBottomInset);\
@@ -467,17 +467,18 @@ sed -i '/^    private float getLocationBarTranslationY() {$/a\
                         == ControlsPosition.BOTTOM) {\
             return 0.f;\
         }\
-        // Alice patch end 0033' "$path20"
+        // Alice patch end 0033' "$path8"
 
 # 只在视觉状态真的变化时刷新工具栏颜色，避免布局帧反复把滑动混合色刷回旧色。
 sed -i 's|^        if (mTabSwitcherState != EXITING_TAB_SWITCHER) {$|        // Alice patch start 0033\
         if (visualStateChanged\
                 \&\& mTabSwitcherState != EXITING_TAB_SWITCHER) {\
-        // Alice patch end 0033|' "$path20"
+        // Alice patch end 0033|' "$path8"
 
+# 修改对应源码以完成本补丁功能。
 sed -i 's|^                updateToolbarBackgroundFromState(VisualState.BRAND_COLOR);$|                // Alice patch start 0033\
                 // Toolbar color changes are event-driven; do not refresh it on every layout.\
-                // Alice patch end 0033|' "$path20"
+                // Alice patch end 0033|' "$path8"
 
 # 5) 搜索页位于底部时，无论 normal 或 overlay 键盘模式都由上面的 inset
 #    驱动，避免 resize mode 功能开关把键盘高度清零后产生跳位。
@@ -487,6 +488,7 @@ sed -i '/^                    public void onConfigurationChanged(Configuration c
                         mToolbar.onPrimaryColorChanged(/* shouldAnimate= */ false);\
                         // Alice patch end 0033' "$path2"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^    }$/c\
     private boolean shouldIgnoreKeyboardHeightInResizeMode() {\
         // Alice patch start 0033\
@@ -977,33 +979,39 @@ sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
 import org.chromium.build.annotations.Nullable;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomControlsStacker;$/i\
 // Alice patch start 0033\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.DeviceFormFactor;$/i\
 // Alice patch start 0033\
 import org.chromium.ui.KeyboardVisibilityDelegate;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.DeviceFormFactor;$/a\
 // Alice patch start 0033\
 import org.chromium.ui.base.WindowAndroid;\
 import org.chromium.ui.insets.InsetObserver;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/a\
 // Alice patch start 0033\
 import android.view.ViewGroup;\
 import android.view.ViewTreeObserver;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.browser_ui\.widget\.scrim\.ScrimProperties;$/a\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.scrim.ScrimView;\
 // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^                                updateScrimBottomMargin());$/a\
             // Alice patch start 0033\
             mImeBoundaryView = aliceBottomBoundary;\
@@ -1062,6 +1070,7 @@ sed -i '/^                                updateScrimBottomMargin());$/a\
                     .addOnPreDrawListener(aliceBoundaryPreDrawListener);\
             // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^                    mScrimModel\.set(ScrimProperties\.TOP_MARGIN, newHeight);$/c\
                     // Alice patch start 0033\
                     mScrimModel.set(\
@@ -1069,6 +1078,7 @@ sed -i '/^                    mScrimModel\.set(ScrimProperties\.TOP_MARGIN, newH
                             isBottomToolbarActive() ? 0 : newHeight);\
                     // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
     // Alice patch start 0033\
     private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;\
@@ -1129,6 +1139,7 @@ sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
             };\
     // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void updateScrimVisualState() {$/i\
     // Alice patch start 0033\
     void setWindowAndroid(\
@@ -1146,8 +1157,17 @@ sed -i '/^    public void updateScrimVisualState() {$/i\
         updateScrimBottomMargin();\
     }\
     // Alice patch end 0033\
+\
+    // Alice patch start 0033\
+    private boolean isBottomToolbarActive() {\
+        return mBrowserControlsStateProvider != null\
+                \&\& mBrowserControlsStateProvider.getControlsPosition()\
+                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
+    }\
+    // Alice patch end 0033\
 ' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateScrimBottomMargin() {$/a\
         // Alice patch start 0033\
         if (!isBottomToolbarActive()) {\
@@ -1174,6 +1194,7 @@ sed -i '/^    private void updateScrimBottomMargin() {$/a\
         }\
         // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateScrimBottomMargin() {$/i\
     // Alice patch start 0033\
     private @Nullable View findOmniboxScrimView(View view) {\
@@ -1191,24 +1212,7 @@ sed -i '/^    private void updateScrimBottomMargin() {$/i\
     // Alice patch end 0033\
 ' "$path3"
 
-sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }$/c\
-    private void updateScrimBottomMargin(int bottomMargin) {\
-        // Alice patch start 0033\
-        mScrimModel.set(ScrimProperties.TOP_MARGIN, 0);\
-        if (mScrimModel.get(ScrimProperties.BOTTOM_MARGIN) != 0) {\
-            mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, 0);\
-        }\
-        // Alice patch end 0033\
-    }\
-\
-    private boolean isBottomToolbarActive() {\
-        // Alice patch start 0033\
-        return mBrowserControlsStateProvider != null\
-                \&\& mBrowserControlsStateProvider.getControlsPosition()\
-                        == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
-        // Alice patch end 0033\
-    }' "$path3"
-
+# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0033\
         if (mImeBoundaryView != null \&\& mImeBoundaryPreDrawListener != null) {\
@@ -1229,6 +1233,7 @@ sed -i '/^    public void destroy() {$/a\
         }\
         // Alice patch end 0033' "$path3"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mWindowAndroid = windowAndroid;$/a\
         // Alice patch start 0033\
         if (scrimHandler != null) {\
@@ -1248,6 +1253,7 @@ sed -i '/^    private void updateBottomContainerPosition() {$/,/^    }$/c\
         // Alice patch end 0033\
     }' "$path4"
 
+# 修改对应源码以完成本补丁功能。
 sed -i '/^        mOmniboxAlignment = omniboxAlignment;$/a\
         // Alice patch start 0033\
         if (mEmbedder != null \&\& mEmbedder.isToolbarOnBottom()) {\
@@ -1255,870 +1261,3 @@ sed -i '/^        mOmniboxAlignment = omniboxAlignment;$/a\
             if (!isWidthDifference) return;\
         }\
         // Alice patch end 0033' "$path5"
-
-# 10) 底置工具栏时，推荐内容从搜索框上沿向上排列；内容超出窗口后再滚动。
-#     列表保持完整视口高度，底边逐帧贴住搜索框上沿；超出的顶部由父布局裁剪。
-sed -i '/^    void onUrlFocusAnimationChanged() {$/a\
-        // Alice patch start 0033\
-        if (mToolbarOnBottom) {\
-            mModel.set(NewTabPageLayoutProperties.TRANSITION_Y, 0f);\
-            return;\
-        }\
-        // Alice patch end 0033' "$path9"
-
-sed -i '/^    void setToolbarOnBottom(boolean toolbarOnBottom) {$/,/^    }$/c\
-    void setToolbarOnBottom(boolean toolbarOnBottom) {\
-        // Alice patch start 0033\
-        if (mToolbarOnBottom == toolbarOnBottom) return;\
-        mToolbarOnBottom = toolbarOnBottom;\
-        updateToolbarInsets();\
-        onUrlFocusAnimationChanged();\
-        // Alice patch end 0033\
-    }' "$path9"
-
-sed -i '/^    <org\.chromium\.ui\.AsyncViewStub$/i\
-    <!-- Alice patch start 0033 -->' "$path7"
-sed -i 's|^        app:layout_anchor="@id/toolbar"$|        android:layout_gravity="top"|' \
-    "$path7"
-sed -i '/^        app:inflatedId="@+id\/search_activity_suggestions_container"\/>$/a\
-    <!-- Alice patch end 0033 -->' "$path7"
-
-sed -i '/^        mBrowserControlsStateProvider\.addObserver(this);$/i\
-        // Alice patch start 0033\
-        mNewTabPageCoordinator.setToolbarOnBottom(\
-                mBrowserControlsStateProvider.getControlsPosition()\
-                        == ControlsPosition.BOTTOM);\
-        // Alice patch end 0033' "$path12"
-
-sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
-// Alice patch start 0033\
-import androidx.core.view.WindowInsetsAnimationCompat;\
-import androidx.core.view.WindowInsetsCompat;\
-// Alice patch end 0033' "$path5"
-
-sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
-// Alice patch start 0033\
-import org.chromium.ui.insets.InsetObserver;\
-// Alice patch end 0033' "$path5"
-
-sed -i '/^    private final int\[\] mStickPosition = new int\[2\];$/a\
-    // Alice patch start 0033\
-    private int mAliceBottomViewportHeight = -1;\
-    private boolean mAliceImeAnimationActive;\
-    private @Nullable InsetObserver mSuggestionsInsetObserver;\
-    private final InsetObserver.WindowInsetsAnimationListener mSuggestionsImeListener =\
-            new InsetObserver.WindowInsetsAnimationListener() {\
-                @Override\
-                public void onPrepare(WindowInsetsAnimationCompat animation) {\
-                    if (mEmbedder != null\
-                            \&\& mEmbedder.isToolbarOnBottom()\
-                            \&\& (animation.getTypeMask()\
-                                            \& WindowInsetsCompat.Type.ime())\
-                                    != 0) {\
-                        mAliceImeAnimationActive = true;\
-                        prepareAliceBottomAnchoredAnimation();\
-                    }\
-                }\
-\
-                @Override\
-                public void onStart(\
-                        WindowInsetsAnimationCompat animation,\
-                        WindowInsetsAnimationCompat.BoundsCompat bounds) {}\
-\
-                @Override\
-                public void onProgress(\
-                        WindowInsetsCompat insets,\
-                        java.util.List<WindowInsetsAnimationCompat> runningAnimations) {\
-                    if (mEmbedder != null \&\& mEmbedder.isToolbarOnBottom()) {\
-                        updateAliceImeViewport(insets);\
-                    }\
-                }\
-\
-                @Override\
-                public void onEnd(WindowInsetsAnimationCompat animation) {\
-                    if (mEmbedder != null\
-                            \&\& mEmbedder.isToolbarOnBottom()\
-                            \&\& (animation.getTypeMask()\
-                                            \& WindowInsetsCompat.Type.ime())\
-                                    != 0) {\
-                        mAliceImeAnimationActive = false;\
-                        postOnAnimation(\
-                                OmniboxSuggestionsContainer.this::stickToAnchor);\
-                    }\
-                }\
-            };\
-    // Alice patch end 0033' "$path5"
-
-sed -i '/^    private boolean stickToAnchor() {$/i\
-    // Alice patch start 0033\
-    private int getAliceNavigationBarHeight() {\
-        if (getContext() instanceof android.app.Activity\
-                \&\& ((android.app.Activity) getContext()).isInMultiWindowMode()) {\
-            return 0;\
-        }\
-        android.view.WindowInsets aliceRootInsets = getRootWindowInsets();\
-        if (aliceRootInsets == null) return 0;\
-        WindowInsetsCompat aliceInsets =\
-                WindowInsetsCompat.toWindowInsetsCompat(aliceRootInsets, getRootView());\
-        return Math.max(\
-                aliceInsets\
-                        .getInsets(WindowInsetsCompat.Type.navigationBars())\
-                        .bottom,\
-                aliceInsets\
-                        .getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())\
-                        .bottom);\
-    }\
-\
-    private void updateAliceBottomAnchoredPosition(\
-            int aliceTargetTop, int aliceContainerTop) {\
-        int aliceWindowHeight = getRootView().getHeight();\
-        if (aliceWindowHeight <= 0) aliceWindowHeight = mEmbedder.getWindowHeight();\
-        int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
-        int aliceViewportHeight =\
-                Math.max(\
-                        0,\
-                        aliceWindowHeight\
-                                - getAliceNavigationBarHeight()\
-                                - aliceAnchorHeight\
-                                - aliceContainerTop);\
-        if (aliceViewportHeight <= 0) return;\
-        mAliceBottomViewportHeight = aliceViewportHeight;\
-        setAliceDropdownStackFromEnd(true);\
-        updateAliceDropdownViewportHeight(aliceViewportHeight);\
-        float aliceTranslationY =\
-                aliceTargetTop - (aliceContainerTop + aliceViewportHeight);\
-        if (mDropdown.getTranslationY() != aliceTranslationY) {\
-            mDropdown.setTranslationY(aliceTranslationY);\
-        }\
-    }\
-\
-    private void prepareAliceBottomAnchoredAnimation() {\
-        mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
-        int aliceTargetTop = mStickPosition[1];\
-        getLocationInWindow(mStickPosition);\
-        updateAliceBottomAnchoredPosition(\
-                aliceTargetTop, mStickPosition[1]);\
-    }\
-\
-    private void updateAliceSettledViewport(\
-            int aliceTargetTop, int aliceContainerTop) {\
-        int aliceViewportHeight = Math.max(0, aliceTargetTop - aliceContainerTop);\
-        if (aliceViewportHeight <= 0) return;\
-        mAliceBottomViewportHeight = aliceViewportHeight;\
-        setAliceDropdownStackFromEnd(true);\
-        updateAliceDropdownViewportHeight(aliceViewportHeight);\
-        if (mDropdown.getTranslationY() != 0) {\
-            mDropdown.setTranslationY(0);\
-        }\
-    }\
-\
-    private void updateAliceImeViewport(WindowInsetsCompat insets) {\
-        if (mDropdown.getVisibility() != View.VISIBLE) return;\
-        int aliceImeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;\
-        int aliceBottomInset = aliceImeHeight;\
-        int aliceAnchorHeight = mEmbedder.getAnchorView().getHeight();\
-        int aliceWindowHeight = getRootView().getHeight();\
-        if (aliceWindowHeight <= 0) aliceWindowHeight = mEmbedder.getWindowHeight();\
-        getLocationInWindow(mStickPosition);\
-        int aliceContainerTop = mStickPosition[1];\
-        int aliceViewportHeight =\
-                Math.max(\
-                        0,\
-                        aliceWindowHeight\
-                                - aliceBottomInset\
-                                - aliceAnchorHeight\
-                                - aliceContainerTop);\
-        mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
-        int aliceCurrentAnchorTop = mStickPosition[1];\
-        aliceViewportHeight =\
-                Math.min(\
-                        aliceViewportHeight,\
-                        Math.max(0, aliceCurrentAnchorTop - aliceContainerTop));\
-        updateAliceBottomAnchoredPosition(\
-                aliceCurrentAnchorTop, aliceContainerTop);\
-        int aliceBaseBottomPadding = mDropdown.getBaseBottomPadding();\
-        if (mDropdown.getPaddingBottom() != aliceBaseBottomPadding) {\
-            mDropdown.setPaddingRelative(\
-                    mDropdown.getPaddingStart(),\
-                    mDropdown.getPaddingTop(),\
-                    mDropdown.getPaddingEnd(),\
-                    aliceBaseBottomPadding);\
-        }\
-    }\
-    // Alice patch end 0033\
-' "$path5"
-
-sed -i '/^    protected void onFinishInflate() {$/,/^    }$/c\
-    // Alice patch start 0033\
-    protected void onFinishInflate() {\
-        super.onFinishInflate();\
-        mDropdown = findViewById(R.id.omnibox_suggestions_dropdown);\
-    }\
-\
-    @Override\
-    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {\
-        super.onSizeChanged(width, height, oldWidth, oldHeight);\
-        if (width == oldWidth \&\& height == oldHeight) return;\
-        mAliceBottomViewportHeight = -1;\
-        postOnAnimation(OmniboxSuggestionsContainer.this::stickToAnchor);\
-    }\
-    // Alice patch end 0033' "$path5"
-
-# 对齐信息变化时同步保留顶部工具栏的额外间距，避免预绘制监听器下一帧才补回，
-# 从而出现建议列表向上抖动一帧。
-sed -i '/^        mDropdown\.setPaddingRelative($/,/^                mDropdown\.getBaseBottomPadding() + mOmniboxAlignment\.paddingBottom);$/c\
-        // Alice patch start 0033\
-        int aliceTopPadding =\
-                mDropdown.getBaseTopPadding() + mOmniboxAlignment.paddingTop;\
-        if (mEmbedder != null \&\& !mEmbedder.isToolbarOnBottom()) {\
-            aliceTopPadding +=\
-                    getResources()\
-                            .getDimensionPixelSize(\
-                                    R.dimen.location_bar_vertical_margin);\
-        }\
-        mDropdown.setPaddingRelative(\
-                mDropdown.getPaddingStart(),\
-                aliceTopPadding,\
-                mDropdown.getPaddingEnd(),\
-                mDropdown.getBaseBottomPadding()\
-                        + mOmniboxAlignment.paddingBottom);\
-        // Alice patch end 0033' "$path5"
-
-# 搜索页只在地址栏位于顶部时保持全屏高度；底置地址栏继续跟随输入法 resize。
-sed -i '/^import android\.view\.ViewGroup;$/a\
-// Alice patch start 0033\
-import android.view.WindowManager;\
-// Alice patch end 0033' "$path21"
-
-sed -i '/^import org\.chromium\.chrome\.browser\.tabwindow\.TabWindowInfo;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
-// Alice patch end 0033' "$path21"
-
-sed -i '/^    protected ModalDialogManager createModalDialogManager() {$/,/^    protected void triggerLayoutInflation() {$/{
-    /^    @Override$/i\
-    // Alice patch start 0033\
-    private boolean mAliceSoftInputModePreDrawAttached;\
-\
-    private void setAliceSoftInputAdjustMode(boolean toolbarOnTop) {\
-        int aliceSoftInputMode = getWindow().getAttributes().softInputMode;\
-        int aliceTargetAdjustMode =\
-                toolbarOnTop\
-                        ? WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING\
-                        : WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;\
-        if ((aliceSoftInputMode \& WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)\
-                == aliceTargetAdjustMode) {\
-            return;\
-        }\
-        aliceSoftInputMode \&= ~WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST;\
-        aliceSoftInputMode |= aliceTargetAdjustMode;\
-        getWindow().setSoftInputMode(aliceSoftInputMode);\
-    }\
-\
-    @Override\
-    protected void onPreCreate() {\
-        super.onPreCreate();\
-        setAliceSoftInputAdjustMode(\
-                AddressBarPreference.isToolbarConfiguredToShowOnTop());\
-    }\
-\
-    private void updateAliceSoftInputMode(View rootView) {\
-        if (!mAliceSoftInputModePreDrawAttached) {\
-            mAliceSoftInputModePreDrawAttached = true;\
-            rootView\
-                    .getViewTreeObserver()\
-                    .addOnPreDrawListener(\
-                            () -> {\
-                                updateAliceSoftInputMode(rootView);\
-                                return true;\
-                            });\
-        }\
-        View aliceToolbar = rootView.findViewById(R.id.toolbar);\
-        if (aliceToolbar == null || rootView.getHeight() <= 0) return;\
-        int[] aliceToolbarLocation = new int[2];\
-        aliceToolbar.getLocationInWindow(aliceToolbarLocation);\
-        setAliceSoftInputAdjustMode(\
-                aliceToolbarLocation[1] + aliceToolbar.getHeight() / 2\
-                        < rootView.getHeight() / 2);\
-    }\
-    // Alice patch end 0033
-}' "$path21"
-
-sed -i '/^        setContentView(contentView);$/a\
-        // Alice patch start 0033\
-        contentView.addOnLayoutChangeListener(\
-                (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->\
-                        updateAliceSoftInputMode(view));\
-        contentView.post(() -> updateAliceSoftInputMode(contentView));\
-        // Alice patch end 0033' "$path21"
-
-sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener);$/a\
-            // Alice patch start 0033\
-            if (mSuggestionsInsetObserver != null) {\
-                mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
-                        mSuggestionsImeListener);\
-            }\
-            mSuggestionsInsetObserver = mEmbedder.getInsetObserver();\
-            if (mSuggestionsInsetObserver != null) {\
-                mSuggestionsInsetObserver.addWindowInsetsAnimationListener(\
-                        mSuggestionsImeListener);\
-            }\
-            // Alice patch end 0033' "$path5"
-
-sed -i '/^        getViewTreeObserver().removeOnPreDrawListener(mStickListener);$/a\
-            // Alice patch start 0033\
-            mAliceBottomViewportHeight = -1;\
-            mAliceImeAnimationActive = false;\
-            setClipBounds(null);\
-            if (mSuggestionsInsetObserver != null) {\
-                mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
-                        mSuggestionsImeListener);\
-                mSuggestionsInsetObserver = null;\
-            }\
-            // Alice patch end 0033' "$path5"
-
-sed -i '/^    public void destroy() {$/a\
-        // Alice patch start 0033\
-        if (mSuggestionsInsetObserver != null) {\
-            mSuggestionsInsetObserver.removeWindowInsetsAnimationListener(\
-                    mSuggestionsImeListener);\
-            mSuggestionsInsetObserver = null;\
-        }\
-        // Alice patch end 0033' "$path5"
-
-sed -i '/^        private @Nullable Callback<Integer> mScrollOffsetListener;$/a\
-        // Alice patch start 0033\
-        private boolean mAliceBottomAnchored;\
-\
-        void setAliceBottomAnchored(boolean bottomAnchored) {\
-            if (mAliceBottomAnchored == bottomAnchored) return;\
-            mAliceBottomAnchored = bottomAnchored;\
-            mIsScrolledToTop = !bottomAnchored;\
-        }\
-        // Alice patch end 0033' "$path8"
-
-sed -i '/^            if (OmniboxFeatures\.sResetSuggestionsScroll\.isEnabled()) {$/c\
-            // Alice patch start 0033\
-            if (OmniboxFeatures.sResetSuggestionsScroll.isEnabled()\
-                    \&\& !mAliceBottomAnchored) {\
-            // Alice patch end 0033' "$path8"
-
-sed -i '/^    private float mChildAlpha = 1.0f;$/a\
-    // Alice patch start 0033\
-    private boolean mAliceBottomAnchored;\
-    // Alice patch end 0033' "$path8"
-
-sed -i '/^    public void resetSelection() {$/,/^    }$/c\
-    public void resetSelection() {\
-        // Alice patch start 0033\
-        if (!mAliceBottomAnchored) {\
-            mLayoutScrollListener.scrollToPositionWithOffset(0, 0);\
-        }\
-        // Alice patch end 0033\
-        mSelectionController.reset();\
-    }' "$path8"
-
-sed -i '/^            if (!mIsScrolledToTop) return;$/c\
-            // Alice patch start 0033\
-            if (!mIsScrolledToTop || mAliceBottomAnchored) return;\
-            // Alice patch end 0033' "$path8"
-
-sed -i '/^                int resultingDeltaY, int requestedDeltaY) {$/a\
-            // Alice patch start 0033\
-            if (mAliceBottomAnchored) return resultingDeltaY;\
-            // Alice patch end 0033' "$path8"
-
-sed -i '/^    public void translateChildrenVertical(float translation) {$/,/^    }$/c\
-    public void translateChildrenVertical(float translation) {\
-        mChildVerticalTranslation = translation;\
-        final int childCount = getChildCount();\
-        for (int i = 0; i < childCount; i++) {\
-            getChildAt(i).setTranslationY(translation);\
-        }\
-        invalidateItemDecorations();\
-    }\
-\
-    // Alice patch start 0033\
-    void setAliceBottomAnchored(boolean bottomAnchored) {\
-        mAliceBottomAnchored = bottomAnchored;\
-        mLayoutScrollListener.setAliceBottomAnchored(bottomAnchored);\
-    }\
-    // Alice patch end 0033' "$path8"
-
-sed -i '/^    private boolean stickToAnchor() {$/,/^    }$/c\
-    // Alice patch start 0033\
-    private void setAliceDropdownStackFromEnd(boolean stackFromEnd) {\
-        mDropdown.setAliceBottomAnchored(stackFromEnd);\
-        androidx.recyclerview.widget.RecyclerView.LayoutManager aliceLayoutManager =\
-                mDropdown.getLayoutManager();\
-        if (!(aliceLayoutManager\
-                instanceof androidx.recyclerview.widget.LinearLayoutManager)) {\
-            return;\
-        }\
-        androidx.recyclerview.widget.LinearLayoutManager aliceLinearLayoutManager =\
-                (androidx.recyclerview.widget.LinearLayoutManager)\
-                        aliceLayoutManager;\
-        if (aliceLinearLayoutManager.getStackFromEnd() != stackFromEnd) {\
-            aliceLinearLayoutManager.setStackFromEnd(stackFromEnd);\
-        }\
-    }\
-\
-    private boolean updateAliceDropdownViewportHeight(int height) {\
-        if (height <= 0) return false;\
-        ViewGroup.LayoutParams aliceDropdownParams = mDropdown.getLayoutParams();\
-        if (aliceDropdownParams.height == height\
-                \&\& mDropdown.getHeight() == height) {\
-            return false;\
-        }\
-        aliceDropdownParams.height = height;\
-        int aliceWidth = mDropdown.getWidth();\
-        if (aliceWidth > 0) {\
-            // Apply the size in this traversal instead of scheduling a second layout\
-            // that can draw a different viewport for one frame.\
-            mDropdown.forceLayout();\
-            mDropdown.measure(\
-                    MeasureSpec.makeMeasureSpec(aliceWidth, MeasureSpec.EXACTLY),\
-                    MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));\
-            mDropdown.layout(\
-                    mDropdown.getLeft(),\
-                    0,\
-                    mDropdown.getLeft() + aliceWidth,\
-                    height);\
-        }\
-        return true;\
-    }\
-\
-    private boolean stickToAnchor() {\
-        if (mDropdown == null) return true;\
-        if (getTranslationY() != 0) setTranslationY(0);\
-        if (mEmbedder == null || !mEmbedder.isToolbarOnBottom()) {\
-            setAliceDropdownStackFromEnd(false);\
-            mAliceBottomViewportHeight = -1;\
-            mAliceImeAnimationActive = false;\
-            int aliceTopSpacing =\
-                    getResources()\
-                            .getDimensionPixelSize(R.dimen.location_bar_vertical_margin);\
-            int aliceDesiredTopPadding =\
-                    mDropdown.getBaseTopPadding()\
-                            + mOmniboxAlignment.paddingTop\
-                            + aliceTopSpacing;\
-            if (mDropdown.getPaddingTop() != aliceDesiredTopPadding) {\
-                mDropdown.setPaddingRelative(\
-                        mDropdown.getPaddingStart(),\
-                        aliceDesiredTopPadding,\
-                        mDropdown.getPaddingEnd(),\
-                        mDropdown.getPaddingBottom());\
-            }\
-            int aliceDesiredBottomPadding = mDropdown.getBaseBottomPadding();\
-            if (mDropdown.getPaddingBottom() != aliceDesiredBottomPadding) {\
-                mDropdown.setPaddingRelative(\
-                        mDropdown.getPaddingStart(),\
-                        mDropdown.getPaddingTop(),\
-                        mDropdown.getPaddingEnd(),\
-                        aliceDesiredBottomPadding);\
-            }\
-            ViewGroup.LayoutParams aliceDropdownParams = mDropdown.getLayoutParams();\
-            int aliceDropdownHeight = ViewGroup.LayoutParams.WRAP_CONTENT;\
-            if (mEmbedder != null \&\& mOmniboxAlignment.height > 0) {\
-                aliceDropdownHeight = mOmniboxAlignment.height;\
-            }\
-            if (aliceDropdownParams.height != aliceDropdownHeight) {\
-                aliceDropdownParams.height = aliceDropdownHeight;\
-                mDropdown.setLayoutParams(aliceDropdownParams);\
-            }\
-            setClipBounds(null);\
-            if (mDropdown.getTranslationY() != 0) mDropdown.setTranslationY(0);\
-            return true;\
-        }\
-        if (mDropdown.getVisibility() != View.VISIBLE) return true;\
-        int aliceTopPadding = 0;\
-        if (mDropdown.getPaddingTop() != aliceTopPadding) {\
-            mDropdown.setPaddingRelative(\
-                    mDropdown.getPaddingStart(),\
-                    aliceTopPadding,\
-                    mDropdown.getPaddingEnd(),\
-                    mDropdown.getPaddingBottom());\
-        }\
-        int aliceBottomPadding = mDropdown.getBaseBottomPadding();\
-        if (mDropdown.getPaddingBottom() != aliceBottomPadding) {\
-            mDropdown.setPaddingRelative(\
-                    mDropdown.getPaddingStart(),\
-                    mDropdown.getPaddingTop(),\
-                    mDropdown.getPaddingEnd(),\
-                    aliceBottomPadding);\
-        }\
-        View aliceParent =\
-                mDropdown.getParent() instanceof View ? (View) mDropdown.getParent() : null;\
-        while (aliceParent instanceof ViewGroup) {\
-            ((ViewGroup) aliceParent).setClipChildren(true);\
-            ((ViewGroup) aliceParent).setClipToPadding(true);\
-            aliceParent =\
-                    aliceParent.getParent() instanceof View\
-                            ? (View) aliceParent.getParent()\
-                            : null;\
-        }\
-        mEmbedder.getAnchorView().getLocationInWindow(mStickPosition);\
-        int aliceTargetTop = mStickPosition[1];\
-        getLocationInWindow(mStickPosition);\
-        int aliceContainerTop = mStickPosition[1];\
-        if (aliceTargetTop <= aliceContainerTop || getWidth() <= 0) return true;\
-        if (mAliceImeAnimationActive) {\
-            updateAliceBottomAnchoredPosition(aliceTargetTop, aliceContainerTop);\
-        } else {\
-            updateAliceSettledViewport(aliceTargetTop, aliceContainerTop);\
-        }\
-        setClipBounds(null);\
-        return true;\
-    }\
-    // Alice patch end 0033' "$path5"
-
-sed -i '/^            int availableViewportHeight = mOmniboxAlignment\.height;$/c\
-            // Alice patch start 0033\
-            int availableViewportHeight = MeasureSpec.getSize(heightMeasureSpec);\
-            if (availableViewportHeight <= 0) {\
-                availableViewportHeight = mOmniboxAlignment.height;\
-            }\
-            // Alice patch end 0033' "$path5"
-
-sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CHILD_TRANSLATION_Y) {$/,/^        } else if (propertyKey == SuggestionListProperties\.COLOR_SCHEME) {$/c\
-        // Alice patch start 0033\
-        } else if (propertyKey == SuggestionListProperties.CHILD_TRANSLATION_Y) {\
-            float aliceTranslation =\
-                    model.get(SuggestionListProperties.CHILD_TRANSLATION_Y);\
-            if (model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
-                    \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM)) {\
-                aliceTranslation = 0;\
-            }\
-            view.dropdown.translateChildrenVertical(aliceTranslation);\
-        // Alice patch end 0033\
-        } else if (propertyKey == SuggestionListProperties.COLOR_SCHEME) {' "$path6"
-
-sed -i '/^        } else if (propertyKey == SuggestionListProperties\.ALPHA) {$/,/^        } else if (propertyKey == SuggestionListProperties\.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {$/c\
-        // Alice patch start 0033\
-        } else if (propertyKey == SuggestionListProperties.ALPHA) {\
-            float aliceAlpha = model.get(SuggestionListProperties.ALPHA);\
-            if (model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
-                    \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM)) {\
-                aliceAlpha = 1f;\
-            }\
-            view.dropdown.setChildAlpha(aliceAlpha);\
-        // Alice patch end 0033\
-        } else if (propertyKey == SuggestionListProperties.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {' "$path6"
-
-sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CONTAINER_ALWAYS_VISIBLE) {$/i\
-        // Alice patch start 0033\
-        } else if (propertyKey == SuggestionListProperties.TOOLBAR_ON_BOTTOM) {\
-            updateColorScheme(model, view);\
-        // Alice patch end 0033\
-' "$path6"
-
-sed -i '/^    private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {$/,/^    }$/c\
-    private void updateColorScheme(PropertyModel model, SuggestionListViewHolder holder) {\
-        @FuseboxLayoutMode int layoutMode = model.get(SuggestionListProperties.FUSEBOX_LAYOUT_MODE);\
-        @ColorInt\
-        int backgroundColor =\
-                getResourceProvider(model)\
-                        .getSuggestionBackgroundColor(layoutMode, /* isDropdownContainer= */ true);\
-        boolean aliceBottomAnchored =\
-                model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
-                        \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM);\
-\
-        holder.dropdown.setBackgroundColor(backgroundColor);\
-\
-        if (aliceBottomAnchored\
-                || (model.get(SuggestionListProperties.IS_LARGE_SCREEN)\
-                        \&\& layoutMode != FuseboxLayoutMode.SUGGESTIONS_POPOVER)) {\
-            holder.container.setBackgroundColor(Color.TRANSPARENT);\
-        } else {\
-            holder.container.setBackgroundColor(backgroundColor);\
-        }\
-    }' "$path6"
-
-sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
-// Alice patch start 0033\
-import org.chromium.build.annotations.Nullable;\
-// Alice patch end 0033' "$path6"
-
-sed -i '/^            listItems\.addObserver($/,/^                    });$/c\
-            // Alice patch start 0033\
-            listItems.addObserver(\
-                    new ListObservable.ListObserver<>() {\
-                        @Override\
-                        public void onItemRangeInserted(\
-                                ListObservable source, int index, int count) {\
-                            view.dropdown.resetSelection();\
-                            updateContainerVisibility(model, view);\
-                        }\
-\
-                        @Override\
-                        public void onItemRangeRemoved(\
-                                ListObservable source, int index, int count) {\
-                            updateContainerVisibility(model, view);\
-                        }\
-\
-                        @Override\
-                        public void onItemRangeChanged(\
-                                ListObservable<Void> source,\
-                                int index,\
-                                int count,\
-                                @Nullable Void payload) {\
-                        }\
-                    });\
-            // Alice patch end 0033' "$path6"
-
-sed -i '/^    ReadableObjectPropertyKey<ModelList> SUGGESTION_MODELS = new ReadableObjectPropertyKey<>();$/a\
-\
-    // Alice patch start 0033\
-    /** Whether the toolbar is currently anchored at the bottom. */\
-    WritableBooleanPropertyKey TOOLBAR_ON_BOTTOM = new WritableBooleanPropertyKey();\
-    // Alice patch end 0033' "$path23"
-
-sed -i '/^                SUGGESTION_MODELS,$/i\
-                // Alice patch start 0033\
-                TOOLBAR_ON_BOTTOM,\
-                // Alice patch end 0033\
-' "$path23"
-
-sed -i '/^import org\.chromium\.build\.annotations\.Nullable;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
-// Alice patch end 0033' "$path24"
-
-sed -i '/^                        \.with(SuggestionListProperties\.SUGGESTION_MODELS, listItems)$/a\
-                        // Alice patch start 0033\
-                        .with(\
-                                SuggestionListProperties.TOOLBAR_ON_BOTTOM,\
-                                locationBarDataProvider.getToolbarPositionSupplier().get()\
-                                        == ControlsPosition.BOTTOM)\
-                        // Alice patch end 0033\
-' "$path24"
-
-sed -i '/^    private void onToolbarPositionChanged() {$/a\
-        // Alice patch start 0033\
-        mListPropertyModel.set(\
-                SuggestionListProperties.TOOLBAR_ON_BOTTOM,\
-                mDataProvider.getToolbarPositionSupplier().get() == ControlsPosition.BOTTOM);\
-        // Alice patch end 0033\
-' "$path25"
-
-# 12) 全屏时隐藏 compositor 工具栏层，避免底置工具栏残留在视频画面上。
-sed -i '/^public interface FullscreenManager {$/a\
-    // Alice patch start 0033\
-    final class FullscreenTransitionState {\
-        private static volatile boolean sAliceExitingFullscreen;\
-\
-        public static void setExitingFullscreen(boolean exiting) {\
-            sAliceExitingFullscreen = exiting;\
-        }\
-\
-        public static boolean isExitingFullscreen() {\
-            return sAliceExitingFullscreen;\
-        }\
-    }\
-    // Alice patch end 0033\
-\
-' "$path13"
-
-sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
-                    // Alice patch start 0033\
-                    FullscreenManager.FullscreenTransitionState\
-                            .setExitingFullscreen(false);\
-                    // Alice patch end 0033\
-' "$path15"
-sed -i '/^        if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {$/a\
-            // Alice patch start 0033\
-            FullscreenManager.FullscreenTransitionState.setExitingFullscreen(true);\
-            // Alice patch end 0033\
-' "$path15"
-
-# 退出全屏时直接把 controls 设为 SHOWN，明确禁止 show 动画；否则 BOTH 会让
-# renderer 在退出后的第一帧补播一次工具栏显隐动画。
-sed -i '/^    private void resetExitFullscreenLayoutChangeListener(View contentView) {$/,/^    }$/s@^                            mTab, BrowserControlsState.SHOWN, true);$@                            // Alice patch start 0033\n                            mTab, BrowserControlsState.SHOWN, false);\n                            // Alice patch end 0033@' "$path15"
-
-sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
-// Alice patch end 0033\
-' "$path17"
-sed -i '/^        int constraints = getConstraints();$/a\
-        // Alice patch start 0033\
-        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
-                \&\& current == BrowserControlsState.BOTH) {\
-            constraints = BrowserControlsState.BOTH;\
-        }\
-        // Alice patch end 0033\
-' "$path17"
-sed -i '/^    private void updateEnabledState() {$/,/^    }$/s@^        update(BrowserControlsState.BOTH, getConstraints() != BrowserControlsState.HIDDEN);$@        // Alice patch start 0033\n        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\n            update(BrowserControlsState.SHOWN, false);\n        } else {\n            update(\n                    BrowserControlsState.BOTH,\n                    getConstraints() != BrowserControlsState.HIDDEN);\n        }\n        // Alice patch end 0033@' "$path17"
-
-sed -i '/^        if (constraints == BrowserControlsState.SHOWN) {$/i\
-            // Alice patch start 0033\
-            if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
-                scheduleVisibilityUpdate();\
-                return;\
-            }\
-            if (constraints == BrowserControlsState.HIDDEN) {\
-                scheduleVisibilityUpdate();\
-            }\
-            // Alice patch end 0033' "$path16"
-
-# 全屏必须优先于 offsetOverridden；否则 controls 动画留下的 overridden 状态
-# 会让 Android 工具栏在全屏中仍然被判为可见。
-sed -i '/^        if (offsetOverridden()) return true;$/i\
-        // Alice patch start 0033\
-        if (getFullscreenManager() != null\
-                \&\& getFullscreenManager().getPersistentFullscreenMode()) {\
-            return false;\
-        }\
-        // Alice patch end 0033\
-' "$path16"
-
-sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsVisibilityManager;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
-// Alice patch end 0033\
-' "$path18"
-
-sed -i '/^    private void updateVisibility() {$/a\
-        // Alice patch start 0033\
-        if (mBrowserControlsVisibilityManager.getControlsPosition()\
-                        == ControlsPosition.BOTTOM\
-                || !AddressBarPreference.isToolbarConfiguredToShowOnTop()) {\
-            mModel.set(TopToolbarOverlayProperties.VISIBLE, false);\
-            return;\
-        }\
-        // Alice patch end 0033\
-' "$path18"
-
-sed -i '/^    boolean shouldBeAttachedToTree() {$/a\
-        // Alice patch start 0033\
-        if (mBrowserControlsVisibilityManager.getControlsPosition()\
-                == ControlsPosition.BOTTOM) {\
-            return false;\
-        }\
-        // Alice patch end 0033\
-' "$path18"
-
-sed -i '/^import org\.chromium\.chrome\.browser\.toolbar\.ToolbarProgressBar;$/a\
-// Alice patch start 0033\
-import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
-// Alice patch end 0033\
-' "$path19"
-
-# 底置工具栏首次创建时直接以隐藏状态初始化 compositor 工具栏，
-# 避免它先以默认 true 绘制一帧后才被 mediator 改回 false。
-sed -i '/^                        \.with(TopToolbarOverlayProperties\.VISIBLE, true)$/c\
-                        // Alice patch start 0033\
-                        .with(TopToolbarOverlayProperties.VISIBLE, false)\
-                        // Alice patch end 0033' "$path19"
-
-sed -i '/^    public boolean isSceneOverlayTreeShowing() {$/a\
-        // Alice patch start 0033\
-        if (!AddressBarPreference.isToolbarConfiguredToShowOnTop()) {\
-            return false;\
-        }\
-        // Alice patch end 0033\
-' "$path19"
-
-sed -i '/^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);$/c\
-                mIsXrFsm\
-                        || mIsVerticalTabsHiddenDueToNarrow\
-                        // Alice patch start 0033\
-                        || (mIsUrlBarFocusedForSceneLayer\
-                                \&\& !isAliceDefaultNtpBottomOmniboxFocused())\
-                        || mFullscreenManager.getPersistentFullscreenMode()\
-                        || FullscreenManager.FullscreenTransitionState\
-                                .isExitingFullscreen()\
-                        || mInTabSwitcherTransition\
-                        || (mLayoutStateProvider != null\
-                                \&\& mLayoutStateProvider.getActiveLayoutType()\
-                                        == LayoutType.HUB));\
-                        // Alice patch end 0033' "$path2"
-
-sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
-                        // Alice patch start 0033\
-                        updateToolbarSceneLayerSuppression();\
-                        if (mToolbarPositionController != null) {\
-                            mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
-                        }\
-                        // Alice patch end 0033' "$path2"
-
-sed -i '/^        mToolbar\.setContentAttached(layoutType == LayoutType\.BROWSING);$/a\
-        // Alice patch start 0033\
-        updateToolbarSceneLayerSuppression();\
-        if (mToolbarPositionController != null) {\
-            mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
-        }\
-        // Alice patch end 0033' "$path2"
-
-# 进入全屏后立即刷新场景层抑制状态。
-sed -i '/^                                        false, mFullscreenHairlineToken);$/a\
-                        // Alice patch start 0033\
-                        FullscreenManager.FullscreenTransitionState\
-                                .setExitingFullscreen(false);\
-                        updateToolbarSceneLayerSuppression();\
-                        // Alice patch end 0033' "$path2"
-
-# 退出全屏后等 controls 动画结束，再应用最新 inset 并恢复工具栏场景层。
-sed -i '/^                                        true, mFullscreenHairlineToken);$/a\
-                        // Alice patch start 0033\
-                        FullscreenManager.FullscreenTransitionState\
-                                .setExitingFullscreen(true);\
-                        refreshToolbarAfterFullscreen();\
-                        // Alice patch end 0033' "$path2"
-
-sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
-    // Alice patch start 0033\
-    private void refreshToolbarAfterFullscreen() {\
-        View aliceControlContainer = mControlContainer.getView();\
-        Runnable aliceRefresh =\
-                new Runnable() {\
-                    @Override\
-                    public void run() {\
-                        if (!BrowserControlsUtils.areBrowserControlsIdle(\
-                                mBrowserControlsSizer)) {\
-                            aliceControlContainer.postOnAnimation(this);\
-                            return;\
-                        }\
-                        aliceControlContainer.postOnAnimation(\
-                                () -> {\
-                                    ToolbarManager.this\
-                                            .updateToolbarSceneLayerSuppression();\
-                                    mCompositorViewHolder\
-                                            .finishAliceFullscreenExit();\
-                                });\
-                    }\
-                };\
-        aliceControlContainer.postOnAnimation(aliceRefresh);\
-    }\
-    // Alice patch end 0033\
-' "$path2"
-
-sed -i '/^    private void updateContentViewChildrenDimension() {$/i\
-    // Alice patch start 0033\
-    public void finishAliceFullscreenExit() {\
-        onViewportChanged();\
-        tryUpdateControlsAndWebContentsSizing();\
-        updateWebContentsSize(getCurrentTab());\
-        FullscreenManager.FullscreenTransitionState.setExitingFullscreen(false);\
-        requestRender();\
-        View aliceContentView = getContentView();\
-        if (aliceContentView != null) {\
-            aliceContentView.postInvalidateOnAnimation();\
-        }\
-    }\
-    // Alice patch end 0033\
-\
-' "$path14"
-
-sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslation, bottomMargin);$/{
-n
-c\
-            // Alice patch start 0033\
-            if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\
-                onViewportChanged();\
-                requestRender();\
-            } else {\
-                tryUpdateControlsAndWebContentsSizing();\
-            }\
-            // Alice patch end 0033
-}' "$path14"
