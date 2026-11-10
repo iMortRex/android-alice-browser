@@ -158,6 +158,26 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0039\
 ' "$path4"
 
+# 地址栏聚焦遮罩底边收缩到搜索框顶部。
+sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }$/c\
+    // Alice patch start 0039\
+    private void updateScrimBottomMargin(int bottomMargin) {\
+        int aliceSearchBoxTopInset = 0;\
+        if (ChromeSharedPreferences.getInstance()\
+                .readBoolean("alice_search_page_gradient", false)) {\
+            aliceSearchBoxTopInset =\
+                    Math.max(\
+                            0,\
+                            mBottomControlsStacker.getHeightFromLayerToBottom(\
+                                    LayerType.BOTTOM_TOOLBAR));\
+        }\
+        mScrimModel.set(\
+                ScrimProperties.BOTTOM_MARGIN,\
+                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
+    }\
+    // Alice patch end 0039\
+' "$path4"
+
 # 5) 外观 Fragment 增加读取开关所需的偏好依赖。
 sed -i '/^import org\.chromium\.chrome\.browser\.preferences\.ChromePreferenceKeys;$/a\
 // Alice patch start 0039\
@@ -199,16 +219,9 @@ sed -i '/^    private void updateUiThemePref() {$/i\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference)\
                         findPreference(PREF_ALICE_SEARCH_PAGE_GRADIENT);\
-        boolean aliceUseChinese = false;\
-        android.os.LocaleList aliceLocales =\
-                getResources().getConfiguration().getLocales();\
-        for (int aliceIndex = 0; aliceIndex < aliceLocales.size(); aliceIndex++) {\
-            if ("zh".equals(aliceLocales.get(aliceIndex).getLanguage())) {\
-                aliceUseChinese = true;\
-                break;\
-            }\
-        }\
-        if (aliceUseChinese) {\
+        String aliceLanguage =\
+                getResources().getConfiguration().getLocales().get(0).getLanguage();\
+        if ("zh".equals(aliceLanguage)) {\
             switchPref.setTitle("搜索页背景渐隐");\
             switchPref.setSummary("点击地址栏后，搜索页背景上下渐隐，聚焦遮罩底边停在搜索框顶部");\
         }\

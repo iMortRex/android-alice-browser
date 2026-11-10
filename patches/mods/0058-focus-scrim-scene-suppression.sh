@@ -72,41 +72,30 @@ sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(Lay
 sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     // Alice patch start 0058\
     private void updateScrimBottomMargin() {\
-        if (!(mContext instanceof Activity)) return;\
-        View aliceBottomBoundary =\
-                ((Activity) mContext).findViewById(R.id.control_container);\
-        if (aliceBottomBoundary == null) return;\
-        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(aliceBottomBoundary);\
-        if (insets != null) {\
-            updateScrimBottomMargin(\
-                    insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);\
+        // Alice patch start 0033\
+        if (!isBottomToolbarActive()) {\
+            updateScrimBottomMargin(0);\
             return;\
         }\
-        if (!(aliceBottomBoundary.getParent() instanceof View)) return;\
-        View aliceBottomBoundaryParent = (View) aliceBottomBoundary.getParent();\
-        if (aliceBottomBoundaryParent.getHeight() <= 0) return;\
-        updateScrimBottomMargin(\
-                Math.max(\
-                        0,\
-                        aliceBottomBoundaryParent.getHeight()\
-                                - aliceBottomBoundary.getBottom()));\
-    }\
-\
-    private void updateScrimBottomMargin(int bottomMargin) {\
-        // Alice patch start 0039\
-        int aliceSearchBoxTopInset = 0;\
-        if (ChromeSharedPreferences.getInstance()\
-                .readBoolean("alice_search_page_gradient", false)) {\
-            aliceSearchBoxTopInset =\
-                    Math.max(\
-                            0,\
-                            mBottomControlsStacker.getHeightFromLayerToBottom(\
-                                    LayerType.BOTTOM_TOOLBAR));\
+        if (!(mContext instanceof Activity)) {\
+            updateScrimBottomMargin(0);\
+            return;\
         }\
-        // Alice patch end 0039\
-        mScrimModel.set(\
-                ScrimProperties.BOTTOM_MARGIN,\
-                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
+        View aliceBoundary =\
+                ((Activity) mContext).findViewById(R.id.control_container);\
+        if (aliceBoundary == null\
+                || !KeyboardVisibilityDelegate.getInstance()\
+                        .isKeyboardShowing(aliceBoundary)) {\
+            updateScrimBottomMargin(0);\
+            return;\
+        }\
+        if (mIsImeAnimationRunning) {\
+            if (mCurrentImeAnimationHeight >= 0) {\
+                updateScrimBottomMargin(mCurrentImeAnimationHeight);\
+            }\
+            return;\
+        }\
+        // Alice patch end 0033\
     }\
     // Alice patch end 0058\
 ' "$path1"

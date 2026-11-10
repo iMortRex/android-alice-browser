@@ -36,16 +36,9 @@ sed -i '/^    @Override$/i\
     private void configureAliceRefineTrailingSpaceSwitch() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference) findPreference(PREF_ALICE_REFINE_TRAILING_SPACE);\
-        boolean aliceUseChinese = false;\
-        android.os.LocaleList aliceLocales =\
-                getResources().getConfiguration().getLocales();\
-        for (int aliceIndex = 0; aliceIndex < aliceLocales.size(); aliceIndex++) {\
-            if ("zh".equals(aliceLocales.get(aliceIndex).getLanguage())) {\
-                aliceUseChinese = true;\
-                break;\
-            }\
-        }\
-        if (aliceUseChinese) {\
+        String aliceLanguage =\
+                getResources().getConfiguration().getLocales().get(0).getLanguage();\
+        if ("zh".equals(aliceLanguage)) {\
             switchPref.setTitle("修改搜索查询时在末尾补空格");\
             switchPref.setSummary(\
                     "在地址栏建议里点“修改搜索查询”后，填入搜索框的内容末尾补一个空格");\

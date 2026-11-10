@@ -1,0 +1,233 @@
+#!/bin/bash
+# 搜索页聚焦：纯色背景和搜索框背景随地址栏焦点渐隐出现、消失。
+
+set -e
+
+path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path2="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 0073' "$path1"; then
+    exit 100
+fi
+
+# 工具栏增加搜索页背景透明度状态和动画。
+sed -i '/^    private boolean mDropdownListScrolled;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SEARCH_PAGE_FADE_DURATION_MS = 225;\
+    private @Nullable ValueAnimator mAliceSearchPageFadeAnimator;\
+    private float mAliceSearchPageFadeAlpha = 1f;\
+    private boolean mAliceSearchPageFadeActive;\
+    // Alice patch end 0073\
+' "$path1"
+
+# 地址栏焦点变化时启动搜索页背景淡入淡出。
+sed -i '/^        super.onUrlFocusChange(hasFocus);$/a\
+        // Alice patch start 0073\
+        animateAliceSearchPageBackground(hasFocus);\
+        // Alice patch end 0073\
+' "$path1"
+
+# 搜索页背景透明度同时作用于工具栏和搜索框背景。
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
+    // Alice patch start 0073\
+    private void animateAliceSearchPageBackground(boolean hasFocus) {\
+        boolean aliceWasActive = mAliceSearchPageFadeActive;\
+        if (!isLocationBarShownInNtp()) {\
+            if (mAliceSearchPageFadeAnimator != null) {\
+                mAliceSearchPageFadeAnimator.cancel();\
+                mAliceSearchPageFadeAnimator = null;\
+            }\
+            mAliceSearchPageFadeActive = false;\
+            mAliceSearchPageFadeAlpha = 1f;\
+            if (aliceWasActive\
+                    \&\& ChromeFeatureList.sToolbarPhoneAnimationRefactor\
+                            .isEnabled()) {\
+                mToolbarBackground.setAlpha(255);\
+                setBackground(mToolbarBackground);\
+            }\
+            invalidate();\
+            return;\
+        }\
+\
+        if (mAliceSearchPageFadeAnimator != null) {\
+            mAliceSearchPageFadeAnimator.cancel();\
+            mAliceSearchPageFadeAnimator = null;\
+        }\
+\
+        float target = hasFocus ? 1f : 0f;\
+        float start = mAliceSearchPageFadeAlpha;\
+        if (hasFocus \&\& (!mAliceSearchPageFadeActive || start >= 1f)) {\
+            start = 0f;\
+        } else if (!hasFocus \&\& start <= 0f) {\
+            start = 1f;\
+        }\
+\
+        mAliceSearchPageFadeActive = true;\
+        setAliceSearchPageFadeAlpha(start);\
+        if (start == target) {\
+            if (!hasFocus) finishAliceSearchPageFadeOut();\
+            return;\
+        }\
+\
+        ValueAnimator animator = ValueAnimator.ofFloat(start, target);\
+        animator.setDuration(ALICE_SEARCH_PAGE_FADE_DURATION_MS);\
+        animator.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);\
+        animator.addUpdateListener(\
+                animation ->\
+                        setAliceSearchPageFadeAlpha(\
+                                (float) animation.getAnimatedValue()));\
+        animator.addListener(\
+                new CancelAwareAnimatorListener() {\
+                    @Override\
+                    public void onEnd(Animator animation) {\
+                        if (mAliceSearchPageFadeAnimator != animation) return;\
+                        mAliceSearchPageFadeAnimator = null;\
+                        if (!hasFocus) finishAliceSearchPageFadeOut();\
+                    }\
+                });\
+        mAliceSearchPageFadeAnimator = animator;\
+        animator.start();\
+    }\
+\
+    private void setAliceSearchPageFadeAlpha(float alpha) {\
+        mAliceSearchPageFadeAlpha = MathUtils.clamp(alpha, 0f, 1f);\
+        if (mActiveLocationBarBackgroundView != null) {\
+            mActiveLocationBarBackgroundView.setAlpha(mAliceSearchPageFadeAlpha);\
+        }\
+        invalidate();\
+    }\
+\
+    private void finishAliceSearchPageFadeOut() {\
+        mAliceSearchPageFadeActive = false;\
+        mAliceSearchPageFadeAlpha = 1f;\
+        mToolbarBackground.setAlpha(255);\
+        if (ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {\
+            setBackground(mToolbarBackground);\
+        }\
+        if (mActiveLocationBarBackgroundView != null) {\
+            mActiveLocationBarBackgroundView.setAlpha(0f);\
+        }\
+        invalidate();\
+    }\
+    // Alice patch end 0073\
+\
+' "$path1"
+
+# 工具栏纯色背景按搜索页透明度绘制。
+sed -i 's|^            if (!ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {$|            // Alice patch start 0073\n            int aliceBackgroundAlpha =\n                    Math.round(\n                            (mAliceSearchPageFadeActive\n                                            ? mAliceSearchPageFadeAlpha\n                                            : 1f)\n                                    * 255);\n            if (!ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {\n            // Alice patch end 0073|' "$path1"
+sed -i 's|^                mToolbarBackground.draw(canvas);$|                // Alice patch start 0073\n                mToolbarBackground.setAlpha(aliceBackgroundAlpha);\n                mToolbarBackground.draw(canvas);\n                // Alice patch end 0073|' "$path1"
+sed -i 's|^                mToolbarBackground.setAlpha(255);$|                // Alice patch start 0073\n                mToolbarBackground.setAlpha(aliceBackgroundAlpha);\n                // Alice patch end 0073|' "$path1"
+
+# 旧动画路径直接绘制搜索框背景时同样应用透明度。
+sed -i 's|^                mLocationBarBackground.draw(canvas);$|                // Alice patch start 0073\n                int aliceLocationBarLayer = -1;\n                if (mAliceSearchPageFadeActive \&\& mAliceSearchPageFadeAlpha < 1f) {\n                    aliceLocationBarLayer =\n                            canvas.saveLayerAlpha(\n                                    mLocationBarBackgroundBounds.left\n                                            + mLocationBarBackgroundNtpOffset.left,\n                                    mLocationBarBackgroundBounds.top\n                                            + mLocationBarBackgroundNtpOffset.top,\n                                    mLocationBarBackgroundBounds.right\n                                            + mLocationBarBackgroundNtpOffset.right,\n                                    mLocationBarBackgroundBounds.bottom\n                                            + mLocationBarBackgroundNtpOffset.bottom,\n                                    Math.round(mAliceSearchPageFadeAlpha * 255));\n                }\n                mLocationBarBackground.draw(canvas);\n                if (aliceLocationBarLayer >= 0) {\n                    canvas.restoreToCount(aliceLocationBarLayer);\n                }\n                // Alice patch end 0073|' "$path1"
+
+# 新动画路径的搜索框背景不在焦点切换瞬间跳回全不透明。
+sed -i 's|^        mActiveLocationBarBackgroundView.setAlpha(1.f);$|        // Alice patch start 0073\n        mActiveLocationBarBackgroundView.setAlpha(\n                mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n        // Alice patch end 0073|' "$path1"
+
+# 兼容搜索页顶部渐变背景：渐变颜色同样乘以搜索页透明度。
+if grep -q 'drawAliceSearchPageBackgroundGradient' "$path1"; then
+    sed -i '/^        mAliceSearchPageGradientEnabled =$/,/^                                        false);$/ s|^                hasFocus$|                // Alice patch start 0073\n                (hasFocus || mAliceSearchPageFadeActive)\n                // Alice patch end 0073|' "$path1"
+    sed -i 's|^                && urlHasFocus()) {$|                // Alice patch start 0073\n                && (urlHasFocus() || mAliceSearchPageFadeActive)) {\n                // Alice patch end 0073|' "$path1"
+    sed -i 's|^        mAliceSearchPageBackgroundPaint.setColor(color);$|        // Alice patch start 0073\n        mAliceSearchPageBackgroundPaint.setColor(color);\n        mAliceSearchPageBackgroundPaint.setAlpha(\n                Math.round(mAliceSearchPageFadeAlpha * 255));\n        // Alice patch end 0073|' "$path1"
+fi
+
+# 关闭或销毁时取消搜索页背景动画。
+sed -i '/^    private void cancelAnimations() {$/a\
+        // Alice patch start 0073\
+        if (mAliceSearchPageFadeAnimator != null) {\
+            mAliceSearchPageFadeAnimator.cancel();\
+            mAliceSearchPageFadeAnimator = null;\
+        }\
+        // Alice patch end 0073\
+' "$path1"
+
+# 底部搜索工具栏快照增加透明度状态。
+sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SEARCH_TOOLBAR_FADE_DURATION_MS = 225;\
+    private boolean mAliceSearchToolbarSnapshotVisible;\
+    private boolean mAliceSearchToolbarSnapshotHiding;\
+    // Alice patch end 0073\
+' "$path2"
+
+# 快照因父容器变化被替换时重置透明度状态。
+sed -i '/^            mSearchToolbarSnapshot = null;$/a\
+            // Alice patch start 0073\
+            mAliceSearchToolbarSnapshotVisible = false;\
+            mAliceSearchToolbarSnapshotHiding = false;\
+            // Alice patch end 0073\
+' "$path2"
+
+# 快照显示或隐藏时使用同一段透明度动画。
+sed -i '/^        if (!aliceShouldShow) {$/,/^        }$/c\
+        // Alice patch start 0073\
+        if (!aliceShouldShow) {\
+            hideAliceSearchToolbarSnapshot(!aliceFocused);\
+            return;\
+        }\
+        // Alice patch end 0073' "$path2"
+sed -i 's|^            aliceSnapshot.setVisibility(View.VISIBLE);$|            // Alice patch start 0073\n            showAliceSearchToolbarSnapshot(aliceSnapshot);\n            // Alice patch end 0073|' "$path2"
+
+# 增加快照淡入淡出方法。
+sed -i '/^    private void moveSearchToolbarSnapshotBelowScrim() {$/i\
+    // Alice patch start 0073\
+    private void showAliceSearchToolbarSnapshot(ImageView snapshot) {\
+        if (mAliceSearchToolbarSnapshotVisible) {\
+            snapshot.setVisibility(View.VISIBLE);\
+            return;\
+        }\
+        snapshot.animate().cancel();\
+        mAliceSearchToolbarSnapshotHiding = false;\
+        boolean wasVisible = snapshot.getVisibility() == View.VISIBLE;\
+        snapshot.setVisibility(View.VISIBLE);\
+        mAliceSearchToolbarSnapshotVisible = true;\
+        snapshot.setAlpha(wasVisible ? snapshot.getAlpha() : 0f);\
+        snapshot.animate()\
+                .alpha(1f)\
+                .setDuration(ALICE_SEARCH_TOOLBAR_FADE_DURATION_MS)\
+                .setInterpolator(\
+                        new android.view.animation.PathInterpolator(\
+                                0.4f, 0f, 0.2f, 1f))\
+                .start();\
+    }\
+\
+    private void hideAliceSearchToolbarSnapshot(boolean releaseWhenDone) {\
+        ImageView snapshot = mSearchToolbarSnapshot;\
+        if (snapshot == null) {\
+            mAliceSearchToolbarSnapshotVisible = false;\
+            mAliceSearchToolbarSnapshotHiding = false;\
+            return;\
+        }\
+        if (mAliceSearchToolbarSnapshotHiding) return;\
+        snapshot.animate().cancel();\
+        if (!mAliceSearchToolbarSnapshotVisible) {\
+            snapshot.setVisibility(View.INVISIBLE);\
+            if (releaseWhenDone) releaseSearchToolbarSnapshot();\
+            return;\
+        }\
+        mAliceSearchToolbarSnapshotVisible = false;\
+        mAliceSearchToolbarSnapshotHiding = true;\
+        snapshot.animate()\
+                .alpha(0f)\
+                .setDuration(ALICE_SEARCH_TOOLBAR_FADE_DURATION_MS)\
+                .setInterpolator(\
+                        new android.view.animation.PathInterpolator(\
+                                0.4f, 0f, 0.2f, 1f))\
+                .withEndAction(\
+                        () -> {\
+                            mAliceSearchToolbarSnapshotHiding = false;\
+                            if (snapshot != mSearchToolbarSnapshot) {\
+                                return;\
+                            }\
+                            snapshot.setVisibility(View.INVISIBLE);\
+                            if (releaseWhenDone) releaseSearchToolbarSnapshot();\
+                        })\
+                .start();\
+    }\
+    // Alice patch end 0073\
+\
+' "$path2"
+
+# 释放快照时同步清理动画状态。
+sed -i 's|^    private void releaseSearchToolbarSnapshot() {$|    // Alice patch start 0073\n    private void releaseSearchToolbarSnapshot() {\n        if (mSearchToolbarSnapshot != null) {\n            mSearchToolbarSnapshot.animate().cancel();\n        }\n        mAliceSearchToolbarSnapshotVisible = false;\n        mAliceSearchToolbarSnapshotHiding = false;\n        // Alice patch end 0073|' "$path2"

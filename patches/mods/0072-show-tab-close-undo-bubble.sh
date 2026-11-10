@@ -49,16 +49,9 @@ sed -i '/^    private static boolean isTabGroupSyncAutoOpenConfigurable(Profile 
                 assertNonNull(\
                         findPreference(\
                                 PREF_ALICE_SHOW_TAB_CLOSE_UNDO_BAR_SWITCH));\
-        boolean aliceUseChinese = false;\
-        android.os.LocaleList aliceLocales =\
-                getResources().getConfiguration().getLocales();\
-        for (int aliceIndex = 0; aliceIndex < aliceLocales.size(); aliceIndex++) {\
-            if ("zh".equals(aliceLocales.get(aliceIndex).getLanguage())) {\
-                aliceUseChinese = true;\
-                break;\
-            }\
-        }\
-        if (aliceUseChinese) {\
+        String aliceLanguage =\
+                getResources().getConfiguration().getLocales().get(0).getLanguage();\
+        if ("zh".equals(aliceLanguage)) {\
             switchPref.setTitle("显示撤销气泡");\
         }\
         switchPref.setChecked(\
