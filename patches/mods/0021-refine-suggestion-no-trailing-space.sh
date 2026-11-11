@@ -29,8 +29,8 @@ sed -i 's|^    static final String PREF_CCT_ALWAYS_OPEN_IN_BROWSER = "cct_always
 # 修改对应源码以完成本补丁功能。
 sed -i 's|^        configureCctAlwaysOpenInBrowserSwitch();$|&\n        // Alice patch start 0021\n        configureAliceRefineTrailingSpaceSwitch();\n        // Alice patch end 0021|' "$path3"
 
-# 修改对应源码以完成本补丁功能。
-sed -i '/^    @Override$/i\
+# 在唯一的 CCT 配置方法前插入，避免匹配到类内所有 @Override。
+sed -i '/^    private void configureCctAlwaysOpenInBrowserSwitch() {$/i\
     // Alice patch start 0021\
     /** Alice: 地址栏建议 refine 后是否补空格的开关。 */\
     private void configureAliceRefineTrailingSpaceSwitch() {\

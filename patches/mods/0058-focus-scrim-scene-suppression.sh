@@ -97,6 +97,22 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
         }\
         // Alice patch end 0033\
     }\
+\
+    private void updateScrimBottomMargin(int bottomMargin) {\
+        // Alice patch start 0039\
+        int aliceSearchBoxTopInset = 0;\
+        if (mScrimShown) {\
+            aliceSearchBoxTopInset =\
+                    Math.max(\
+                            0,\
+                            mBottomControlsStacker.getHeightFromLayerToBottom(\
+                                    LayerType.BOTTOM_TOOLBAR));\
+        }\
+        // Alice patch end 0039\
+        mScrimModel.set(\
+                ScrimProperties.BOTTOM_MARGIN,\
+                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
+    }\
     // Alice patch end 0058\
 ' "$path1"
 

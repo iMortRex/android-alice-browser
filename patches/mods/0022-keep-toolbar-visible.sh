@@ -17,6 +17,7 @@ fi
 # A0) 默认普通 NTP 滑动时，Android 工具栏保持唯一的可见工具栏。
 sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRightTab or null if undetermined.$/a\
     // Alice patch start 0022\
+    private static final float ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX = 8.0f;\
     private boolean mAliceDisableCompositorToolbar;\
     private boolean mAliceHideControlView;\
     // Alice patch end 0022' "$path1"
@@ -149,7 +150,7 @@ sed -i '/^        void updateLayer($/,/^                float y);$/c\
         // Alice patch end 0022' "$path2"
 
 # 修改对应源码以完成本补丁功能。
-sed -i 's|^            mSceneLayer\.update(mLeftTab, true, backgroundColor);$|            // Alice patch start 0022\n            float stretchDownHeight =\n                    mBrowserControlsVisibilityManager.getControlsPosition()\n                                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM\n                            ? contentViewport.height()\n                                    * getContext().getResources().getDisplayMetrics().density\n                            : 0f;\n            float stretchPx =\n                    stretchDownHeight > 0\n                            ? TabContentManager.ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX\n                            : 0f;\n            // Alice patch end 0022\n            // Alice patch start 0022\n            mSceneLayer.update(\n                    mLeftTab, true, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
+sed -i 's|^            mSceneLayer\.update(mLeftTab, true, backgroundColor);$|            // Alice patch start 0022\n            float stretchDownHeight =\n                    mBrowserControlsVisibilityManager.getControlsPosition()\n                                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM\n                            ? contentViewport.height()\n                                    * getContext().getResources().getDisplayMetrics().density\n                            : 0f;\n            float stretchPx =\n                    stretchDownHeight > 0\n                            ? ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX\n                            : 0f;\n            // Alice patch end 0022\n            // Alice patch start 0022\n            mSceneLayer.update(\n                    mLeftTab, true, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
 
 # 修改对应源码以完成本补丁功能。
 sed -i 's|^            mSceneLayer\.update(mRightTab, false, backgroundColor);$|            // Alice patch start 0022\n            mSceneLayer.update(\n                    mRightTab, false, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"

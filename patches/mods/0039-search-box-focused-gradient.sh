@@ -151,25 +151,6 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch end 0039\
 ' "$path1"
 
-# 4) 地址栏聚焦遮罩底边收缩到搜索框顶部；与背景渐隐开关无关。
-sed -i '/^    private void updateScrimBottomMargin(int bottomMargin) {$/,/^    }$/c\
-    // Alice patch start 0039\
-    private void updateScrimBottomMargin(int bottomMargin) {\
-        int aliceSearchBoxTopInset = 0;\
-        if (mScrimShown) {\
-            aliceSearchBoxTopInset =\
-                    Math.max(\
-                            0,\
-                            mBottomControlsStacker.getHeightFromLayerToBottom(\
-                                    LayerType.BOTTOM_TOOLBAR));\
-        }\
-        mScrimModel.set(\
-                ScrimProperties.BOTTOM_MARGIN,\
-                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
-    }\
-    // Alice patch end 0039\
-' "$path4"
-
 # 5) 外观 Fragment 增加读取开关所需的偏好依赖。
 sed -i '/^import org\.chromium\.chrome\.browser\.preferences\.ChromePreferenceKeys;$/a\
 // Alice patch start 0039\
