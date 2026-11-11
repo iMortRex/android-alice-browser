@@ -14,9 +14,24 @@ if grep -q 'Alice patch start 0071' "$path1"; then
 fi
 
 # 补充颜色混合和主题色计算 import。
+sed -i '/^import android\.content\.Context;$/i\
+// Alice patch start 0071\
+import android.app.Activity;\
+// Alice patch end 0071' "$path1"
+
+sed -i '/^import org\.chromium\.base\.CallbackUtils;$/a\
+// Alice patch start 0071\
+import org.chromium.base.ContextUtils;\
+// Alice patch end 0071' "$path1"
+
 sed -i '/^import org\.chromium\.ui\.resources\.ResourceManager;$/a\
 // Alice patch start 0071\
 import org.chromium.ui.util.ColorUtils;\
+// Alice patch end 0071' "$path1"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.ui\.native_page\.NativePage;$/a\
+// Alice patch start 0071\
+import org.chromium.chrome.browser.ui.system.StatusBarColorController;\
 // Alice patch end 0071' "$path1"
 
 sed -i '/^import org\.chromium\.chrome\.browser\.theme\.ToolbarThemeColorProvider;$/i\
@@ -109,6 +124,15 @@ sed -i '/^    public void swipeUpdated(long time, float x, float y, float dx, fl
                         mAliceSwipeEndLocationBarColor,\
                         clampedProgress);\
         mControlContainer.setToolbarColorsForSwipe(toolbarColor, locationBarColor);\
+        @Nullable Activity activity = ContextUtils.activityFromContext(getContext());\
+        if (activity != null) {\
+            StatusBarColorController.AliceStatusBarColorTransitionController controller =\
+                    StatusBarColorController.AliceStatusBarColorTransitionController\
+                            .forActivity(activity);\
+            int token = controller.animateTo(toolbarColor, 0L);\
+            mControlContainer.getView()\
+                    .postDelayed(() -> controller.clearOverride(token), 50L);\
+        }\
     }\
     // Alice patch end 0071\
 \

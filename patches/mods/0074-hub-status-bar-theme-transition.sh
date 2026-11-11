@@ -35,6 +35,7 @@ sed -i 's#^    private final Callback<Integer> mOverviewColorObserver = ignored 
 sed -i '/^    private boolean mAllowToolbarColorOnTablets;$/a\
     // Alice patch start 0074\
     private static final long ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS = 80L;\
+    private static final long ALICE_STATUS_BAR_FRAME_OVERRIDE_MS = 50L;\
     private @Nullable ValueAnimator mAliceHubStatusBarAnimator;\
     private boolean mAliceHubStatusBarTransitionActive;\
     private boolean mAliceHubAwaitingOverviewClear;\
@@ -42,7 +43,17 @@ sed -i '/^    private boolean mAllowToolbarColorOnTablets;$/a\
     private float mAliceHubTransitionFraction;\
     private @ColorInt int mAliceHubBackgroundColor = Color.TRANSPARENT;\
     private @ColorInt int mAliceLastBrowsingStatusBarColor = Color.TRANSPARENT;\
+    private final AliceStatusBarColorTransitionController.Observer mAliceThemeColorObserver =\
+            this::onAliceThemeColorChanged;\
+    private final AliceStatusBarColorTransitionController mAliceThemeColorController;\
     // Alice patch end 0074' "$path1"
+
+# 创建 Activity 级共享主题色控制器并订阅颜色变化。
+sed -i '/^        mActivity = activity;$/a\
+        // Alice patch start 0074\
+        mAliceThemeColorController = AliceStatusBarColorTransitionController.forActivity(activity);\
+        mAliceThemeColorController.addObserver(mAliceThemeColorObserver);\
+        // Alice patch end 0074' "$path1"
 
 # Hub 开始显示/隐藏时自行启动状态栏动画，避免依赖 Hub alpha 回调。
 sed -i '/^                public void onFinishedHiding(@LayoutType int layoutType) {$/i\
@@ -68,6 +79,7 @@ sed -i '/^                public void onFinishedHiding(@LayoutType int layoutTyp
                     if (layoutType == LayoutType.BROWSING \&\& !mAliceHubShowing) {\
                         // Alice patch start 0074\
                         mAliceHubAwaitingOverviewClear = true;\
+                        onAliceHubOverviewColorChanged();\
                         // Alice patch end 0074\
                     }\
                 }\
@@ -78,12 +90,39 @@ sed -i '/^                public void onFinishedHiding(@LayoutType int layoutTyp
 # 启动与预览缩略图缩放一致的 325ms 状态栏动画。
 sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTablet) {$/i\
     // Alice patch start 0074\
+    private void animateAliceStatusBarColorForFrame(@ColorInt int color) {\
+        int token = mAliceThemeColorController.animateTo(color, 0L);\
+        mActivity.getWindow().getDecorView().postDelayed(\
+                () -> mAliceThemeColorController.clearOverride(token),\
+                ALICE_STATUS_BAR_FRAME_OVERRIDE_MS);\
+    }\
+\
     private void onAliceHubOverviewColorChanged() {\
+        if (mAliceHubAwaitingOverviewClear\
+                \&\& Color.alpha(mOverviewColorSupplier.get()) == 0) {\
+            mAliceHubAwaitingOverviewClear = false;\
+        }\
+        updateStatusBarColor();\
+    }\
+\
+    private void onAliceThemeColorChanged(@ColorInt int color) {\
+        if (color != mAliceThemeColorController.getCurrentColor()) return;\
         updateStatusBarColor();\
     }\
 \
     private void startAliceHubStatusBarTransition(boolean showingHub) {\
+        @ColorInt int targetColor =\
+                showingHub\
+                        ? getAliceHubBackgroundColorForStatusBar()\
+                        : getAlicePageThemeColorForStatusBar();\
+        long durationMs =\
+                showingHub\
+                        ? Math.round(\
+                                HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 0.55f)\
+                        : Math.round(\
+                                HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f);\
         mAliceHubAwaitingOverviewClear = false;\
+        mAliceThemeColorController.animateTo(targetColor, durationMs);\
         if (showingHub\
                 \&\& (!mAliceHubStatusBarTransitionActive || !mAliceHubShowing)\
                 \&\& Color.alpha(mStatusBarColorWithoutStatusIndicator) != 0) {\
@@ -109,9 +148,10 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
         ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);\
         animator.setDuration(\
             showingHub\
-                ? HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS / 2\
+                ? Math.round(\
+                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 0.55f)\
                 : Math.round(\
-                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 1.5f));\
+                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f);\
         animator.setStartDelay(\
                 showingHub ? 0L : ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS);\
         animator.setInterpolator(Interpolators.EMPHASIZED);\
@@ -182,6 +222,10 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
 # 非 Hub 状态下缓存浏览页状态栏颜色，作为进入 Hub 的渐变起点。
 sed -i '/^        @ColorInt int statusBarColor = calculateFinalStatusBarColor();$/a\
         // Alice patch start 0074\
+        if (!mAliceThemeColorController.hasColor()) {\
+            animateAliceStatusBarColorForFrame(statusBarColor);\
+            return;\
+        }\
         if (!mAliceHubStatusBarTransitionActive) {\
             mAliceLastBrowsingStatusBarColor = statusBarColor;\
         }\
@@ -190,20 +234,29 @@ sed -i '/^        @ColorInt int statusBarColor = calculateFinalStatusBarColor();
 # toolbar 真正开始更新时退出 Hub override，恢复横滑状态栏渐变的入口。
 sed -i '/^        mToolbarColor = color;$/a\
         // Alice patch start 0074\
-        if (mAliceHubAwaitingOverviewClear) {\
-            mAliceHubAwaitingOverviewClear = false;\
-            mAliceHubStatusBarTransitionActive = false;\
+        animateAliceStatusBarColorForFrame(color);\
+        mAliceHubAwaitingOverviewClear = false;\
+        mAliceHubStatusBarTransitionActive = false;\
+        if (mAliceHubStatusBarAnimator != null) {\
+            mAliceHubStatusBarAnimator.cancel();\
+            mAliceHubStatusBarAnimator = null;\
         }\
+        if (mAliceThemeColorController.hasColor()) return;\
         // Alice patch end 0074' "$path1"
 
 # 在 overview/scrim 最终合成后应用渐变，避免 Hub 背景色覆盖逐帧混合结果。
 sed -i 's|^        return statusBarColor;$|        // Alice patch start 0074\
-        return applyAliceHubStatusBarTransition(statusBarColor);\
+        int aliceFinalColor = applyAliceHubStatusBarTransition(statusBarColor);\
+        return mAliceThemeColorController.isOverriding()\
+                ? mAliceThemeColorController.getCurrentColor()\
+                : aliceFinalColor;\
         // Alice patch end 0074|' "$path1"
 
 # 销毁时停止动画。
 sed -i '/^    public void onDestroy() {$/a\
         // Alice patch start 0074\
+        mAliceThemeColorController.removeObserver(mAliceThemeColorObserver);\
+        AliceStatusBarColorTransitionController.releaseForActivity(mActivity);\
         if (mAliceHubStatusBarAnimator != null) {\
             mAliceHubStatusBarAnimator.cancel();\
             mAliceHubStatusBarAnimator = null;\
