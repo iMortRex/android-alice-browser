@@ -99,12 +99,12 @@ sed -i '/^    public void swipeUpdated(long time, float x, float y, float dx, fl
         if (!mAliceSwipeThemeEnabled || mControlContainer == null) return;\
         float clampedProgress = MathUtils.clamp(progress, 0f, 1f);\
         int toolbarColor =\
-                ColorUtils.blendColorsMultiply(\
+                ColorUtils.blendColorsOklab(\
                         mAliceSwipeStartToolbarColor,\
                         mAliceSwipeEndToolbarColor,\
                         clampedProgress);\
         int locationBarColor =\
-                ColorUtils.blendColorsMultiply(\
+                ColorUtils.blendColorsOklab(\
                         mAliceSwipeStartLocationBarColor,\
                         mAliceSwipeEndLocationBarColor,\
                         clampedProgress);\

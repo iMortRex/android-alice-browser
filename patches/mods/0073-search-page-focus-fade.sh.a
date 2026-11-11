@@ -6,6 +6,7 @@ set -e
 path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 path2="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListViewBinder.java"
 path3="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+path4="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0073' "$path1"; then
@@ -154,6 +155,71 @@ sed -i '/^            org\.chromium\.ui\.base\.ViewUtils\.captureBitmap(aliceCap
             // Background-only snapshot; the real search box owns the fade.\
             // Alice patch end 0073' "$path3"
 
+# 0039 的渐变在失焦期间继续存在，并与搜索框共用同一淡化进度。
+sed -i '/^        mAliceSearchPageGradientEnabled =$/,/^                                        false);$/c\
+        // Alice patch start 0073\
+        mAliceSearchPageGradientEnabled =\
+                ChromeSharedPreferences.getInstance()\
+                        .readBoolean(ALICE_SEARCH_PAGE_GRADIENT_PREF, false)\
+                        \&\& (hasFocus || mAliceSearchPageFadeActive);\
+        // Alice patch end 0073' "$path1"
+sed -i 's|^                && urlHasFocus()) {$|                // Alice patch start 0073\n                && (urlHasFocus()\n                        || (mAliceSearchPageFadeActive\n                                \&\& mAliceSearchPageFadeAlpha > 0f))) {\n                // Alice patch end 0073|' "$path1"
+sed -i '/^        mAliceSearchPageBackgroundPaint.setColor(color);$/a\
+        // Alice patch start 0073\
+        mAliceSearchPageBackgroundPaint.setAlpha(\
+                mAliceSearchPageFadeActive\
+                        ? Math.round(mAliceSearchPageFadeAlpha * 255)\
+                        : 255);\
+        // Alice patch end 0073\
+' "$path1"
+
+# 建议行等容器淡出结束后再清空，避免列表内容先消失。
+sed -i '/^    private static final long OMNIBOX_SUGGESTION_START_DELAY_MS = 30;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SUGGESTION_LIST_CLEAR_DELAY_MS = 225;\
+    // Alice patch end 0073\
+' "$path4"
+sed -i '/^    private @Nullable AutocompleteResult mAutocompleteResult;$/a\
+    // Alice patch start 0073\
+    private @Nullable Runnable mAliceSuggestionListClearRunnable;\
+    // Alice patch end 0073\
+' "$path4"
+sed -i '/^    void endInput() {$/i\
+    // Alice patch start 0073\
+    private void cancelAliceSuggestionListClear() {\
+        Runnable clearRunnable = mAliceSuggestionListClearRunnable;\
+        if (clearRunnable == null) return;\
+        mHandler.removeCallbacks(clearRunnable);\
+        mAliceSuggestionListClearRunnable = null;\
+    }\
+\
+    private void scheduleAliceSuggestionListClear() {\
+        cancelAliceSuggestionListClear();\
+        Runnable clearRunnable =\
+                () -> {\
+                    mAliceSuggestionListClearRunnable = null;\
+                    if (isInInputSession()) return;\
+                    mDropdownViewInfoListManager.clear();\
+                    mAutocompleteResult = null;\
+                };\
+        mAliceSuggestionListClearRunnable = clearRunnable;\
+        mHandler.postDelayed(clearRunnable, ALICE_SUGGESTION_LIST_CLEAR_DELAY_MS);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path4"
+sed -i '/^    void beginInput(FuseboxSessionState session) {$/a\
+        // Alice patch start 0073\
+        cancelAliceSuggestionListClear();\
+        // Alice patch end 0073\
+' "$path4"
+sed -i '/^        clearSuggestions();$/c\
+        // Alice patch start 0073\
+        stopAutocomplete(AutocompleteStopReason.CLOBBERED);\
+        dismissDeleteDialog(DialogDismissalCause.NAVIGATE_BACK_OR_TOUCH_OUTSIDE);\
+        scheduleAliceSuggestionListClear();\
+        // Alice patch end 0073' "$path4"
+
 # 建议列表增加整体透明度状态。
 sed -i '/^    \/\*\* Holds the view components needed to renderer the suggestion list\. \*\/$/i\
     // Alice patch start 0073\
@@ -164,7 +230,6 @@ sed -i '/^        public final OmniboxSuggestionsDropdown dropdown;$/a\
         // Alice patch start 0073\
         boolean aliceContainerVisible;\
         boolean aliceContainerHiding;\
-        @Nullable android.animation.ValueAnimator aliceChildFadeAnimator;\
         // Alice patch end 0073\
 ' "$path2"
 
@@ -196,10 +261,6 @@ sed -i '/^    private static void updateContainerVisibility($/,/^    }$/c\
         if (shouldShow) {\
             if (holder.aliceContainerVisible) {\
                 container.setVisibility(View.VISIBLE);\
-                if (holder.aliceChildFadeAnimator != null) {\
-                    holder.aliceChildFadeAnimator.cancel();\
-                    holder.aliceChildFadeAnimator = null;\
-                }\
                 holder.dropdown.setChildAlpha(1f);\
                 return;\
             }\
@@ -209,10 +270,6 @@ sed -i '/^    private static void updateContainerVisibility($/,/^    }$/c\
             holder.aliceContainerVisible = true;\
             holder.aliceContainerHiding = false;\
             container.setAlpha(wasVisible ? container.getAlpha() : 0f);\
-            if (holder.aliceChildFadeAnimator != null) {\
-                holder.aliceChildFadeAnimator.cancel();\
-                holder.aliceChildFadeAnimator = null;\
-            }\
             holder.dropdown.setChildAlpha(1f);\
             container.animate()\
                     .alpha(1f)\
@@ -234,30 +291,7 @@ sed -i '/^    private static void updateContainerVisibility($/,/^    }$/c\
         }\
         holder.aliceContainerVisible = false;\
         holder.aliceContainerHiding = true;\
-        if (holder.aliceChildFadeAnimator != null) {\
-            holder.aliceChildFadeAnimator.cancel();\
-        }\
-        android.animation.ValueAnimator aliceChildFadeAnimator =\
-                android.animation.ValueAnimator.ofFloat(1f, 0f);\
-        aliceChildFadeAnimator.setDuration(\
-                ALICE_SEARCH_LIST_FADE_DURATION_MS);\
-        aliceChildFadeAnimator.setInterpolator(\
-                org.chromium.ui.interpolators.Interpolators\
-                        .FAST_OUT_SLOW_IN_INTERPOLATOR);\
-        aliceChildFadeAnimator.addUpdateListener(\
-                animation ->\
-                        holder.dropdown.setChildAlpha(\
-                                (float) animation.getAnimatedValue()));\
-        aliceChildFadeAnimator.addListener(\
-                new android.animation.AnimatorListenerAdapter() {\
-                    @Override\
-                    public void onAnimationEnd(android.animation.Animator animation) {\
-                        if (holder.aliceChildFadeAnimator != animation) return;\
-                        holder.aliceChildFadeAnimator = null;\
-                    }\
-                });\
-        holder.aliceChildFadeAnimator = aliceChildFadeAnimator;\
-        aliceChildFadeAnimator.start();\
+        holder.dropdown.setChildAlpha(1f);\
         container.animate()\
                 .alpha(0f)\
                 .setDuration(ALICE_SEARCH_LIST_FADE_DURATION_MS)\

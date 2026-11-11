@@ -26,12 +26,18 @@ sed -i '/^import org\.chromium\.ui\.edge_to_edge\.EdgeToEdgeSystemBarColorHelper
 import org.chromium.ui.interpolators.Interpolators;\
 // Alice patch end 0074' "$path1"
 
+sed -i 's#^    private final Callback<Integer> mOverviewColorObserver = ignored -> updateStatusBarColor();$#    // Alice patch start 0074\
+    private final Callback<Integer> mOverviewColorObserver =\
+            ignored -> onAliceHubOverviewColorChanged();\
+    // Alice patch end 0074#' "$path1"
+
 # 记录状态栏动画状态和 Hub 背景色。
 sed -i '/^    private boolean mAllowToolbarColorOnTablets;$/a\
     // Alice patch start 0074\
     private static final long ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS = 80L;\
     private @Nullable ValueAnimator mAliceHubStatusBarAnimator;\
     private boolean mAliceHubStatusBarTransitionActive;\
+    private boolean mAliceHubAwaitingOverviewClear;\
     private boolean mAliceHubShowing;\
     private float mAliceHubTransitionFraction;\
     private @ColorInt int mAliceHubBackgroundColor = Color.TRANSPARENT;\
@@ -58,12 +64,26 @@ sed -i '/^                public void onFinishedHiding(@LayoutType int layoutTyp
                 }\
 \
                 @Override\
+                public void onFinishedShowing(@LayoutType int layoutType) {\
+                    if (layoutType == LayoutType.BROWSING \&\& !mAliceHubShowing) {\
+                        // Alice patch start 0074\
+                        mAliceHubAwaitingOverviewClear = true;\
+                        // Alice patch end 0074\
+                    }\
+                }\
+\
+                @Override\
 ' "$path1"
 
 # 启动与预览缩略图缩放一致的 325ms 状态栏动画。
 sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTablet) {$/i\
     // Alice patch start 0074\
+    private void onAliceHubOverviewColorChanged() {\
+        updateStatusBarColor();\
+    }\
+\
     private void startAliceHubStatusBarTransition(boolean showingHub) {\
+        mAliceHubAwaitingOverviewClear = false;\
         if (showingHub\
                 \&\& (!mAliceHubStatusBarTransitionActive || !mAliceHubShowing)\
                 \&\& Color.alpha(mStatusBarColorWithoutStatusIndicator) != 0) {\
@@ -150,7 +170,7 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
                         ? mAliceHubTransitionFraction\
                         : 1f - mAliceHubTransitionFraction;\
         return ColorUtils.getOpaqueColor(\
-                ColorUtils.blendColorsMultiply(\
+                ColorUtils.blendColorsOklab(\
                         getAlicePageThemeColorForStatusBar(),\
                         getAliceHubBackgroundColorForStatusBar(),\
                         aliceHubFraction));\
@@ -164,6 +184,15 @@ sed -i '/^        @ColorInt int statusBarColor = calculateFinalStatusBarColor();
         // Alice patch start 0074\
         if (!mAliceHubStatusBarTransitionActive) {\
             mAliceLastBrowsingStatusBarColor = statusBarColor;\
+        }\
+        // Alice patch end 0074' "$path1"
+
+# toolbar 真正开始更新时退出 Hub override，恢复横滑状态栏渐变的入口。
+sed -i '/^        mToolbarColor = color;$/a\
+        // Alice patch start 0074\
+        if (mAliceHubAwaitingOverviewClear) {\
+            mAliceHubAwaitingOverviewClear = false;\
+            mAliceHubStatusBarTransitionActive = false;\
         }\
         // Alice patch end 0074' "$path1"
 

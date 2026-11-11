@@ -1,0 +1,257 @@
+#!/bin/bash
+# 搜索页淡出诊断：用 org.chromium.base.Log 输出 cr_Alice9999。
+
+set -e
+
+path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path2="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListViewBinder.java"
+path3="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 9999' "$path1"; then
+    exit 100
+fi
+
+# ToolbarPhone：焦点变化后连续采样 400ms，观察搜索框 alpha、可见性和坐标。
+sed -i '/^    public void onUrlFocusChange(final boolean hasFocus) {$/i\
+    // Alice patch start 9999\
+    private static final String ALICE_LOG_TAG = "Alice9999";\
+    private static final long ALICE_LOG_SAMPLE_DURATION_MS = 400;\
+    private static final long ALICE_LOG_SAMPLE_INTERVAL_MS = 16;\
+    private long mAliceLogSampleEndTime;\
+    private final Runnable mAliceLogSampleRunnable = this::sampleAlice9999State;\
+\
+    private void startAlice9999Sampling(boolean hasFocus) {\
+        mAliceLogSampleEndTime =\
+                SystemClock.uptimeMillis() + ALICE_LOG_SAMPLE_DURATION_MS;\
+        removeCallbacks(mAliceLogSampleRunnable);\
+        logAlice9999State("focusChange hasFocus=" + hasFocus);\
+        postOnAnimation(mAliceLogSampleRunnable);\
+    }\
+\
+    private void sampleAlice9999State() {\
+        logAlice9999State("sample");\
+        if (isAttachedToWindow()\
+                \&\& SystemClock.uptimeMillis() < mAliceLogSampleEndTime) {\
+            postOnAnimationDelayed(\
+                    mAliceLogSampleRunnable, ALICE_LOG_SAMPLE_INTERVAL_MS);\
+        }\
+    }\
+\
+    private void logAlice9999State(String event) {\
+        int controlsPosition =\
+                mBrowserControlsStateProvider == null\
+                        ? -1\
+                        : mBrowserControlsStateProvider.getControlsPosition();\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "toolbarState event="\
+                        + event\
+                        + " focus="\
+                        + urlHasFocus()\
+                        + " searchPage="\
+                        + (isLocationBarShownInGeneralNtp() || isLocationBarShownInNtp())\
+                        + " focusAnimating="\
+                        + mUrlFocusChangeInProgress\
+                        + " controlsPosition="\
+                        + controlsPosition);\
+        logAlice9999View("toolbar", this);\
+        logAlice9999View("searchBox", mLocationBar.getContainerView());\
+        if (mActiveLocationBarBackgroundView != null) {\
+            logAlice9999View(\
+                    "searchBoxBackground", mActiveLocationBarBackgroundView);\
+        }\
+    }\
+\
+    private static void logAlice9999View(String label, View view) {\
+        int[] screenLocation = new int[2];\
+        view.getLocationOnScreen(screenLocation);\
+        Rect visibleRect = new Rect();\
+        boolean hasVisibleRect = view.getGlobalVisibleRect(visibleRect);\
+        android.view.ViewParent rawParent = view.getParent();\
+        View parent = rawParent instanceof View ? (View) rawParent : null;\
+        String parentState =\
+                parent == null\
+                        ? "null"\
+                        : parent.getClass().getSimpleName()\
+                                + "#"\
+                                + System.identityHashCode(parent)\
+                                + " vis="\
+                                + parent.getVisibility()\
+                                + " alpha="\
+                                + parent.getAlpha();\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                label\
+                        + " hash="\
+                        + System.identityHashCode(view)\
+                        + " vis="\
+                        + view.getVisibility()\
+                        + " shown="\
+                        + view.isShown()\
+                        + " attached="\
+                        + view.isAttachedToWindow()\
+                        + " alpha="\
+                        + view.getAlpha()\
+                        + " x="\
+                        + view.getX()\
+                        + " y="\
+                        + view.getY()\
+                        + " w="\
+                        + view.getWidth()\
+                        + " h="\
+                        + view.getHeight()\
+                        + " screen="\
+                        + screenLocation[0]\
+                        + ","\
+                        + screenLocation[1]\
+                        + " visible="\
+                        + hasVisibleRect\
+                        + ":"\
+                        + visibleRect.left\
+                        + ","\
+                        + visibleRect.top\
+                        + ","\
+                        + visibleRect.right\
+                        + ","\
+                        + visibleRect.bottom\
+                        + " parent="\
+                        + parentState);\
+    }\
+    // Alice patch end 9999\
+\
+' "$path1"
+sed -i '/^        super.onUrlFocusChange(hasFocus);$/a\
+        // Alice patch start 9999\
+        startAlice9999Sampling(hasFocus);\
+        // Alice patch end 9999\
+' "$path1"
+
+# SuggestionListViewBinder：在可见性更新后立即、50ms、250ms 各采样一次。
+sed -i '/^    \/\*\* Holds the view components needed to renderer the suggestion list\. \*\/$/i\
+    // Alice patch start 9999\
+    private static final String ALICE_LOG_TAG = "Alice9999";\
+\
+    private static void sampleAlice9999State(\
+            PropertyModel model, SuggestionListViewHolder holder, String event) {\
+        logAlice9999State(model, holder, event);\
+        holder.container.postDelayed(\
+                () -> logAlice9999State(model, holder, event + "+50ms"), 50);\
+        holder.container.postDelayed(\
+                () -> logAlice9999State(model, holder, event + "+250ms"), 250);\
+    }\
+\
+    private static void logAlice9999State(\
+            PropertyModel model, SuggestionListViewHolder holder, String event) {\
+        @Nullable OmniboxSuggestionsDropdownEmbedder embedder =\
+                model.containsKey(SuggestionListProperties.EMBEDDER)\
+                        ? model.get(SuggestionListProperties.EMBEDDER)\
+                        : null;\
+        @Nullable View anchor = embedder == null ? null : embedder.getAnchorView();\
+        String alignment =\
+                embedder == null ? "unset" : embedder.getCurrentAlignment().toString();\
+        boolean toolbarOnBottom =\
+                model.containsKey(SuggestionListProperties.TOOLBAR_ON_BOTTOM)\
+                        \&\& model.get(SuggestionListProperties.TOOLBAR_ON_BOTTOM);\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "suggestionState event="\
+                        + event\
+                        + " session="\
+                        + model.get(SuggestionListProperties.OMNIBOX_SESSION_ACTIVE)\
+                        + " windowFocused="\
+                        + model.get(SuggestionListProperties.ACTIVITY_WINDOW_FOCUSED)\
+                        + " count="\
+                        + model.get(SuggestionListProperties.SUGGESTION_MODELS).size()\
+                        + " alwaysVisible="\
+                        + model.get(SuggestionListProperties.CONTAINER_ALWAYS_VISIBLE)\
+                        + " toolbarBottom="\
+                        + toolbarOnBottom\
+                        + " modelAlpha="\
+                        + model.get(SuggestionListProperties.ALPHA)\
+                        + " childTranslationY="\
+                        + model.get(SuggestionListProperties.CHILD_TRANSLATION_Y)\
+                        + " alignment="\
+                        + alignment);\
+        logAlice9999View("suggestionContainer", holder.container);\
+        logAlice9999View("suggestionDropdown", holder.dropdown);\
+        if (anchor != null) logAlice9999View("suggestionAnchor", anchor);\
+    }\
+\
+    private static void logAlice9999View(String label, View view) {\
+        int[] screenLocation = new int[2];\
+        view.getLocationOnScreen(screenLocation);\
+        android.graphics.Rect visibleRect = new android.graphics.Rect();\
+        boolean hasVisibleRect = view.getGlobalVisibleRect(visibleRect);\
+        android.view.ViewParent rawParent = view.getParent();\
+        View parent = rawParent instanceof View ? (View) rawParent : null;\
+        String parentState =\
+                parent == null\
+                        ? "null"\
+                        : parent.getClass().getSimpleName()\
+                                + "#"\
+                                + System.identityHashCode(parent)\
+                                + " vis="\
+                                + parent.getVisibility()\
+                                + " alpha="\
+                                + parent.getAlpha();\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                label\
+                        + " hash="\
+                        + System.identityHashCode(view)\
+                        + " vis="\
+                        + view.getVisibility()\
+                        + " shown="\
+                        + view.isShown()\
+                        + " attached="\
+                        + view.isAttachedToWindow()\
+                        + " alpha="\
+                        + view.getAlpha()\
+                        + " x="\
+                        + view.getX()\
+                        + " y="\
+                        + view.getY()\
+                        + " w="\
+                        + view.getWidth()\
+                        + " h="\
+                        + view.getHeight()\
+                        + " screen="\
+                        + screenLocation[0]\
+                        + ","\
+                        + screenLocation[1]\
+                        + " visible="\
+                        + hasVisibleRect\
+                        + ":"\
+                        + visibleRect.left\
+                        + ","\
+                        + visibleRect.top\
+                        + ","\
+                        + visibleRect.right\
+                        + ","\
+                        + visibleRect.bottom\
+                        + " parent="\
+                        + parentState);\
+    }\
+    // Alice patch end 9999\
+\
+' "$path2"
+sed -i '/^        updateContainerMargin(model, holder);$/a\
+        // Alice patch start 9999\
+        sampleAlice9999State(model, holder, "visibilityApplied");\
+        // Alice patch end 9999\
+' "$path2"
+
+# AutocompleteMediator：记录会话开始和结束时的建议数量。
+sed -i '/^    void beginInput(FuseboxSessionState session) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "Alice9999", "autocomplete beginInput count=" + mSuggestionModels.size());\
+        // Alice patch end 9999\
+' "$path3"
+sed -i '/^    void endInput() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                "Alice9999", "autocomplete endInput count=" + mSuggestionModels.size());\
+        // Alice patch end 9999\
+' "$path3"
