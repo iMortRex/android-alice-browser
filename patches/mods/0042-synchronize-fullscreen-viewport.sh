@@ -18,19 +18,16 @@ if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 // Alice patch start 0042\
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
 // Alice patch end 0042' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean mInTabSwitcherTransition;$/a\
     // Alice patch start 0042\
     private int mAliceFullscreenExitReadyFrames;\
     // Alice patch end 0042' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '0,/^                            mInTabSwitcherTransition = true;$/{s//                            mInTabSwitcherTransition = true;\
                             \/\/ Alice patch start 0042\
                             finishAliceFullscreenToolbarExit();\
@@ -42,7 +39,6 @@ sed -i '/^    private int mSearchToolbarSnapshotColor;$/a\
     private int mAliceFullscreenCapturedNavigationBarHeight;\
     // Alice patch end 0042' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
     // Alice patch start 0042\
     void captureFullscreenNavigationBarHeight() {\
@@ -57,7 +53,6 @@ sed -i '/^    void requestSearchToolbarSnapshotCapture() {$/i\
 \
 ' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
     // Alice patch start 0042\
     private int getFullscreenSnapshotNavigationBarHeight() {\
@@ -80,7 +75,6 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/i\
 \
 ' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void updateSearchToolbarSnapshot() {$/c\
     private void captureSearchToolbarSnapshot() {\
         View aliceControlContainer = mControlContainer.getView();\
@@ -191,7 +185,6 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void
 \
     private void updateSearchToolbarSnapshot() {' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateSearchToolbarSnapshot() {$/,/^    }$/c\
     private void updateSearchToolbarSnapshot() {\
         boolean aliceFocused = mIsOmniboxFocusedSupplier.get();\
@@ -624,7 +617,6 @@ sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manag
     // Alice patch end 0042
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manager) {$/,/^    }$/s|^        mBrowserControlsManager.addObserver(this);$|        // Alice patch start 0042\
         mBrowserControlsManager.addObserver(this);\
         if (mAliceFullscreenModeSupplier != null) {\
@@ -638,7 +630,6 @@ sed -i '/^    public void setBrowserControlsManager(BrowserControlsManager manag
                 mAliceFullscreenModeObserver);\
         // Alice patch end 0042|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void shutDown() {$/,/^    }$/s|^            mBrowserControlsManager.removeObserver(this);$|            // Alice patch start 0042\
             mBrowserControlsManager.removeObserver(this);\
             if (mAliceFullscreenModeSupplier != null) {\
@@ -734,7 +725,6 @@ sed -i '/^    private boolean shouldSkipEnterFullscreenRequest(FullscreenOptions
 \
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) {$/a\
         // Alice patch start 0042\
         FullscreenManager.FullscreenTransitionState.setViewportSyncEnabled(false);\
@@ -742,7 +732,6 @@ sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) 
         // Alice patch end 0042\
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
                     // Alice patch start 0042\
                     FullscreenManager.FullscreenTransitionState\
@@ -751,7 +740,6 @@ sed -i '/^                    enterPersistentFullscreenMode(options);$/i\
 \
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|        if (shouldSkipEnterFullscreenRequest(options)) {\
             // Alice patch start 0042\
             FullscreenManager.FullscreenTransitionState.setEnteringFullscreen(false);\
@@ -759,7 +747,6 @@ sed -i 's|^        if (shouldSkipEnterFullscreenRequest(options)) return;$|     
             return;\
         }|' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
         // Alice patch start 0042\
         if (tab != mTab \&\& tab != mTabInFullscreen) return;\
@@ -769,7 +756,6 @@ sed -i '/^    public void onExitFullscreen(Tab tab) {$/a\
         // Alice patch end 0042\
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscreenMode();$/a\
         // Alice patch start 0042\
         if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {\
@@ -781,7 +767,6 @@ sed -i '/^        boolean wasInPersistentFullscreenMode = getPersistentFullscree
 sed -i 's|^\( *\)mTab, BrowserControlsState.SHOWN, true);$|\1// Alice patch start 0042\
 \1mTab, BrowserControlsState.SHOWN, false);\
 \1// Alice patch end 0042|' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)TabBrowserControlsConstraintsHelper\.update(mTab, BrowserControlsState\.SHOWN, true);$|\1// Alice patch start 0042\
 \1TabBrowserControlsConstraintsHelper.update(mTab, BrowserControlsState.SHOWN, false);\
 \1// Alice patch end 0042|' "$path4"
@@ -927,8 +912,8 @@ sed -i '/^        \/\/ Notify the compositor layout that the size has changed\./
 \
 ' "$path1"
 
-# 退出时不再轮询 controls idle。一次布局后立即刷新视口和工具栏，再补一帧
-# 处理地址栏/底栏在导航栏 inset 恢复后的第二次布局。
+# 退出时逐帧等待 controls idle；连续 3 帧 idle 且底部高度恢复后刷新视口和
+# 工具栏，再补一帧处理地址栏/底栏在导航栏 inset 恢复后的第二次布局。
 sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
     // Alice patch start 0042\
     private void finishAliceFullscreenToolbarExitWhenReady() {\
@@ -1005,7 +990,6 @@ sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
     }\
     // Alice patch end 0042
 ' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void refreshToolbarAfterFullscreen() {$/i\
     // Alice patch start 0042\
     private void finishAliceFullscreenToolbarExit() {\

@@ -18,7 +18,6 @@ fi
 sed -i '/^    <LinearLayout$/{N;/\n      android:id="@+id\/hub_pane_host_container"$/i\
 <!-- Alice patch start 0051 -->
 }' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)android:layout_marginTop="@dimen/toolbar_height_no_shadow">$|\1android:layout_marginBottom="@dimen/toolbar_height_no_shadow">\n\1<!-- Alice patch end 0051 -->|' "$path1"
 
 # 将顶部工具栏替换为底部唯一工具栏。
@@ -35,22 +34,17 @@ sed -i '/^    <include layout="@layout\/hub_toolbar_layout" \/>$/c\
 # 包裹新建标签按钮，重排底部工具栏按钮。
 sed -i '\|^          app:tint="@color/default_icon_color_tint_list"/>$|a\
       </LinearLayout>' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '\|^        <Button$|i\
       <FrameLayout\
           android:layout_width="wrap_content"\
           android:layout_height="match_parent"\
           android:layout_gravity="center">' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '\#^          android:layout_gravity="start|center_vertical"$#c\
           android:layout_gravity="center"' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^          style="?attr\/newTabButtonStyle"\/>$/,/^      <\/LinearLayout>$/ s|^      </LinearLayout>$|      </FrameLayout>|' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '\#^        android:layout_gravity="center_horizontal|bottom"$#c\
         android:layout_gravity="start|center_vertical"\
         android:layout_marginStart="16dp"' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '\|^        android:layout_gravity="end" >$|i\
         android:layout_marginEnd="16dp"' "$path2"
 
@@ -67,7 +61,7 @@ sed -i 's|^\( *\)params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn 
 # 清除 Hub 容器顶部 padding，并允许底部工具栏越界绘制。
 sed -i 's|^\( *\)mHubContainerView\.setPadding(0, isVerticalTabsOn ? mAppHeaderHeight : 0, 0, 0);$|\1// Alice patch start 0051\n\1mHubContainerView.setPadding(0, 0, 0, 0);\n\n\1ViewParent parent = mHubContainerView.getParent();\n\1if (parent instanceof ViewGroup) {\n\1    ((ViewGroup) parent).setClipChildren(false);\n\1    ((ViewGroup) parent).setClipToPadding(false);\n\1}\n\1// Alice patch end 0051|' "$path3"
 
-# 注册配置变化回调，旋转后重新计算底栏布局。
+# 注册配置变化回调，旋转后重新计算 Hub 容器顶部 margin。
 sed -i '/^    private int mAppHeaderHeight;$/a\
     // Alice patch start 0051\
     private final android.content.ComponentCallbacks mComponentCallbacks =\

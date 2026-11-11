@@ -18,7 +18,6 @@ sed -i '/^import android\.annotation\.SuppressLint;$/a\
 import android.view.View;\
     // Alice patch end 0049' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    boolean isPhoneStyleWindow();$/a\
     // Alice patch start 0049\
 \
@@ -40,7 +39,6 @@ sed -i '/^import android\.view\.ViewGroup;$/a\
 import android.view.ViewTreeObserver;\
     // Alice patch end 0049' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private OmniboxAlignment mOmniboxAlignment = OmniboxAlignment\.UNSPECIFIED;$/a\
     // Alice patch start 0049\
 \

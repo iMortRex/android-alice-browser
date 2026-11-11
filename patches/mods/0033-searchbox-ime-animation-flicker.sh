@@ -38,7 +38,6 @@ sed -i '/^    boolean isWideWindow();$/a\
     }\
     // Alice patch end 0033' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
 // Alice patch start 0033\
 import org.chromium.ui.insets.InsetObserver;\
@@ -60,49 +59,41 @@ sed -i '/^    public boolean isPhoneStyleWindow() {$/,/^    }$/ { /^    }$/a\
     // Alice patch end 0033
 ; }' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.content\.SharedPreferences\.OnSharedPreferenceChangeListener;$/a\
 // Alice patch start 0033\
 import android.graphics.Bitmap;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewGroup;$/a\
 // Alice patch start 0033\
 import android.widget.ImageView;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/i\
 // Alice patch start 0033\
 import android.view.MotionEvent;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.embedder_support\.util\.UrlUtilities;$/i\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.TouchEventObserver;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import androidx\.core\.view\.WindowInsetsCompat;$/a\
 // Alice patch start 0033\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import java\.util\.function\.Supplier;$/i\
 // Alice patch start 0033\
 import java.util.List;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewGroup;$/a\
 // Alice patch start 0033\
 import android.view.ViewTreeObserver;\
 // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
     // Alice patch start 0033\
     private @Nullable View mNavigationBarBackground;\
@@ -164,7 +155,6 @@ sed -i '/^    private final boolean mIsNtpCustomizationV2Enabled;$/a\
             };\
     // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
 \
     // Alice patch start 0033\
@@ -235,7 +225,6 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     // Alice patch end 0033\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
         mIsOmniboxFocusedObserver =\
@@ -251,7 +240,6 @@ sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition
                 };\
         // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mIsTabSwitcherFinishedShowingObserver = (showing) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
         mIsTabSwitcherFinishedShowingObserver =\
@@ -318,7 +306,6 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
         }\
         // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$|        // Alice patch start 0033\
         mToolbar.setToolbarColorObserver(\
                 new TopToolbarCoordinator.ToolbarColorObserver() {\
@@ -345,7 +332,6 @@ sed -i '/^    private @Nullable Tab mLastTab;$/a\
     private int mAliceLastToolbarBackgroundColor = Integer.MIN_VALUE;\
     // Alice patch end 0033' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mWindowAndroid);$/a\
         // Alice patch start 0033\
         // Toolbar color callbacks can arrive before ToolbarPositionController is created.\
@@ -356,13 +342,11 @@ sed -i '/^                        mWindowAndroid);$/a\
         }\
         // Alice patch end 0033' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(this);$/a\
         // Alice patch start 0033\
         mControlContainer.addTouchEventObserver(mToolbarTouchObserver);\
         // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mHandler = handler;$/a\
         // Alice patch start 0033\
         mControlContainer\
@@ -444,13 +428,11 @@ sed -i '/^            int maxHeight = windowHeight - keyboardHeight - statusBarH
             int maxHeight = windowHeight - aliceBottomInset - statusBarHeight;\
             // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            int maxTranslation = -(windowHeight - layer\.getHeight() - statusBarHeight);$/c\
             // Alice patch start 0033\
             // Use the current IME frame as the minimum absolute bottom offset.\
             // Alice patch end 0033' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            layerYOffset = Math\.max(layerYOffset - keyboardHeight, maxTranslation);$/c\
             // Alice patch start 0033\
             layerYOffset = Math.min(layerYOffset, -aliceBottomInset);\
@@ -475,20 +457,18 @@ sed -i 's|^        if (mTabSwitcherState != EXITING_TAB_SWITCHER) {$|        // 
                 \&\& mTabSwitcherState != EXITING_TAB_SWITCHER) {\
         // Alice patch end 0033|' "$path8"
 
-# 修改对应源码以完成本补丁功能。
+# 配置变化时刷新工具栏主色。
 sed -i 's|^                updateToolbarBackgroundFromState(VisualState.BRAND_COLOR);$|                // Alice patch start 0033\
                 // Toolbar color changes are event-driven; do not refresh it on every layout.\
                 // Alice patch end 0033|' "$path8"
 
-# 5) 搜索页位于底部时，无论 normal 或 overlay 键盘模式都由上面的 inset
-#    驱动，避免 resize mode 功能开关把键盘高度清零后产生跳位。
 sed -i '/^                    public void onConfigurationChanged(Configuration configuration) {$/a\
                         // Alice patch start 0033\
                         // Theme mode changes are configuration events; refresh once here.\
                         mToolbar.onPrimaryColorChanged(/* shouldAnimate= */ false);\
                         // Alice patch end 0033' "$path2"
 
-# 修改对应源码以完成本补丁功能。
+# 5) 搜索页位于底部时，始终保留 IME 高度，避免 resize mode 功能开关把键盘高度清零。
 sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^    }$/c\
     private boolean shouldIgnoreKeyboardHeightInResizeMode() {\
         // Alice patch start 0033\
@@ -979,39 +959,33 @@ sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
 import org.chromium.build.annotations.Nullable;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomControlsStacker;$/i\
 // Alice patch start 0033\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.DeviceFormFactor;$/i\
 // Alice patch start 0033\
 import org.chromium.ui.KeyboardVisibilityDelegate;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.DeviceFormFactor;$/a\
 // Alice patch start 0033\
 import org.chromium.ui.base.WindowAndroid;\
 import org.chromium.ui.insets.InsetObserver;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/a\
 // Alice patch start 0033\
 import android.view.ViewGroup;\
 import android.view.ViewTreeObserver;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.browser_ui\.widget\.scrim\.ScrimProperties;$/a\
 // Alice patch start 0033\
 import org.chromium.components.browser_ui.widget.scrim.ScrimView;\
 // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                                updateScrimBottomMargin());$/a\
             // Alice patch start 0033\
             mImeBoundaryView = aliceBottomBoundary;\
@@ -1070,7 +1044,6 @@ sed -i '/^                                updateScrimBottomMargin());$/a\
                     .addOnPreDrawListener(aliceBoundaryPreDrawListener);\
             // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    mScrimModel\.set(ScrimProperties\.TOP_MARGIN, newHeight);$/c\
                     // Alice patch start 0033\
                     mScrimModel.set(\
@@ -1078,7 +1051,6 @@ sed -i '/^                    mScrimModel\.set(ScrimProperties\.TOP_MARGIN, newH
                             isBottomToolbarActive() ? 0 : newHeight);\
                     // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
     // Alice patch start 0033\
     private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;\
@@ -1139,7 +1111,6 @@ sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
             };\
     // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void updateScrimVisualState() {$/i\
     // Alice patch start 0033\
     void setWindowAndroid(\
@@ -1167,7 +1138,6 @@ sed -i '/^    public void updateScrimVisualState() {$/i\
     // Alice patch end 0033\
 ' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateScrimBottomMargin() {$/a\
         // Alice patch start 0033\
         if (!isBottomToolbarActive()) {\
@@ -1194,7 +1164,6 @@ sed -i '/^    private void updateScrimBottomMargin() {$/a\
         }\
         // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateScrimBottomMargin() {$/i\
     // Alice patch start 0033\
     private @Nullable View findOmniboxScrimView(View view) {\
@@ -1212,7 +1181,6 @@ sed -i '/^    private void updateScrimBottomMargin() {$/i\
     // Alice patch end 0033\
 ' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0033\
         if (mImeBoundaryView != null \&\& mImeBoundaryPreDrawListener != null) {\
@@ -1233,7 +1201,6 @@ sed -i '/^    public void destroy() {$/a\
         }\
         // Alice patch end 0033' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mWindowAndroid = windowAndroid;$/a\
         // Alice patch start 0033\
         if (scrimHandler != null) {\
@@ -1253,7 +1220,6 @@ sed -i '/^    private void updateBottomContainerPosition() {$/,/^    }$/c\
         // Alice patch end 0033\
     }' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mOmniboxAlignment = omniboxAlignment;$/a\
         // Alice patch start 0033\
         if (mEmbedder != null \&\& mEmbedder.isToolbarOnBottom()) {\

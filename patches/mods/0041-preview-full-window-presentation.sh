@@ -21,7 +21,6 @@ if grep -q 'Alice patch start 0041' "$path1"; then
     exit 100
 fi
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final int mBottomBarHeight;$/a\
 // Alice patch start 0041\
     // Alice: generation counter for the deferred shrink/expand rect captures.\
@@ -56,7 +55,6 @@ sed -i '/^    float MAX_HEIGHT_RATIO = 1.0f;$/a\
     // Alice patch end 0041\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (aliceParams.height != aliceNavigationBarHeight) {$/,/^        }$/c\
         // Alice patch start 0041\
         if (aliceParams.height != aliceNavigationBarHeight) {\
@@ -65,14 +63,12 @@ sed -i '/^        if (aliceParams.height != aliceNavigationBarHeight) {$/,/^    
         }\
         // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Nullable View mNavigationBarBackground;$/a\
     // Alice patch start 0041\
     private @Nullable View mAliceStartupNavigationBarCover;\
     private boolean mAliceInitialPageReady;\
     // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int getNavigationBarHeight() {$/i\
     // Alice patch start 0041\
     private void updateAliceStartupNavigationBarCover(int navigationBarHeight, View anchor) {\
@@ -126,20 +122,17 @@ sed -i '/^    private int getNavigationBarHeight() {$/i\
 \
 ' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mNavigationBarBackground = null;$/a\
         // Alice patch start 0041\
         removeAliceStartupNavigationBarCover();\
         // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        aliceBackground.setTranslationY(0);$/a\
         // Alice patch start 0041\
         boolean aliceFullWindowPreview =\
                 BottomSheetContent.FullWindowPresentationState.isActive();\
         // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int aliceBackgroundColor =$/,/^        aliceBackground.setBackgroundColor(aliceBackgroundColor);$/c\
         int aliceConfiguredBackgroundColor =\
                 aliceFullWindowPreview\
@@ -153,7 +146,6 @@ sed -i '/^        int aliceBackgroundColor =$/,/^        aliceBackground.setBack
         aliceBackground.setBackgroundColor(aliceConfiguredBackgroundColor);\
         // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean aliceVisible =$/,/^                                        aliceControlContainer));$/c\
         // Alice patch start 0041\
         Tab aliceStartupTab = mActiveTabSupplier.get();\
@@ -204,7 +196,6 @@ sed -i '/^        boolean aliceVisible =$/,/^                                   
                                         aliceControlContainer));\
         // Alice patch end 0041' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            boolean controlsResizeView =$/,/^                    BrowserControlsUtils\.controlsResizeView(mBrowserControlsManager);$/c\
         // Alice patch start 0041\
             boolean controlsResizeView =\
@@ -228,7 +219,6 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    default boolean coversBottomControls() {$/i\
     // Alice patch start 0041\
     default void onSheetHeightChanged(int sheetHeight) {}\
@@ -236,7 +226,6 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    default boolean coversBottomControls() {$/i\
     // Alice patch start 0041\
     /**\
@@ -251,7 +240,6 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    default boolean coversBottomControls() {$/i\
     // Alice patch start 0041\
     default int getToolbarBackgroundHeight() {\
@@ -261,7 +249,6 @@ sed -i '/^    default boolean coversBottomControls() {$/i\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    int getVerticalScrollOffset();$/i\
     // Alice patch start 0041\
     /**\
@@ -297,7 +284,6 @@ sed -i '/^        if (!mIsTouchEnabled) return true;$/a\
         }\
         // Alice patch end 0041' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    void updateCloseButton(/i\
     // Alice patch start 0041\
     private boolean isTouchEventInSheetContent(MotionEvent event) {\
@@ -316,7 +302,6 @@ sed -i '/^    void updateCloseButton(/i\
 \
 ' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int mPreviousScreenHeight;$/a\
     // Alice patch start 0041\
     private boolean mFullWindowImeCropped;\
@@ -328,7 +313,6 @@ sed -i '/^    private int mPreviousScreenHeight;$/a\
     // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private InsetObserver mInsetObserver;$/a\
     // Alice patch start 0041\
     private final InsetObserver.WindowInsetObserver mImeResetObserver =\
@@ -368,20 +352,17 @@ sed -i '/^    private InsetObserver mInsetObserver;$/a\
     // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private static final float HEIGHT_UNSPECIFIED = -1\.0f;$/a\
     // Alice patch start 0041\
     private static final float FULL_WINDOW_PREVIEW_HEIGHT_RATIO = 0.9f;\
     // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mWindow = window;$/a\
         // Alice patch start 0041\
         mKeyboardVisibilityDelegate = keyboardDelegate;\
         // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mIsDestroyed = true;$/a\
         // Alice patch start 0041\
         mView.setClipBounds(null);\
@@ -394,7 +375,6 @@ sed -i '/^        mIsDestroyed = true;$/a\
         }\
         // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mInsetObserver = insetObserver;$/a\
         // Alice patch start 0041\
         mInsetObserver.addObserver(mImeResetObserver);\
@@ -412,7 +392,7 @@ sed -i '/^        if (!bottomMarginChanged) return;$/i\
 # Alice: clamp the shrink/expand animation rects' bottom to the top of the bottom
 # buttons so the animated preview occasionally does not lag behind the grid cards.
 sed -i '/^        Rect finalRect = animationData\.getFinalRect();$/a\
-// Alice patch start 0040\
+// Alice patch start 0041\
 // Alice: occasionally the animation rects extend behind the bottom toolbar;\
 // clamp their bottom to the top of the bottom buttons so the animated\
 // preview stays in sync with the grid cards.\
@@ -422,7 +402,7 @@ if (toolbarView != null \&\& !animationData.isTopToolbar()) {\
     initialRect.bottom = Math.min(initialRect.bottom, aliceButtonsTop);\
     finalRect.bottom = Math.min(finalRect.bottom, aliceButtonsTop);\
 }\
-// Alice patch end 0040\
+// Alice patch end 0041\
 ' "$path9"
 
 # Alice: restore the edge-to-edge drawing state immediately on fullscreen exit;
@@ -441,10 +421,9 @@ sed -i '/^    private boolean mIsDrawingToEdge;$/a\
 // Alice patch end 0041\
 ' "$path10"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateHeightAndVisibility() {$/,/^        int newHeight = mIsDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;$/c\
     private void updateHeightAndVisibility() {\
-        // Alice patch start 0032\
+        // Alice patch start 0041\
         // Alice: gate on the stable fullscreen state; the dispatched drawing flag\
         // goes stale during rotation and fullscreen transitions, which briefly\
         // removed the navigation-bar avoidance.\
@@ -454,6 +433,7 @@ sed -i '/^    private void updateHeightAndVisibility() {$/,/^        int newHeig
                                 \&\& (mIsDrawingToEdge\
                                         || mEdgeToEdgeBottomInsetPx > 0));\
         int newHeight = aliceDrawingToEdge ? mEdgeToEdgeBottomInsetPx : 0;\
+        // Alice patch end 0041\
 ' "$path10"
 # Alice: capture the pre-fullscreen inset on enter, restore it at the exit
 # instant (the fullscreen flag and the inset event clear a moment late), and
@@ -468,7 +448,6 @@ sed -i '/^    public void onEnterFullscreen(Tab tab, FullscreenOptions options) 
     }\
 ' "$path10"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^    }$/c\
     public void onExitFullscreen(Tab tab) {\
 // Alice patch start 0041\
@@ -484,13 +463,12 @@ sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^    }$/c\
     }\
 ' "$path10"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onToEdgeChange(\$/i\
 // Alice patch start 0041\
 // Alice: the authoritative inset state arrived; drop the exit force.\
+// Alice patch end 0041\
 ' "$path10"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mEdgeToEdgeBottomInsetPx = bottomInset;$/a\
 // Alice patch start 0041\
         mAliceForceChin = false;\
@@ -540,7 +518,6 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
     }\
 ' "$path9"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
     private int getAliceNavigationBarVisualHeight() {\
@@ -643,7 +620,6 @@ sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        onSheetContentChanged(content);$/a\
         // Alice patch start 0041\
         if (content != null \&\& content.shouldUseFullWindowPresentation()) {\
@@ -680,7 +656,6 @@ n
 }' "$path11"
 
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     // Alice patch start 0041\
     private void onInsetChanged() {\
@@ -725,7 +700,6 @@ sed -i '/^    private void onInsetChanged() {$/,/^    }$/c\
     }\
     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat animation) {$/,/^                    }$/c\
                     // Alice patch start 0041\
                     public void onEnd(WindowInsetsAnimationCompat animation) {\
@@ -746,7 +720,6 @@ sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat anim
                     }\
                     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat animation) {$/,/^                    }$/c\
                     // Alice patch start 0041\
                     public void onPrepare(WindowInsetsAnimationCompat animation) {\
@@ -769,7 +742,6 @@ sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat 
                     }\
                     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onProgress($/,/^                    }$/c\
                     // Alice patch start 0041\
                     public void onProgress(\
@@ -794,7 +766,6 @@ sed -i '/^                    public void onProgress($/,/^                    }$
                     }\
                     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, state != SheetState\.SCROLLING);$/c\
         // Alice patch start 0041\
         boolean fullWindowContent =\
@@ -804,7 +775,6 @@ sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, st
                 state != SheetState.SCROLLING || fullWindowContent);\
         // Alice patch end 0041' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {$/,/^    }$/c\
     // Alice patch start 0041\
     private @Px int getViewportBottomInset(@Px int e2eBottomInset) {\
@@ -830,7 +800,6 @@ sed -i '/^    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {$/
     }\
     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean isFullHeightWrapContent() {$/,/^    }$/c\
     // Alice patch start 0041\
     private boolean isFullHeightWrapContent() {\
@@ -841,7 +810,6 @@ sed -i '/^    private boolean isFullHeightWrapContent() {$/,/^    }$/c\
     }\
     // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (isFullHeightWrapContent() \&\& state == SheetState\.FULL) {$/i\
         // Alice patch start 0041\
         BottomSheetContent content = getCurrentSheetContent();\
@@ -865,7 +833,6 @@ sed -i '/^        if (mContainerHeight <= 0 || content == null) return 0;$/a\
         }\
         // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        float translationY =$/i\
         // Alice patch start 0041\
         float effectiveOffset = mCurrentOffsetPx;\
@@ -931,7 +898,6 @@ sed -i '/^    private final BottomSheetView mView;$/a\
 // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mSheetContainer\.removeView(mView);$/i\
 // Alice patch start 0041\
         // Alice: a fake navigation bar that sits below the preview window, in the\
@@ -971,7 +937,6 @@ sed -i '/^        mSheetContainer\.removeView(mView);$/i\
 // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0041\
 import android.graphics.Bitmap;\
@@ -981,21 +946,18 @@ import android.graphics.drawable.Drawable;\
 // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.MotionEvent;$/i\
 // Alice patch start 0041\
 import android.view.Gravity;\
 // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.Window;$/a\
 // Alice patch start 0041\
 import android.widget.FrameLayout;\
 // Alice patch end 0041\
 ' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
     // Alice patch start 0041\
     private int getAliceNavigationBarInset() {\
@@ -1030,13 +992,11 @@ sed -i '/^            parent\.setClipChildren(!isPopup);$/c\
             parent.setClipChildren(false);\
             // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mCurrentOffsetPx,$/c\
         // Alice patch start 0041\
                         effectiveOffset,\
         // Alice patch end 0041' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        bottomInset);$/c\
         // Alice patch start 0041\
                         positionBottomInset);\
@@ -1049,21 +1009,18 @@ sed -i '/^    private boolean mScrimVisible;$/a\
     private @Nullable PropertyModel mScrimProperties;\
     // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    \/\*\*$/,/^                    private boolean mScrimShown;$/c\
                     // Alice patch start 0041\
                     // Alice: scrim visibility is tracked by the controller so it can be shown\
                     // before the opening animation starts.\
                     // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        PropertyModel scrimProperties = createScrimParams();$/c\
         // Alice patch start 0041\
         PropertyModel scrimProperties = createScrimParams();\
         mScrimProperties = scrimProperties;\
         // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        scrimManager\.showScrim(scrimProperties);$/,/^                        onScrimVisibilityChanged(true);$/c\
                         // Alice patch start 0041\
                         if (!mScrimShown) {\
@@ -1073,25 +1030,21 @@ sed -i '/^                        scrimManager\.showScrim(scrimProperties);$/,/^
                         }\
                         // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        if (mScrimShown) {$/,/^                        }$/c\
                         // Alice patch start 0041\
                         hideScrim();\
                         // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onSheetStateChanged(@SheetState int state, int reason) {$/a\
                         // Alice patch start 0041\
                         if (state == SheetState.HIDDEN) hideScrim();\
                         // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                .with(ScrimProperties.AFFECTS_STATUS_BAR, true)$/a\
                 // Alice patch start 0041\
                 .with(ScrimProperties.AFFECTS_NAVIGATION_BAR, false)\
                 // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mBottomSheet.showContent(nextContent);$/a\
         // Alice patch start 0041\
         if (nextContent != null \&\& nextContent.shouldUseFullWindowPresentation()) {\
@@ -1100,7 +1053,6 @@ sed -i '/^        mBottomSheet.showContent(nextContent);$/a\
         }\
         // Alice patch end 0041' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void onScrimVisibilityChanged(boolean visible) {$/i\
     // Alice patch start 0041\
     private void showScrimForCurrentContent(boolean animate) {\
@@ -1132,7 +1084,6 @@ sed -i '/^    private void onScrimVisibilityChanged(boolean visible) {$/i\
 \
 ' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean shouldCover =$/,/^                        || (content != null \&\& content.coversBottomControls());$/c\
         // Alice patch start 0041\
         boolean fullWindowPresentation =\

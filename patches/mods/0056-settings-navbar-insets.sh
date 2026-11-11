@@ -56,7 +56,6 @@ sed -i '/^import androidx\.lifecycle\.Lifecycle;$/a\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0056
 ' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        super.onViewCreated(view, savedInstanceState);$/a\
         // Alice patch start 0056\
         getListView().setClipToPadding(false);\

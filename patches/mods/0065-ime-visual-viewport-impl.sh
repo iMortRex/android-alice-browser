@@ -25,14 +25,12 @@ if grep -q 'Alice patch start 0065' "$path1"; then
     exit 100
 fi
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    void scrollFocusedEditableNodeIntoView();$/a\
     // Alice patch start 0065\
     /** Sets the Blink visual viewport IME translation in device-independent pixels. */\
     default void setImeViewportTranslation(float translationY) {}\
     // Alice patch end 0065' "$path4"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^    }$/a\
 \
     // Alice patch start 0065\
@@ -46,7 +44,6 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^  
     // Alice patch end 0065
 ;}' "$path1"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^        void scrollFocusedEditableNodeIntoView(long nativeWebContentsAndroid);$/a\
 \
         // Alice patch start 0065\
@@ -54,13 +51,11 @@ sed -i '/^        void scrollFocusedEditableNodeIntoView(long nativeWebContentsA
                 long nativeWebContentsAndroid, float translationY);\
         // Alice patch end 0065' "$path1"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  void ScrollFocusedEditableNodeIntoView(JNIEnv\* env);$/a\
   // Alice patch start 0065\
   void SetImeViewportTranslation(JNIEnv* env, jfloat translation_y);\
   // Alice patch end 0065' "$path2"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void WebContentsAndroid::ScrollFocusedEditableNodeIntoView(JNIEnv\* env) {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
@@ -73,24 +68,20 @@ void WebContentsAndroid::SetImeViewportTranslation(JNIEnv* env,\
 // Alice patch end 0065
 ;}' "$path3"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^#include "content\/browser\/renderer_host\/render_view_host_impl.h"$/a\
 // Alice patch start 0065\
 #include "content/browser/renderer_host/render_widget_host_impl.h"\
 // Alice patch end 0065' "$path3"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  const gfx::Transform& DrawTransform() const;$/a\
   // Alice patch start 0065\
   void SetImeViewportTranslation(float translation_y);\
   // Alice patch end 0065' "$path5"
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  gfx::Rect viewport_rect_for_tile_priority_;$/a\
   // Alice patch start 0065\
   float ime_viewport_translation_ = 0.f;\
   // Alice patch end 0065' "$path5"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^const gfx::Transform& LayerTreeHostImpl::DrawTransform() const {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
@@ -105,7 +96,6 @@ void LayerTreeHostImpl::SetImeViewportTranslation(float translation_y) {\
 // Alice patch end 0065
 ;}' "$path6"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  active_tree_->DidBecomeActive();$/i\
   // Alice patch start 0065\
   // Reapply the IME viewport offset after tree activation.\
@@ -114,7 +104,6 @@ sed -i '/^  active_tree_->DidBecomeActive();$/i\
   }\
   // Alice patch end 0065' "$path6"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  mutator_host_->TickWorkletAnimations();$/a\
 \
   // Alice patch start 0065\
@@ -125,26 +114,22 @@ sed -i '/^  mutator_host_->TickWorkletAnimations();$/a\
   }\
   // Alice patch end 0065' "$path6"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  const cc::slim::SurfaceLayer\* content_layer() const {$/,/^  }$/ { /^  }$/a\
   // Alice patch start 0065\
   cc::slim::SurfaceLayer* content_layer() { return content_layer_.get(); }\
   // Alice patch end 0065
 ; }' "$path7"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  void SetNeedsBeginFrameForFlingProgress();$/a\
   // Alice patch start 0065\
   void SetImeViewportTranslation(float translation_y);\
   // Alice patch end 0065' "$path8"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  float page_scale_;$/a\
   // Alice patch start 0065\
   float ime_viewport_translation_y_ = 0.f;\
   // Alice patch end 0065' "$path8"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    boolean focusedNodeEditable();$/a\
 \
     // Alice patch start 0065\
@@ -152,14 +137,12 @@ sed -i '/^    boolean focusedNodeEditable();$/a\
     int getFocusedNodeBottomPx();\
     // Alice patch end 0065' "$path15"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    private boolean mNodePassword;$/a\
     // Alice patch start 0065\
     private boolean mFocusedNodeEditable;\
     private int mFocusedNodeBottomPx;\
     // Alice patch end 0065' "$path16"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^        if (DEBUG_LOGS) Log.i(TAG, "focusedNodeChanged: isEditable \[%b\]", isEditable);$/a\
         // Alice patch start 0065\
         mFocusedNodeEditable = isEditable;\
@@ -173,7 +156,6 @@ sed -i '/^        if (DEBUG_LOGS) Log.i(TAG, "focusedNodeChanged: isEditable \[%
                         : 0;\
         // Alice patch end 0065' "$path16"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    \/\*package\*\/ void focusedNodeChanged($/,/^    }$/ { /^    }$/a\
 \
     // Alice patch start 0065\
@@ -184,7 +166,6 @@ sed -i '/^    \/\*package\*\/ void focusedNodeChanged($/,/^    }$/ { /^    }$/a\
     // Alice patch end 0065
 ; }' "$path16"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void RenderWidgetHostViewAndroid::SetNeedsBeginFrameForFlingProgress() {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
@@ -202,13 +183,11 @@ void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
 // Alice patch end 0065
 ;}' "$path9"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  void SetImeViewportTranslation(float translation_y);$/a\
   // Alice patch start 0065\
   void SetImeViewportTouchTranslation(float translation_y);\
   // Alice patch end 0065' "$path8"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void RenderWidgetHostViewAndroid::SetImeViewportTranslation($/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
@@ -221,7 +200,6 @@ void RenderWidgetHostViewAndroid::SetImeViewportTouchTranslation(\
 // Alice patch end 0065
 ;}' "$path9"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void WebContentsAndroid::SetImeViewportTranslation(JNIEnv\* env,$/,/^}$/{/^  auto\* input_handler = web_contents_->GetFocusedFrameWidgetInputHandler();$/i\
   // Alice patch start 0065\
   if (auto* rwhva = GetRenderWidgetHostViewAndroid())\
@@ -244,20 +222,17 @@ bool RenderWidgetHostViewAndroid::OnTouchEvent(\
       adjusted_event ? *adjusted_event : original_event;\
   // Alice patch end 0065' "$path9"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^#include "ui\/gfx\/geometry\/size_conversions.h"$/a\
 // Alice patch start 0065\
 #include "ui/gfx/geometry/transform.h"\
 // Alice patch end 0065' "$path9"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    void scrollFocusedEditableNodeIntoView();$/a\
     // Alice patch start 0065\
     /** Scrolls the focused editable node for an IME animation frame. */\
     default void scrollFocusedEditableNodeIntoViewForIme() {}\
     // Alice patch end 0065' "$path4"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^    }$/a\
 \
     // Alice patch start 0065\
@@ -270,13 +245,11 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^  
     // Alice patch end 0065
 ;}' "$path1"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^static constexpr base::TimeDelta kScrollAndScaleAnimationDuration =$/,/^    base::Milliseconds(200);$/c\
 // Alice patch start 0065\
 // Focus scrolling is driven by Android IME visual viewport animation.\
 // Alice patch end 0065' "$path10"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  if (need_animation) {$/,/^  }$/c\
   if (need_animation) {\
     // Alice patch start 0065\
@@ -284,14 +257,12 @@ sed -i '/^  if (need_animation) {$/,/^  }$/c\
     // Alice patch end 0065\
   }' "$path10"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  void SetLocation($/,/^      mojom::blink::ScrollType = mojom::blink::ScrollType::kProgrammatic);$/ { /^      mojom::blink::ScrollType = mojom::blink::ScrollType::kProgrammatic);$/a\
   // Alice patch start 0065\
   void SetImeScrollOffset(float offset_y);\
   // Alice patch end 0065
 ; }' "$path11"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void VisualViewport::SetLocation(const gfx::PointF\& new_location,$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
@@ -324,7 +295,6 @@ void VisualViewport::SetImeScrollOffset(float offset_y) {\
 // Alice patch end 0065
 ;}' "$path12"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^  void Pan(const gfx::Vector2dF\& delta);$/a\
 \
   // Alice patch start 0065\
@@ -332,7 +302,6 @@ sed -i '/^  void Pan(const gfx::Vector2dF\& delta);$/a\
   void SetInnerViewportOffsetUnclamped(float offset_y);\
   // Alice patch end 0065' "$path13"
 
-# 执行对应的 IME visual viewport 源码修改。
 sed -i '/^void Viewport::Pan(const gfx::Vector2dF\& delta) {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\

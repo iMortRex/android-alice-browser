@@ -1,5 +1,5 @@
 #!/bin/bash
-# NTP：地址栏在底部时，工具栏留白从顶部挪到底部
+# NTP：记录工具栏位置，并在工具栏位于底部时增加底部 inset
 
 set -e
 
@@ -23,7 +23,6 @@ sed -i '/^    static final WritableIntPropertyKey TOP_INSET_PX = new WritableInt
     static final WritableIntPropertyKey BOTTOM_INSET_PX = new WritableIntPropertyKey();\
     // Alice patch end 0008' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        TOP_INSET_PX,$|        // Alice patch start 0008\n        TOP_INSET_PX,\n        BOTTOM_INSET_PX,\n        // Alice patch end 0008|' "$path1"
 
 # --- 2) ViewBinder：新增分支写 paddingBottom ---
@@ -32,7 +31,6 @@ sed -i '/^import static org\.chromium\.chrome\.browser\.ntp\.NewTabPageLayoutPro
 import static org.chromium.chrome.browser.ntp.NewTabPageLayoutProperties.BOTTOM_INSET_PX;\
     // Alice patch end 0008' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        } else if (TRANSITION_Y == key) {$/i\
         // Alice patch start 0008\
         } else if (BOTTOM_INSET_PX == key) {\
@@ -49,13 +47,11 @@ sed -i '/^    private int mTopInset;$/a\
     private boolean mToolbarOnBottom;\
     // Alice patch end 0008' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int toolbarHeightNoShadow =$/,/^        mModel.set(NewTabPageLayoutProperties.TOP_INSET_PX, toolbarHeightNoShadow + mTopInset);$/c\
         // Alice patch start 0008\
         updateToolbarInsets();\
         // Alice patch end 0008' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '$i\
     // Alice patch start 0008\
     void setToolbarOnBottom(boolean toolbarOnBottom) {\
@@ -82,7 +78,6 @@ sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserContro
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
     // Alice patch end 0008' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    \/\*\* Allows clients to listen for updates to the scroll changes of the search box on the NTP\. \*\/$/i\
     // Alice patch start 0008\
     @Override\

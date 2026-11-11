@@ -17,12 +17,10 @@ sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0061' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
 // Alice patch start 0061\
 import java.util.List;\
 // Alice patch end 0061' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Nullable Supplier<Integer> mToolbarColorSupplier;$/a\
     // Alice patch start 0061\
     private @Nullable InsetObserver mAliceInsetObserver;\
@@ -77,7 +75,6 @@ sed -i '/^        mBrowserControlsStateProvider\.addObserver(this);$/a\
                     mAliceImeAnimationListener);\
         }\
         // Alice patch end 0061' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            mBrowserControlsStateProvider\.removeObserver(this);$/a\
         // Alice patch start 0061\
         if (mAliceInsetObserver != null) {\
@@ -93,7 +90,6 @@ sed -i '/^import androidx\.annotation\.ColorInt;$/a\
 import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0061' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateNavBarColors() {$/i\
     // Alice patch start 0061\
     private boolean isAliceImeVisible() {\
@@ -109,22 +105,18 @@ sed -i '/^    private void updateNavBarColors() {$/i\
     }\
     // Alice patch end 0061\
 ' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int windowNavColor = mIsActivityEdgeToEdge ? Color\.TRANSPARENT : mNavBarColor;$/c\
         // Alice patch start 0061\
         boolean aliceImeVisible = isAliceImeVisible();\
         int windowNavColor =\
                 aliceImeVisible ? mNavBarColor : Color.TRANSPARENT;\
         // Alice patch end 0061' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int windowNavDividerColor = mIsActivityEdgeToEdge ? Color\.TRANSPARENT : mNavBarDividerColor;$/c\
         // Alice patch start 0061\
         int windowNavDividerColor =\
                 aliceImeVisible ? mNavBarDividerColor : Color.TRANSPARENT;\
         // Alice patch end 0061' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        mWindowColorHelper\.setNavigationBarContrastEnforced(!mIsActivityEdgeToEdge);$|        // Alice patch start 0061\n        mWindowColorHelper.setNavigationBarContrastEnforced(false);\n        // Alice patch end 0061|' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mWindowColorHelper.setNavigationBarContrastEnforced(false);$/a\
         // Alice patch start 0061\
         if (aliceImeVisible) {\

@@ -22,7 +22,6 @@ sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRight
     private boolean mAliceHideControlView;\
     // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getNativePage() : null;$/i\
         // Alice patch start 0022\
         Tab aliceSwipeSourceTab = model.getTabAtChecked(fromIndex);\
@@ -40,10 +39,8 @@ sed -i '/^        NativePage nativePage = (currentTab != null) ? currentTab.getN
         }\
         // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        layoutTab\.setShowToolbar(mMoveToolbar);$|        // Alice patch start 0022\n        layoutTab.setShowToolbar(mMoveToolbar \&\& !mAliceDisableCompositorToolbar);\n        // Alice patch end 0022|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (mLeftToolbarOverlay != null) {$/,/^            }$/c\
             // Alice patch start 0022\
             if (mLeftToolbarOverlay != null) {\
@@ -57,7 +54,6 @@ sed -i '/^            if (mLeftToolbarOverlay != null) {$/,/^            }$/c\
             }\
             // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (mRightToolbarOverlay != null) {$/,/^            }$/c\
             // Alice patch start 0022\
             if (mRightToolbarOverlay != null) {\
@@ -88,25 +84,22 @@ sed -i '/^    public boolean forceHideBrowserControlsAndroidView() {$/,/^    }$/
     }\
     // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        super\.doneHiding();$/a\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void init() {$/a\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        super\.destroy();$/i\
         // Alice patch start 0022\
         restoreAliceControlView();\
         // Alice patch end 0022' "$path1"
 
-# D) 底置工具栏横滑时，让页面内容向下延伸 1px 覆盖工具栏顶部缝隙。
+# D) 底置工具栏横滑时，将页面内容向下拉伸 8px，覆盖工具栏顶部接缝。
 sed -i '/^    public void update(@Nullable LayoutTab tab, boolean isLeftTab, int backgroundColor) {$/,/^    }$/c\
     // Alice patch start 0022\
     public void update(\
@@ -133,7 +126,6 @@ sed -i '/^    public void update(@Nullable LayoutTab tab, boolean isLeftTab, int
     }\
     // Alice patch end 0022' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        void updateLayer($/,/^                float y);$/c\
         // Alice patch start 0022\
         void updateLayer(\
@@ -144,27 +136,21 @@ sed -i '/^        void updateLayer($/,/^                float y);$/c\
                 int defaultBackgroundColor,\
                 float x,\
                 float y,\
-                // Alice patch start 0022\
                 float stretchDownHeight,\
                 float stretchPx);\
         // Alice patch end 0022' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mSceneLayer\.update(mLeftTab, true, backgroundColor);$|            // Alice patch start 0022\n            float stretchDownHeight =\n                    mBrowserControlsVisibilityManager.getControlsPosition()\n                                    == BrowserControlsStateProvider.ControlsPosition.BOTTOM\n                            ? contentViewport.height()\n                                    * getContext().getResources().getDisplayMetrics().density\n                            : 0f;\n            float stretchPx =\n                    stretchDownHeight > 0\n                            ? ALICE_TOOLBAR_SWIPE_VERTICAL_STRETCH_PX\n                            : 0f;\n            // Alice patch end 0022\n            // Alice patch start 0022\n            mSceneLayer.update(\n                    mLeftTab, true, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mSceneLayer\.update(mRightTab, false, backgroundColor);$|            // Alice patch start 0022\n            mSceneLayer.update(\n                    mRightTab, false, backgroundColor, stretchDownHeight, stretchPx);\n            // Alice patch end 0022|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^#include "ui\/gfx\/geometry\/size.h"$/a\
 // Alice patch start 0022\
 #include "ui/gfx/geometry/transform.h"\
 // Alice patch end 0022' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^                                         float y) {$|                                         float y,\n                                         // Alice patch start 0022\n                                         float stretch_down_height,\n                                         float stretch_px) {\n  // Alice patch end 0022|' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^  content_layer->layer()->SetPosition(gfx::PointF(x, y));$/a\
   // Alice patch start 0022\
   content_layer->layer()->SetTransformOrigin(gfx::PointF());\
@@ -176,5 +162,4 @@ sed -i '/^  content_layer->layer()->SetPosition(gfx::PointF(x, y));$/a\
   }\
   // Alice patch end 0022' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^                   float y);$|                   float y,\n                   // Alice patch start 0022\n                   float stretch_down_height,\n                   float stretch_px);\n  // Alice patch end 0022|' "$path4"

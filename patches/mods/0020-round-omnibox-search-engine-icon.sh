@@ -1,5 +1,5 @@
 #!/bin/bash
-# 地址栏/搜索框里的搜索引擎图标：2dp 圆角
+# 地址栏/搜索框里的搜索引擎图标：6dp 圆角
 
 set -e
 
@@ -13,11 +13,11 @@ if grep -q 'Alice patch start 0020' "$path1"; then
     exit 100
 fi
 
-# 1) 半径 dimen 改成 6dp（只有状态栏图标在用）
+# 1) 非桌面状态图标圆角半径改为 6dp
 sed -i 's|^\( *\)<dimen name="omnibox_search_engine_logo_composed_half_size">12dp</dimen>$|\1<!-- Alice patch start 0020 -->\n\1<dimen name="omnibox_search_engine_logo_composed_half_size">6dp</dimen>\n\1<!-- Alice patch end 0020 -->|' "$path2"
 
 # 2) beginInput 里统一成同一个 dimen
 sed -i 's|^                mResourceProvider\.getStatusIconCornerRadiusRes(/\* focused= \*/ true));$|                // Alice patch start 0020\n                R.dimen.omnibox_search_engine_logo_composed_half_size);\n                // Alice patch end 0020|' "$path3"
 
 # 3) StatusView：启用 outline provider，否则图标是方的
-sed -i 's|^        mIconView\.setClipToOutline(true);$|        // Alice patch start 0020\n        // Alice: round-search-engine-icon -- 2dp 圆角（启用 outline provider，否则图标是方的）。\n        mIconView.setOutlineProvider(mIconCornerRadiusProvider);\n        mIconView.setClipToOutline(true);\n        // Alice patch end 0020|' "$path1"
+sed -i 's|^        mIconView\.setClipToOutline(true);$|        // Alice patch start 0020\n        // Alice: round-search-engine-icon -- 6dp 圆角（启用 outline provider，否则图标是方的）。\n        mIconView.setOutlineProvider(mIconCornerRadiusProvider);\n        mIconView.setClipToOutline(true);\n        // Alice patch end 0020|' "$path1"

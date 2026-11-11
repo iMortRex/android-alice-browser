@@ -93,7 +93,6 @@ sed -i '/^import android\.graphics\.Rect;$/a\
 // Alice patch start 0057\
 import android.graphics.drawable.Drawable;\
 // Alice patch end 0057' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int animatingHeight =$/,/^                        : Math\.max(0, bottomControlsHeight - bottomMargin);$/c\
         // Alice patch start 0057\
         int aliceToolbarHeight = toolbarView == null ? 0 : toolbarView.getHeight();\
@@ -106,9 +105,7 @@ sed -i '/^        int animatingHeight =$/,/^                        : Math\.max(
                                 ? Math.max(0, aliceToolbarHeight)\
                                 : Math.max(0, bottomControlsHeight - bottomMargin);\
         // Alice patch end 0057' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            fakeViewParams\.bottomMargin = bottomMargin;$|            // Alice patch start 0057\n            fakeViewParams.bottomMargin =\n                    aliceUseBottomToolbarGeometry ? 0 : bottomMargin;\n            // Alice patch end 0057|' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            @ColorInt$/,/^            mFakeBottomControlsView\.setBackgroundColor(onSurfaceColor);$/c\
             // Alice patch start 0057\
             Drawable aliceToolbarDrawable =\
@@ -169,7 +166,6 @@ sed -i '/^    protected boolean shouldDrawHairline() {$/,/^    }$/c\
         // Alice patch end 0057\
     }' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        updateLayoutParamsForMultiline();$/a\
         // Alice patch start 0057\
         if (mBrowserControlsStateProvider != null\

@@ -17,14 +17,12 @@ sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0058\
 import android.app.Activity;\
 // Alice patch end 0058' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import androidx\.annotation\.ColorInt;$/a\
 // Alice patch start 0058\
 import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0058' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
 // Alice patch start 0058\
 import java.util.List;\
@@ -72,7 +70,7 @@ sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(Lay
 sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     // Alice patch start 0058\
     private void updateScrimBottomMargin() {\
-        // Alice patch start 0033\
+        // Alice patch start 0058\
         if (!isBottomToolbarActive()) {\
             updateScrimBottomMargin(0);\
             return;\
@@ -95,11 +93,11 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
             }\
             return;\
         }\
-        // Alice patch end 0033\
+        // Alice patch end 0058\
     }\
 \
     private void updateScrimBottomMargin(int bottomMargin) {\
-        // Alice patch start 0039\
+        // Alice patch start 0058\
         int aliceSearchBoxTopInset = 0;\
         if (mScrimShown) {\
             aliceSearchBoxTopInset =\
@@ -108,7 +106,7 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
                             mBottomControlsStacker.getHeightFromLayerToBottom(\
                                     LayerType.BOTTOM_TOOLBAR));\
         }\
-        // Alice patch end 0039\
+        // Alice patch end 0058\
         mScrimModel.set(\
                 ScrimProperties.BOTTOM_MARGIN,\
                 Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
@@ -125,14 +123,14 @@ sed -i '/^    public void setVisibility(boolean shouldShow, boolean animate) {$/
         if (shouldShow) {\
             mScrimManager.showScrim(mScrimModel);\
         } else {\
-            // Alice patch start 0039\
+            // Alice patch start 0058\
             int aliceToolbarTopInset =\
                     Math.max(\
                             0,\
                             mBottomControlsStacker.getHeightFromLayerToBottom(\
                                     LayerType.BOTTOM_TOOLBAR));\
             mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, aliceToolbarTopInset);\
-            // Alice patch end 0039\
+            // Alice patch end 0058\
             mScrimManager.hideScrim(mScrimModel, animate);\
         }\
 \
@@ -146,7 +144,6 @@ sed -i '/^    private boolean mIsXrFsm;$/a\
     // Alice patch start 0058\
     private boolean mIsUrlBarFocusedForSceneLayer;\
     // Alice patch end 0058' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public int getPrimaryColor() {$/,/^    }$/c\
     public int getPrimaryColor() {\
         return mLocationBarModel.getPrimaryColor();\
@@ -174,13 +171,11 @@ sed -i '/^    private void updateToolbarSceneLayerSuppression() {$/i\
     // Alice patch end 0058\
 \
 ' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mSuppressToolbarSceneLayerSupplier\.set(mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow);$/c\
         // Alice patch start 0058\
         mSuppressToolbarSceneLayerSupplier.set(\
                 mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrlBarFocusedForSceneLayer);\
         // Alice patch end 0058' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mToolbar\.onUrlFocusChange(hasFocus);$/c\
         // Alice patch start 0058\
         mIsUrlBarFocusedForSceneLayer = hasFocus;\
@@ -195,17 +190,16 @@ sed -i '/^    private boolean mControlsResizeView;$/a\
     private int mAliceNavigationBarInset;\
     private int mAliceNavigationBarWidth;\
     // Alice patch end 0058' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeightInset;$/c\
         // Alice patch start 0058\
         if (mAliceNavigationBarWidth != getWidth()) {\
             mAliceNavigationBarWidth = getWidth();\
-            // Alice patch start 0042\
+            // Alice patch start 0058\
             mAliceNavigationBarInset =\
                     FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
                     ? mAliceExitFrozenNavigationBarHeight\
                     : 0;\
-            // Alice patch end 0042\
+            // Alice patch end 0058\
         }\
         View aliceRoot = getRootView();\
         android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\
@@ -250,14 +244,14 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
                 int aliceToolbarHairlineHeight =\
                         getResources()\
                                 .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
-                // Alice patch start 0042\
+                // Alice patch start 0058\
                 aliceBottomControlsInset =\
                         Math.max(\
                                 aliceToolbarHeight\
                                         + aliceToolbarHairlineHeight\
                                         + mAliceNavigationBarInset,\
                                 mBrowserControlsManager.getBottomControlsHeight());\
-                // Alice patch end 0042\
+                // Alice patch end 0058\
             } else {\
                 if (!mBrowserControlsManager.hasHidingTokens()) {\
                     aliceBottomControlsInset =\
@@ -272,7 +266,7 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
             }\
         }\
         int verticalViewportInsets;\
-        // Alice patch start 0042\
+        // Alice patch start 0058\
         if (aliceInFullscreen\
                 \&\& (FullscreenManager.FullscreenTransitionState\
                                 .isViewportSyncEnabled()\
@@ -287,5 +281,5 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
                             + aliceBottomControlsInset\
                             + webContentsHeightInset;\
         }\
-        // Alice patch end 0042\
+        // Alice patch end 0058\
         // Alice patch end 0058' "$path3"

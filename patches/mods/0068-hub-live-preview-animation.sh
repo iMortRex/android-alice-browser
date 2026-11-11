@@ -17,12 +17,10 @@ sed -i '/^import android\.util\.Size;$/a\
 // Alice patch start 0068\
 import java.util.function.Supplier;\
 // Alice patch end 0068' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final int mBottomMargin;$/a\
     // Alice patch start 0068\
     private @Nullable Supplier<@Nullable Rect> mLiveCardRectSupplier;\
     // Alice patch end 0068' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    \/\*\* Returns whether to use the fallback animation\. \*\/$/,/^    }$/c\
     public boolean shouldUseFallbackAnimation() {\
         return mUseFallbackAnimation;\
@@ -76,7 +74,6 @@ sed -i '/^import java\.util\.function\.DoubleConsumer;$/a\
 // Alice patch start 0068\
 import java.util.function.Supplier;\
 // Alice patch end 0068' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        Interpolator interpolator = getInterpolator(mAnimationType);$/a\
         // Alice patch start 0068\
         shrinkExpandAnimator.addUpdateListener(\
@@ -106,18 +103,15 @@ sed -i '/^        Interpolator interpolator = getInterpolator(mAnimationType);$/
         mHubContainerView.getViewTreeObserver().addOnPreDrawListener(mAlicePreDrawListener);\
         // Alice patch end 0068
 ' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.View;$/a\
 // Alice patch start 0068\
 import android.view.ViewTreeObserver;\
 // Alice patch end 0068' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean mLayoutSatisfied;$/a\
     // Alice patch start 0068\
     private float mAliceLiveFraction;\
     private ViewTreeObserver.@Nullable OnPreDrawListener mAlicePreDrawListener;\
     // Alice patch end 0068' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void resetState() {$/a\
         // Alice patch start 0068\
         if (mAlicePreDrawListener != null) {\
@@ -142,7 +136,6 @@ sed -i '/^                        mShrinkExpandImageView\.setVisibility(View\.VI
                             }\
                         }\
                         // Alice patch end 0068' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mShrinkExpandImageView\.resetKeepingBitmap(animationData\.getFinalRect());$/c\
                         // Alice patch start 0068\
                         Rect aliceEndRect = animationData.getFinalRect();\

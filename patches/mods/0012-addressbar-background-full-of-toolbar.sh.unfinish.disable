@@ -19,5 +19,5 @@ sed -i 's|^\( *\)mLocationBarBackgroundBounds\.right + mLocationBarBackgroundNtp
 sed -i 's|^\( *\)mActiveLocationBarBackgroundView\.setTranslationX(rect\.left);$|\1// Alice patch start 0012\n\1mActiveLocationBarBackgroundView.setTranslationX(0);   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
 sed -i 's|^\( *\)lp\.width = rect\.right - rect\.left;$|\1// Alice patch start 0012\n\1lp.width = getMeasuredWidth();   // 背景铺满\n\1// Alice patch end 0012|' "$path1"
 
-# 3) 底部工具条按钮组也参与 RTL 翻转
+# 3) 左侧按钮组也参与 RTL 翻转
 sed -i 's#^\( *\)return (child == mHomeButton) \^ LocalizationUtils\.isLayoutRtl();$#\1// Alice patch start 0012\n\1return (child == mHomeButton \|\| child == findViewById(R.id.left_toolbar_buttons)) ^ LocalizationUtils.isLayoutRtl();\n\1// Alice patch end 0012#' "$path1"

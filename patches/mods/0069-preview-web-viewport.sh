@@ -11,21 +11,19 @@ if grep -q 'Alice patch start 0069' "$path1"; then
     exit 100
 fi
 
-# 3) 预览网页强制使用可参与普通 View 合成的 TextureView
+# 1) 预览网页强制使用可参与普通 View 合成的 TextureView
 sed -i '/^import android\.view\.LayoutInflater;$/a\
 // Alice patch start 0069\
 import android.view.MotionEvent;\
 // Alice patch end 0069\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewTreeObserver;$/a\
 // Alice patch start 0069\
 import android.view.WindowInsets;\
 // Alice patch end 0069\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import androidx\.annotation\.StringRes;$/a\
 // Alice patch start 0069\
 import androidx.core.view.WindowInsetsCompat;\
@@ -70,7 +68,6 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/i\
     // Alice patch end 0069\
 \
 ' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
     // Alice patch start 0069\
     private static final String ALICE_EXTENSION_FIT_SCRIPT =\
@@ -165,7 +162,6 @@ sed -i '/^    private static final float FULL_HEIGHT_RATIO = 0\.9f;$/a\
     // Alice patch end 0069\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mThinWebView =$/i\
         // Alice patch start 0069\
         ThinWebViewConstraints constraints = new ThinWebViewConstraints();\
@@ -189,20 +185,17 @@ sed -i '/^        mThinWebView =$/i\
         // Alice patch end 0069\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private ViewGroup mSheetContentView;$/a\
     // Alice patch start 0069\
     private FrameLayout mContentViewport;\
     private int mLastSheetHeight;\
     // Alice patch end 0069' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    @EnsuresNonNull({"mThinWebView", "mSheetContentView"})$/c\
     // Alice patch start 0069\
     @EnsuresNonNull({"mThinWebView", "mSheetContentView", "mContentViewport"})\
     // Alice patch end 0069' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mContext,$/,/^                        \/\* enablePermissionRequests= \*\/ false);$/c\
                         // Alice patch start 0069\
                         mContext,\
@@ -211,7 +204,6 @@ sed -i '/^                        mContext,$/,/^                        \/\* ena
                         /* enablePermissionRequests= */ false);\
                         // Alice patch end 0069' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void createThinWebView(int maxSheetHeight, IntentRequestTracker intentRequestTracker) {$/i\
     // Alice patch start 0069\
     void applyExtensionViewportConstraint() {\
@@ -236,7 +228,6 @@ sed -i '/^    private void createThinWebView(int maxSheetHeight, IntentRequestTr
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        \.build());$/a\
 \
         // Alice patch start 0069\
@@ -250,7 +241,7 @@ sed -i '/^                        \.build());$/a\
                 });\
         // Alice patch end 0069' "$path1"
 
-# 4) 在标题栏下方建立独立裁剪视口，网页只在该范围内绘制
+# 2) 在标题栏下方建立独立裁剪视口，网页只在该范围内绘制
 sed -i '/^        mSheetContentView = new FrameLayout(mContext);$/,/^        mSheetContentView.addView(mThinWebView.getView());$/c\
         // Alice patch start 0069\
         mSheetContentView = new FrameLayout(mContext);\
@@ -275,7 +266,7 @@ sed -i '/^        mSheetContentView = new FrameLayout(mContext);$/,/^        mSh
         mSheetContentView.addView(mContentViewport);\
         // Alice patch end 0069' "$path1"
 
-# 5) 固定视口尺寸，并在当前遍历中完成布局，拖动时只平移面板
+# 3) 固定视口尺寸，并在当前遍历中完成布局，拖动时只平移面板
 sed -i '/^    void updateContentHeight(int maxViewHeight) {$/i\
     // Alice patch start 0069\
     private void ensureAliceWebViewStableHeight(int contentHeight) {\
@@ -290,7 +281,6 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/i\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
     // Alice patch start 0069\
     void updateContentHeight(int maxViewHeight) {\
@@ -329,10 +319,10 @@ sed -i '/^    void updateContentHeight(int maxViewHeight) {$/,/^    }$/c\
                 aliceToolbarHeight + aliceContentHeight);\
         ViewUtils.requestLayout(mSheetContentView, "Alice preview fixed viewport");\
     }\
+    // Alice patch end 0069\
 \
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
     // Alice patch start 0069\
     private int getToolbarHeight() {\
@@ -344,7 +334,6 @@ sed -i '/^    private int getToolbarHeight() {$/,/^    }$/c\
     }\
     // Alice patch end 0069' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private int getMaxSheetHeight(int maxViewHeight) {$/,/^    }$/c\
     // Alice patch start 0069\
     private int getAliceNavigationBarInset() {\
@@ -364,7 +353,7 @@ sed -i '/^    private int getMaxSheetHeight(int maxViewHeight) {$/,/^    }$/c\
     }\
     // Alice patch end 0069' "$path1"
 
-# 6) 预览网页在首次显示前完成标题栏测量
+# 4) 预览网页在首次显示前完成标题栏测量
 sed -i '/^        mOnToolbarCreatedCallback\.onResult(mToolbarView);$/a\
         // Alice patch start 0069\
         // The toolbar must be measured before the sheet is measured for the first time.\
@@ -380,13 +369,11 @@ sed -i '/^        mOnToolbarCreatedCallback\.onResult(mToolbarView);$/a\
         // Alice patch end 0069\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        if (navigation.hasCommitted()) {$/a\
                             // Alice patch start 0069\
                             mSheetContent.applyExtensionViewportConstraint();\
                             // Alice patch end 0069' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        if (mSheetContent != null) mSheetContent\.setProgress(progress);$/a\
                         // Alice patch start 0069\
                         if (progress >= 1f \&\& mSheetContent != null) {\
@@ -394,7 +381,6 @@ sed -i '/^                        if (mSheetContent != null) mSheetContent\.setP
                         }\
                         // Alice patch end 0069' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    @Nullable$/i\
     // Alice patch start 0069\
     @Override\

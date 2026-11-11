@@ -18,7 +18,6 @@ sed -i '/^import org\.chromium\.ui\.resources\.ResourceManager;$/a\
 import org.chromium.ui.util.ColorUtils;\
 // Alice patch end 0071' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.theme\.ToolbarThemeColorProvider;$/i\
 // Alice patch start 0071\
 import org.chromium.chrome.browser.theme.ThemeUtils;\
@@ -120,7 +119,6 @@ sed -i '/^        mOffsetTarget = MathUtils\.clamp(mOffsetStart + tx, 0, getWidt
         updateAliceToolbarThemeColor(Math.abs(mOffsetTarget) / getWidth());\
         // Alice patch end 0071' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mOffset = smoothInput(mOffset, mOffsetTarget);$/a\
         // Alice patch start 0071\
         updateAliceToolbarThemeColor(Math.abs(mOffset) / getWidth());\
@@ -136,7 +134,6 @@ sed -i 's|^        if (duration <= 0) return;$|        // Alice patch start 0071
         }\
         // Alice patch end 0071|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    mOffsetTarget = mOffset;$/a\
                     // Alice patch start 0071\
                     updateAliceToolbarThemeColor(Math.abs(mOffset) / getWidth());\

@@ -111,7 +111,6 @@ sed -i '/^    void adjustViewPosition() {$/i\
     // Alice patch end 0034\
 ' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int targetBottomMargin =$/,/^                mDefaultBottomMargin + mAdditionalBottomMarginPxSupplier\.get() + keyboardHeight;$/c\
         // Alice patch start 0034\
         int aliceBottomMargin = mDefaultBottomMargin;\
@@ -145,7 +144,6 @@ sed -i '/^import android\.content\.res\.Resources;$/a\
 import android.app.Activity;\
 // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.view\.ViewGroup;$/a\
 \
 // Alice patch start 0034\
@@ -154,20 +152,17 @@ import androidx.core.view.ViewCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.messages\.MessageContainer;$/a\
 // Alice patch start 0034\
 import org.chromium.ui.KeyboardVisibilityDelegate;\
 import org.chromium.ui.insets.InsetObserver;\
 // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.fullscreen\.BrowserControlsManager;$/a\
 // Alice patch start 0034\
 import org.chromium.chrome.browser.init.AsyncInitializationActivity;\
 // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/c\
 // Alice patch start 0034\
 import java.util.List;\
@@ -176,7 +171,6 @@ import java.util.List;\
 // Removed unused ViewUtils import.\
 // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^public class MessageContainerCoordinator implements BrowserControlsStateProvider\.Observer {$/a\
     // Alice patch start 0034\
     private final KeyboardVisibilityDelegate.KeyboardVisibilityListener\
@@ -184,7 +178,6 @@ sed -i '/^public class MessageContainerCoordinator implements BrowserControlsSta
     // Alice patch end 0034\
 ' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mContainer = container;$/a\
         // Alice patch start 0034\
         mAliceKeyboardVisibilityListener =\
@@ -196,7 +189,6 @@ sed -i '/^        mContainer = container;$/a\
         // Alice patch end 0034\
 ' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mControlsManager\.removeObserver(this);$/a\
         // Alice patch start 0034\
         KeyboardVisibilityDelegate.getInstance()\
@@ -204,7 +196,6 @@ sed -i '/^        mControlsManager\.removeObserver(this);$/a\
         // Alice patch end 0034\
 ' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onAnimationStart() {$/,/^    }$/c\
     public void onAnimationStart() {\
         // Alice patch start 0034\
@@ -212,7 +203,6 @@ sed -i '/^    public void onAnimationStart() {$/,/^    }$/c\
         // Alice patch end 0034\
     }' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onAnimationEnd() {$/,/^    }$/c\
     public void onAnimationEnd() {\
         // Alice patch start 0034\
@@ -220,10 +210,8 @@ sed -i '/^    public void onAnimationEnd() {$/,/^    }$/c\
         // Alice patch end 0034\
     }' "$path2"
 
-# 4) 在 0014 已有的工具栏底部留白之上，再增加导航栏高度。
-#    优先使用 edge_to_edge_bottom_chin 的实际高度，因为 edge-to-edge 会消费
-#    navigationBars inset。键盘可见时父容器已经缩到键盘上方，不再叠加
-#    toolbar/nav 高度，避免气泡离输入法太远。
+# 4) 在 0014 的工具栏底部留白之上叠加导航栏高度；键盘可见时取静止底部
+#    边距和动画 IME 高度的较大值，避免重复叠加。
 sed -i '/^        params\.bottomMargin =$/,/^                        res\.getDimensionPixelOffset(R\.dimen\.toolbar_height_no_shadow));$/c\
         // Alice patch start 0034\
         int aliceNavigationBarHeight = 0;\
@@ -272,13 +260,11 @@ sed -i '/^        params\.bottomMargin =$/,/^                        res\.getDim
         params.bottomMargin = aliceBottomMargin;\
         // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.components\.messages\.MessageContainer;$/a\
 // Alice patch start 0034\
 import org.chromium.ui.KeyboardVisibilityDelegate;\
 // Alice patch end 0034' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
                         // Alice patch start 0034\
                         animator -> {\
@@ -294,7 +280,7 @@ sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
                         },\
                         // Alice patch end 0034' "$path3"
 
-# 7) Snackbar 直接监听 InsetObserver 的 IME 动画，逐帧更新位置。
+# 5) Snackbar 直接监听 InsetObserver 的 IME 动画，逐帧更新位置。
 #    根 View 的动画派发模式是 DISPATCH_MODE_STOP，子 View 回调收不到。
 sed -i '/^import org\.chromium\.ui\.util\.MotionEventUtils;$/a\
 \
@@ -302,7 +288,6 @@ sed -i '/^import org\.chromium\.ui\.util\.MotionEventUtils;$/a\
 import java.util.List;\
 // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private boolean mIsAnimating;$/a\
     // Alice patch start 0034\
     private @Nullable InsetObserver mAliceInsetObserver;\
@@ -345,7 +330,6 @@ sed -i '/^    private boolean mIsAnimating;$/a\
             };\
     // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mRootContentView = activity\.findViewById(android\.R\.id\.content);$/a\
         // Alice patch start 0034\
         if (mWindowAndroid != null) {\
@@ -357,7 +341,6 @@ sed -i '/^        mRootContentView = activity\.findViewById(android\.R\.id\.cont
         }\
         // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void dismiss() {$/a\
         // Alice patch start 0034\
         if (mAliceInsetObserver != null) {\
@@ -367,16 +350,14 @@ sed -i '/^    public void dismiss() {$/a\
         }\
         // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's@^        boolean aliceImeShowing =$@        boolean aliceImeShowing = mAliceImeAnimationHeight >= 0 ||@' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            int aliceImeHeight = keyboardHeight;$/c\
             int aliceImeHeight =\
                     mAliceImeAnimationHeight >= 0\
                             ? mAliceImeAnimationHeight\
                             : keyboardHeight;' "$path1"
 
-# 8) 翻译气泡直接监听同一个 InsetObserver 动画源。
+# 6) 翻译气泡直接监听同一个 InsetObserver 动画源。
 
 sed -i '/^    private @Nullable MessageContainer mContainer;$/a\
     // Alice patch start 0034\
@@ -415,7 +396,6 @@ sed -i '/^    private @Nullable MessageContainer mContainer;$/a\
             };\
     // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mContainer = container;$/a\
         // Alice patch start 0034\
         if (mContainer.getContext() instanceof AsyncInitializationActivity) {\
@@ -431,7 +411,6 @@ sed -i '/^        mContainer = container;$/a\
         }\
         // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0034\
         if (mAliceInsetObserver != null) {\
@@ -441,15 +420,13 @@ sed -i '/^    public void destroy() {$/a\
         }\
         // Alice patch end 0034' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's@^        boolean aliceImeShowing =$@        boolean aliceImeShowing = mAliceImeAnimationHeight >= 0 ||@' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (aliceImeHeight == 0) {$/i\
             if (mAliceImeAnimationHeight >= 0) {\
                 aliceImeHeight = mAliceImeAnimationHeight;\
             }' "$path2"
 
-# 9) 动画准备阶段先停在上一帧高度，避免在 onProgress 前闪到最终位置；
+# 7) 动画准备阶段先停在上一帧高度，避免在 onProgress 前闪到最终位置；
 #    同时把动画中的底部边距钳制到键盘收起后的稳定高度。
 sed -i '/^                public void onPrepare(WindowInsetsAnimationCompat animation) {}$/c\
                 public void onPrepare(WindowInsetsAnimationCompat animation) {\
@@ -459,7 +436,6 @@ sed -i '/^                public void onPrepare(WindowInsetsAnimationCompat anim
                     mAliceImeAnimationInProgress = true;\
                     mAliceImeAnimationHeight = -1;\
                 }' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                public void onPrepare(WindowInsetsAnimationCompat animation) {}$/c\
                 public void onPrepare(WindowInsetsAnimationCompat animation) {\
                     if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) == 0) {\
@@ -469,7 +445,6 @@ sed -i '/^                public void onPrepare(WindowInsetsAnimationCompat anim
                     mAliceImeAnimationHeight = -1;\
                 }' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int aliceBottomMargin = mDefaultBottomMargin;$/,/^        int targetBottomMargin = aliceBottomMargin;$/c\
         // Alice patch start 0034\
         boolean aliceImeShowing = mAliceImeAnimationInProgress ||\
@@ -494,7 +469,6 @@ sed -i '/^        int aliceBottomMargin = mDefaultBottomMargin;$/,/^        int 
         int targetBottomMargin = aliceBottomMargin;\
         // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int aliceNavigationBarHeight = 0;$/,/^        params.bottomMargin = aliceBottomMargin;$/c\
         // Alice patch start 0034\
         int aliceNavigationBarHeight = 0;\
@@ -537,7 +511,7 @@ sed -i '/^        int aliceNavigationBarHeight = 0;$/,/^        params.bottomMar
                         : aliceRestingBottomMargin;\
         params.bottomMargin = aliceBottomMargin;\
         // Alice patch end 0034' "$path2"
-# 10) 把 IME 动画状态保存在 InsetObserver，供动画开始后才创建的
+# 8) 把 IME 动画状态保存在 InsetObserver，供动画开始后才创建的
 #     气泡读取，避免它们错过 onPrepare 后直接用最终 inset 定位。
 sed -i '/^    private boolean mIsKeyboardInOverlayMode;$/a\
     // Alice patch start 0034\
@@ -545,7 +519,6 @@ sed -i '/^    private boolean mIsKeyboardInOverlayMode;$/a\
     private int mCurrentImeAnimationHeight = -1;\
     // Alice patch end 0034' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat animation) {$/a\
                         // Alice patch start 0034\
                         if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
@@ -554,7 +527,6 @@ sed -i '/^                    public void onPrepare(WindowInsetsAnimationCompat 
                         }\
                         // Alice patch end 0034' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public WindowInsetsCompat onProgress($/,/^                        for (WindowInsetsAnimationListener listener :$/c\
                     public WindowInsetsCompat onProgress(\
                             WindowInsetsCompat windowInsetsCompat,\
@@ -567,7 +539,6 @@ sed -i '/^                    public WindowInsetsCompat onProgress($/,/^        
                         // Alice patch end 0034\
                         for (WindowInsetsAnimationListener listener :' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat animation) {$/a\
                         // Alice patch start 0034\
                         if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {\
@@ -576,7 +547,6 @@ sed -i '/^                    public void onEnd(WindowInsetsAnimationCompat anim
                         }\
                         // Alice patch end 0034' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public boolean isKeyboardInOverlayMode() {$/i\
     // Alice patch start 0034\
     public boolean isImeAnimationInProgress() {\
@@ -589,7 +559,6 @@ sed -i '/^    public boolean isKeyboardInOverlayMode() {$/i\
     // Alice patch end 0034\
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
         if (mAliceInsetObserver != null\
                 && mAliceInsetObserver.isImeAnimationInProgress()) {\
@@ -601,7 +570,6 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
             }\
         }' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
         if (mAliceInsetObserver != null\
                 && mAliceInsetObserver.isImeAnimationInProgress()) {\
@@ -612,36 +580,31 @@ sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/i\
                 mAliceImeAnimationHeight = aliceGlobalImeAnimationHeight;\
             }\
         }' "$path2"
-# 11) 非动画帧也使用 InsetObserver 保存的稳定 IME 高度，绝不直接读
+# 9) 非动画帧也使用 InsetObserver 保存的稳定 IME 高度，绝不直接读
 #     系统刚下发的最终 inset。动画结束后再把稳定高度更新为最终值。
 sed -i '/^    private int mCurrentImeAnimationHeight = -1;$/c\
     private int mCurrentImeAnimationHeight;' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^[[:space:]]*mCurrentImeAnimationHeight = -1;$/d' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^[[:space:]]*mIsImeAnimationInProgress = false;$/c\
                         mIsImeAnimationInProgress = false;\
                         mCurrentImeAnimationHeight = mLastSeenRawWindowInset != null ? mLastSeenRawWindowInset.getInsets(ime()).bottom : -1;' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/a\
                 (mAliceInsetObserver != null\
                                 && mAliceInsetObserver.getCurrentImeAnimationHeight() > 0)\
                         ||' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        boolean aliceImeShowing = mAliceImeAnimationInProgress ||$/a\
                 (mAliceInsetObserver != null\
                                 && mAliceInsetObserver.getCurrentImeAnimationHeight() > 0)\
                         ||' "$path2"
 
-# 12) 气泡首次显示前先完成定位，避免旧布局位置先绘制一帧。
+# 10) 气泡首次显示前先完成定位，避免旧布局位置先绘制一帧。
 sed -i '/^        if (mContainer\.getVisibility() != View\.VISIBLE) {$/c\
         // Alice patch start 0034\
         if (mContainer.getVisibility() == View.GONE) {\
         // Alice patch end 0034' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        WindowInsetsCompat aliceInsets = ViewCompat\.getRootWindowInsets(mContainer);$/c\
         // Alice patch start 0034\
         WindowInsetsCompat aliceInsets = ViewCompat.getRootWindowInsets(mContainer);\
@@ -649,24 +612,20 @@ sed -i '/^        WindowInsetsCompat aliceInsets = ViewCompat\.getRootWindowInse
             aliceInsets = mAliceInsetObserver.getLastRawWindowInsets();\
         }\
         // Alice patch end 0034' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void show() {$/a\
         // Alice patch start 0034\
         mContainerView.setVisibility(View.INVISIBLE);\
         // Alice patch end 0034' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        addToParent();$/a\
         // Alice patch start 0034\
         adjustViewPosition();\
         // Alice patch end 0034' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mContainerView.removeOnLayoutChangeListener(this);$/a\
                         // Alice patch start 0034\
                         adjustViewPosition();\
                         mContainerView.setVisibility(View.VISIBLE);\
                         // Alice patch end 0034' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    protected void showMessageContainer() {$/,/^    }$/c\
     protected void showMessageContainer() {\
         // Alice patch start 0034\
@@ -703,7 +662,7 @@ sed -i '/^    protected void showMessageContainer() {$/,/^    }$/c\
                 });\
         // Alice patch end 0034\
     }' "$path2"
-# 13) 所有气泡高度分支统一读取稳定 IME 高度，禁止回退到最终 raw inset。
+# 11) 所有气泡高度分支统一读取稳定 IME 高度，禁止回退到最终 raw inset。
 sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        int aliceRestingBottomMargin =$/c\
         int aliceImeHeight =\
                 mAliceImeAnimationInProgress\
@@ -716,7 +675,6 @@ sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        
                                         : 0);\
         int aliceRestingBottomMargin =' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int aliceImeHeight = mAliceImeAnimationInProgress$/,/^        int aliceBottomMargin =$/c\
         int aliceImeHeight =\
                 mAliceImeAnimationInProgress\
@@ -735,7 +693,6 @@ sed -i '/^        int aliceRestingBottomMargin =$/,/^                        + a
         int aliceRestingBottomMargin =\
                 getAliceBottomToolbarHeight() + aliceNavigationBarHeight;' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRestingBottomMargin;$/c\
         int aliceNormalSpacingAdjustment =\
                 Math.round(\
@@ -774,7 +731,7 @@ sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRes
                                 0,\
                                 aliceScreenBottomTarget - getAliceParentBottomInset());' "$path1"
 
-# 14) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
+# 12) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
 sed -i '/^        if (isKeyboardInsetTallerThanNavBar()) {$/,/^        }$/c\
         // Alice patch start 0034\
@@ -782,14 +739,13 @@ sed -i '/^        if (isKeyboardInsetTallerThanNavBar()) {$/,/^        }$/c\
         // to content padding a second time.\
         // Alice patch end 0034' "$path5"
 
-# 15) visual viewport 的高度已经基于工具栏上方的 View 高度计算，IME inset
+# 13) visual viewport 的高度已经基于工具栏上方的 View 高度计算，IME inset
 #     因此重复扣除了工具栏高度。键盘可见时补偿回工具栏高度。
 sed -i '/^import org\.chromium\.build\.annotations\.Nullable;$/a\
 // Alice patch start 0034\
 import org.chromium.chrome.R;\
 // Alice patch end 0034' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        : mCurrentInsetSupplier\.get()\.visualViewportBottomInset;$/a\
         // Alice patch start 0034\
         if (inset > 0) {\
@@ -806,7 +762,7 @@ sed -i '/^                        : mCurrentInsetSupplier\.get()\.visualViewport
         }\
         // Alice patch end 0034' "$path6"
 
-# 16) 底部工具栏在 IME 动画期间会从 minibar 切回完整工具栏。
+# 14) 底部工具栏在 IME 动画期间会从 minibar 切回完整工具栏。
 #     WebContents 如果读取动态控件高度，会跟着 minibar 重新布局并短暂绘制到底部。
 #     地址栏位于底部时固定预留 toolbar_height_no_shadow + toolbar_hairline_height，
 #     导航栏仍由后续 inset 单独叠加；地址栏位于顶部时也预留系统导航栏高度，
@@ -847,12 +803,11 @@ sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
         // Alice patch end 0034\
 ' "$path7"
 
-# 17) Hub 标签页预览（缩略图/展开动画）在 bottom_container 之后绘制，
+# 15) Hub 标签页预览（缩略图/展开动画）在 bottom_container 之后绘制，
 #     会盖住撤销气泡。把 bottom_container 移到 tab_switcher_view_holder_stub
 #     之后，让气泡位于 Hub 预览动画之上。forked 布局已经是这个顺序，无需处理。
 sed -i '/^        <org.chromium.chrome.browser.ui.BottomContainer$/{:a;N;/android:layout_gravity="start[|]bottom" \/>$/{N;d};ba}' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            android.layout="@layout\/tab_switcher_view_holder" \/>$/a\
 \
         <org.chromium.chrome.browser.ui.BottomContainer\
@@ -861,14 +816,12 @@ sed -i '/^            android.layout="@layout\/tab_switcher_view_holder" \/>$/a\
             android:layout_height="wrap_content"\
             android:layout_gravity="start|bottom" />' "$path8"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Nullable EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;$/a\
     // Alice patch start 0034\
     private @Nullable ViewGroup mAliceSnackbarRootContent;\
     private @Nullable View mAliceSnackbarContainer;\
     // Alice patch end 0034' "$path9"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0034\
         if (mAliceSnackbarRootContent != null \&\& mAliceSnackbarContainer != null) {\
@@ -878,7 +831,7 @@ sed -i '/^    public void destroy() {$/a\
         }\
         // Alice patch end 0034' "$path9"
 
-# 18) Hub 的 Snackbar 容器挂到 Activity 根层，避免进入 Hub 时被隐藏层覆盖或瞬隐。
+# 16) Hub 的 Snackbar 容器挂到 Activity 根层，避免进入 Hub 时被隐藏层覆盖或瞬隐。
 sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);$/a\
         // Alice patch start 0034\
         // Host the Hub snackbar above the Hub layer so it stays visible during layout changes.\
@@ -939,7 +892,7 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
         }\
         // Alice patch end 0034' "$path9"
 
-# 19) 撤销气泡的消失动画只移动到父容器底边。父容器 bottom_container 会被浏览器
+# 17) 撤销气泡的消失动画只移动到父容器底边。父容器 bottom_container 会被浏览器
 #     控件向上平移，所以动画停在导航栏上方。补上父容器到窗口底部的距离，并关闭
 #     父容器裁剪，让气泡一直滑出屏幕底部。
 sed -i '/^    protected int getYPositionForMoveAnimation() {$/,/^    }$/c\
@@ -958,7 +911,6 @@ sed -i '/^    protected int getYPositionForMoveAnimation() {$/,/^    }$/c\
         // Alice patch end 0034\
     }' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void addToParent() {$/,/^    }$/c\
     private void addToParent() {\
         // Alice patch start 0034\

@@ -21,7 +21,6 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0016\
 ' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/private void closeIfNoTabsAndHomepageEnabled($/,/^                        }$/c\
                         // Alice patch start 0016\
                         private void closeIfNoTabsAndHomepageEnabled(\
@@ -105,7 +104,6 @@ sed -i '/^        configureCctAlwaysOpenInBrowserSwitch();$/a\
         configureAliceOpenNewTabOnLastCloseSwitch();\
         // Alice patch end 0016' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private static boolean isTabGroupSyncAutoOpenConfigurable(Profile profile) {$/i\
     // Alice patch start 0016\
     private void configureAliceOpenNewTabOnLastCloseSwitch() {\

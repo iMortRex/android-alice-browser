@@ -21,14 +21,12 @@ sed -i '/^import org.chromium.base.ResettersForTesting;$/a\
 import org.chromium.base.shared_preferences.SharedPreferencesManager;\
 // Alice patch end 0024' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org.chromium.chrome.browser.profiles.Profile;$/i\
 // Alice patch start 0024\
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;\
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0024' "$path2"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org.chromium.chrome.browser.profiles.Profile;$/a\
 // Alice patch start 0024\
 import org.chromium.components.embedder_support.util.UrlUtilities;\

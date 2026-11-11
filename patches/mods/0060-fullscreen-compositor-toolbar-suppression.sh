@@ -86,7 +86,6 @@ sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
 // Alice patch end 0060\
 ' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int constraints = getConstraints();$/a\
         // Alice patch start 0060\
         if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()\
@@ -95,7 +94,6 @@ sed -i '/^        int constraints = getConstraints();$/a\
         }\
         // Alice patch end 0060\
 ' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateEnabledState() {$/,/^    }$/s@^        update(BrowserControlsState.BOTH, getConstraints() != BrowserControlsState.HIDDEN);$@        // Alice patch start 0060\n        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\n            update(BrowserControlsState.SHOWN, false);\n        } else {\n            update(\n                    BrowserControlsState.BOTH,\n                    getConstraints() != BrowserControlsState.HIDDEN);\n        }\n        // Alice patch end 0060@' "$path3"
 
 # BrowserControlsManager 在退出和隐藏时刷新可见性。
@@ -109,7 +107,6 @@ sed -i '/^        if (constraints == BrowserControlsState.SHOWN) {$/i\
                 scheduleVisibilityUpdate();\
             }\
             // Alice patch end 0060' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (offsetOverridden()) return true;$/i\
         // Alice patch start 0060\
         if (getFullscreenManager() != null\
@@ -125,7 +122,6 @@ sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserContro
 import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
 // Alice patch end 0060\
 ' "$path5"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void updateVisibility() {$/a\
         // Alice patch start 0060\
         if (mBrowserControlsVisibilityManager.getControlsPosition()\
@@ -136,7 +132,6 @@ sed -i '/^    private void updateVisibility() {$/a\
         }\
         // Alice patch end 0060\
 ' "$path5"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    boolean shouldBeAttachedToTree() {$/a\
         // Alice patch start 0060\
         if (mBrowserControlsVisibilityManager.getControlsPosition()\
@@ -145,18 +140,15 @@ sed -i '/^    boolean shouldBeAttachedToTree() {$/a\
         }\
         // Alice patch end 0060\
 ' "$path5"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.toolbar\.ToolbarProgressBar;$/a\
 // Alice patch start 0060\
 import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
 // Alice patch end 0060\
 ' "$path6"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        \.with(TopToolbarOverlayProperties\.VISIBLE, true)$/c\
                         // Alice patch start 0060\
                         .with(TopToolbarOverlayProperties.VISIBLE, false)\
                         // Alice patch end 0060' "$path6"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public boolean isSceneOverlayTreeShowing() {$/a\
         // Alice patch start 0060\
         if (!AddressBarPreference.isToolbarConfiguredToShowOnTop()) {\
@@ -180,7 +172,6 @@ sed -i '/^                mIsXrFsm || mIsVerticalTabsHiddenDueToNarrow || mIsUrl
                                 \&\& mLayoutStateProvider.getActiveLayoutType()\
                                         == LayoutType.HUB));\
                         // Alice patch end 0060' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
                         // Alice patch start 0060\
                         updateToolbarSceneLayerSuppression();\
@@ -188,7 +179,6 @@ sed -i '/^                        mToolbar\.onTransitionEnd();$/a\
                             mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
                         }\
                         // Alice patch end 0060' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mToolbar\.setContentAttached(layoutType == LayoutType\.BROWSING);$/a\
         // Alice patch start 0060\
         updateToolbarSceneLayerSuppression();\
@@ -196,13 +186,12 @@ sed -i '/^        mToolbar\.setContentAttached(layoutType == LayoutType\.BROWSIN
             mToolbarPositionController.requestSearchToolbarSnapshotCapture();\
         }\
         // Alice patch end 0060' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                                        false, mFullscreenHairlineToken);$/a\
                         // Alice patch start 0060\
                         FullscreenManager.FullscreenTransitionState\
                                 .setExitingFullscreen(false);\
                         updateToolbarSceneLayerSuppression();\
-                        // Alice patch start 0042\
+                        // Alice patch start 0060\
                         FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(true);\
                         if (mToolbarPositionController != null) {\
                             mToolbarPositionController.refreshAliceNavigationBarBackground();\
@@ -216,14 +205,13 @@ sed -i '/^                                        false, mFullscreenHairlineToke
                                 .isEnteringFullscreen()) {\
                             mCompositorViewHolder.applyAliceFullscreenEntryViewport();\
                         }\
-                        // Alice patch end 0042\
+                        // Alice patch end 0060\
                         // Alice patch end 0060' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                                        true, mFullscreenHairlineToken);$/a\
                         // Alice patch start 0060\
                         FullscreenManager.FullscreenTransitionState\
                                 .setExitingFullscreen(true);\
-                        // Alice patch start 0042\
+                        // Alice patch start 0060\
                         FullscreenManager.FullscreenTransitionState.setPersistentFullscreen(false);\
                         mAliceFullscreenExitReadyFrames = 0;\
                         if (mToolbarPositionController != null) {\
@@ -241,11 +229,10 @@ sed -i '/^                                        true, mFullscreenHairlineToken
                                     mCompositorViewHolder.applyAliceFullscreenExitViewport();\
                                 });\
                         updateToolbarSceneLayerSuppression();\
-                        // Alice patch end 0042\
+                        // Alice patch end 0060\
                         refreshToolbarAfterFullscreen();\
                         // Alice patch end 0060' "$path7"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            applyMarginToFullscreenChildViews(view, topViewsTranslation, bottomMargin);$/{
 n
 c\

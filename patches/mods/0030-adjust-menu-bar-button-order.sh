@@ -25,7 +25,6 @@ sed -i 's|^        // More tools|        // Alice patch start 0030\n        // �
 
 # 把页面上下文参数传进「更多工具」子菜单构建方法。
 sed -i 's|^            modelList\.add(buildMoreToolsItem(currentTab));|            modelList.add(\n                    buildMoreToolsItem(\n                            currentTab, isNativePage, isFileScheme, isContentScheme, url));|' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^    private ListItem buildMoreToolsItem(@Nullable Tab currentTab) {|    private ListItem buildMoreToolsItem(\n            @Nullable Tab currentTab,\n            boolean isNativePage,\n            boolean isFileScheme,\n            boolean isContentScheme,\n            GURL url) {|' "$path1"
 
 # 从一级菜单移除「删除浏览数据」。

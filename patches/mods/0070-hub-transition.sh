@@ -15,7 +15,7 @@ if grep -q 'Alice patch start 0070' "$path1"; then
     exit 100
 fi
 
-# 引入 Hub 动画进度常量和观察器。
+# 引入 Hub 动画进度观察器 API。
 sed -i '/^import org\.chromium\.chrome\.browser\.hub\.HubExitNavigationHelper;$/a\
 // Alice patch start 0070\
 import org.chromium.chrome.browser.hub.HubAnimationConstants;\
@@ -119,7 +119,6 @@ sed -i '/^                        if (mAnimationTracker != null) mAnimationTrack
                         notifyAliceHubAnimationProgress(0f);\
                         // Alice patch end 0070' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                            mAnimationTracker.onEnd();$/a\
                         // Alice patch start 0070\
                         notifyAliceHubAnimationProgress(1f);\
@@ -170,7 +169,6 @@ sed -i '/^        mRootView = dependencyHolder\.getHubRootView();$/a\
         }\
         // Alice patch end 0070' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mAnimationHostView = animationHostView;$/a\
         // Alice patch start 0070\
         View aliceAnimationLayer = mAnimationHostView;\
@@ -222,21 +220,18 @@ sed -i '/^    private void onBrowserControlsHeightChanged() {$/,/^    }$/{
     // Alice patch end 0070
 }' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void onBrowserControlsHeightChanged() {$/a\
         // Alice patch start 0070\
         if (aliceShouldDeferBrowserControlsViewportForHub()) return;\
         // Alice patch end 0070\
 ' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (tab == null) return;$/a\
         // Alice patch start 0070\
         if (tab == mTabVisible \&\& aliceShouldDeferBrowserControlsViewportForHub()) return;\
         // Alice patch end 0070\
 ' "$path6"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private void tryUpdateControlsAndWebContentsSizing() {$/a\
         // Alice patch start 0070\
         if (aliceShouldDeferBrowserControlsViewportForHub()) return;\

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 关闭标签页撤销和下载完成气泡时长
+# 缩短标签页撤销 Snackbar 和下载进度提示的显示时长
 
 # 目标文件路径
 path1="chrome/browser/ui/messages/android/java/src/org/chromium/chrome/browser/ui/messages/snackbar/SnackbarManager.java"
@@ -12,10 +12,8 @@ if grep -q 'Alice patch start 0002' "$path1"; then
     exit 100
 fi
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^\( *\)public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 10000;$|\1// Alice patch start 0002\n\1public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 3000;\n\1// Alice patch end 0002|' "$path1"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public long get(@MessageIdentifier int messageIdentifier, long customDuration) {$/a\
         // Alice patch start 0002\
         if (messageIdentifier == MessageIdentifier.DOWNLOAD_PROGRESS) {\

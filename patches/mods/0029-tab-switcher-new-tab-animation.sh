@@ -31,7 +31,6 @@ sed -i '/^    private final int mSearchBoxHeight;$/a\
     private boolean mSearchBoxGapEnabled = true;\
     // Alice patch end 0029' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void setThumbnailSizeForOffset(@Nullable Size thumbnailSize) {$/i\
     // Alice patch start 0029\
     public void setSearchBoxGapEnabled(boolean enabled) {\
@@ -40,7 +39,6 @@ sed -i '/^    public void setThumbnailSizeForOffset(@Nullable Size thumbnailSize
     // Alice patch end 0029\
 ' "$path4"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        mRectView, mInitialRect, finalRect, \/\* searchBoxHeight= \*\/ 0);$/a\
         // Alice patch start 0029\
         mExpandAnimator.setSearchBoxGapEnabled(false);\
@@ -48,10 +46,8 @@ sed -i '/^                        mRectView, mInitialRect, finalRect, \/\* searc
 
 # 新建标签动画四个角保持相同圆角。
 sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch start 0029\n                // 所有角保持相同圆角。\n                // Alice patch end 0029|' "$path5"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^                    startRadii\[3\] = 0;$|                    // Alice patch start 0029\n                    startRadii[3] = radius;\n                    // Alice patch end 0029|' "$path5"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        int\[\] cornerRadii;$/,/^        }$/c\
         // Alice patch start 0029\
         int[] cornerRadii =\

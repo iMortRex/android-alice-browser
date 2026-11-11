@@ -21,31 +21,26 @@ sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserContro
 // Alice patch start 0055\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
 // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.util\.ColorUtils;$/a\
 // Alice patch start 0055\
 import java.util.function.Supplier;\
 // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        implements BottomAttachedUiObserver\.Observer, NavigationBarColorProvider {$/c\
         // Alice patch start 0055\
         implements BottomAttachedUiObserver.Observer, NavigationBarColorProvider,\
                 BrowserControlsStateProvider.Observer {\
         // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final BottomAttachedUiObserver mBottomAttachedUiObserver;$/a\
     // Alice patch start 0055\
     private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;\
     private @Nullable Supplier<Integer> mToolbarColorSupplier;\
     // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^[[:space:]]*insetObserver));$/a\
         // Alice patch start 0055\
         mBrowserControlsStateProvider = browserControlsStateProvider;\
         mBrowserControlsStateProvider.addObserver(this);\
         updateNavigationBarColor();\
         // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    \/\*\* Destroy this {@link TabbedNavigationBarColorController} instance\. \*\/$/i\
     // Alice patch start 0055\
     void setToolbarColorSupplier(Supplier<Integer> toolbarColorSupplier) {\
@@ -54,7 +49,6 @@ sed -i '/^    \/\*\* Destroy this {@link TabbedNavigationBarColorController} ins
     }\
     // Alice patch end 0055\
 ' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (mTabModelSelector != null) {$/i\
         // Alice patch start 0055\
         if (mBrowserControlsStateProvider != null) {\
@@ -63,7 +57,6 @@ sed -i '/^        if (mTabModelSelector != null) {$/i\
         }\
         // Alice patch end 0055\
 ' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        return ColorUtils\.overlayColor(color, mCurrentScrimColor);$/{
 n
 a\
@@ -75,13 +68,11 @@ a\
     }\
     // Alice patch end 0055
 }' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                applyCurrentScrimToColor(getNavigationBarColor(mForceDarkNavigationBarColor));$/a\
         // Alice patch start 0055\
         mEdgeToEdgeSystemBarColorHelper.setNavigationBarIconColor(\
                 applyCurrentScrimToColor(getNavigationBarIconColor()));\
         // Alice patch end 0055' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavigationBar) {$/i\
     // Alice patch start 0055\
     private boolean isDrawingToEdge() {\
@@ -116,14 +107,11 @@ sed -i '/^import org\.chromium\.ui\.insets\.InsetObserver;$/a\
 // Alice patch start 0055\
 import java.util.function.Supplier;\
 // Alice patch end 0055' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            InsetObserver insetObserver,$|            InsetObserver insetObserver,\n            // Alice patch start 0055\n            Supplier<Integer> toolbarColorSupplier,\n            // Alice patch end 0055|' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        edgeToEdgeSystemBarColorHelper);$/a\
         // Alice patch start 0055\
         mNavigationBarColorController.setToolbarColorSupplier(toolbarColorSupplier);\
         // Alice patch end 0055' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0055\n                        toolbarManager::getToolbarBackgroundColorForNavigationBar,\n                        // Alice patch end 0055\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path3"
 
 # 系统栏 helper 支持自定义导航栏图标颜色。
@@ -132,15 +120,12 @@ sed -i '/^import android\.view\.WindowManager;$/a\
 // Alice patch start 0055\
 import androidx.annotation.ColorInt;\
 // Alice patch end 0055' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private final boolean mCanSetTransparentStatusBarWithoutDelegate;$/a\
     // Alice patch start 0055\
     private @ColorInt int mNavigationBarIconColor;\
     private boolean mHasCustomNavigationBarIconColor;\
     // Alice patch end 0055' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        updateNavigationBarIconColor(mWindow\.getDecorView(), mNavBarColor);$|        // Alice patch start 0055\n        updateNavigationBarIconColor(\n                mWindow.getDecorView(),\n                mHasCustomNavigationBarIconColor ? mNavigationBarIconColor : mNavBarColor);\n        // Alice patch end 0055|' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    @Nullable SystemBarColorHelper getEdgeToEdgeDelegateHelperForTesting() {$/i\
     // Alice patch start 0055\
     public void setNavigationBarIconColor(@ColorInt int color) {\
@@ -166,17 +151,14 @@ sed -i '/^import android\.graphics\.Color;$/a\
 // Alice patch start 0055\
 import android.graphics.drawable.ColorDrawable;\
 // Alice patch end 0055' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BottomOverscrollHandler;$/a\
 // Alice patch start 0055\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
 // Alice patch end 0055' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private @Nullable TabbedSystemUiCoordinator mSystemUiCoordinator;$/a\
     // Alice patch start 0055\
     private int mAliceTaskDescriptionNavColor = Integer.MIN_VALUE;\
     // Alice patch end 0055' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
         // Alice patch start 0055\
         View aliceChinView = mActivity.findViewById(R.id.edge_to_edge_bottom_chin);\
@@ -190,13 +172,11 @@ sed -i '/^        mSystemBarColorHelperSupplier\.set(bottomChinColorHelper);$/a\
         }\
         // Alice patch end 0055\
 ' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^public class TabbedRootUiCoordinator extends RootUiCoordinator {$/a\
     // Alice patch start 0055\
     private @Nullable View mAliceChinView;\
     private android.view.ViewTreeObserver.@Nullable OnPreDrawListener mAliceChinColorListener;\
     // Alice patch end 0055' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void onDestroy() {$/a\
         // Alice patch start 0055\
         if (mAliceChinView != null \&\& mAliceChinColorListener != null) {\
@@ -228,14 +208,11 @@ sed -i '/^    protected void setDefaultTaskDescription() {$/,/^    }$/c\
         }\
         // Alice patch end 0055\
     }' "$path6"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        edgeToEdgeSystemBarColorHelper\.setNavigationBarColor(defaultNavigationBarColor);$|        // Alice patch start 0055\n        edgeToEdgeSystemBarColorHelper.setNavigationBarColor(android.graphics.Color.TRANSPARENT);\n        // Alice patch end 0055|' "$path6"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                                \.setBackgroundColor(opaqueBgColor)$/a\
                                 // Alice patch start 0055\
                                 .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
                                 // Alice patch end 0055' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                                \.setStatusBarColor(opaqueColor)$/a\
                                 // Alice patch start 0055\
                                 .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\

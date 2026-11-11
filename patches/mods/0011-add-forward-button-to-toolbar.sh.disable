@@ -55,7 +55,7 @@ sed -i '/^    private View mToolbarBackButton;$/a\
 // Alice patch end 0011' \
     "chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
-# 4) 初始化 + 点击前进
+# 4) 初始化前进按钮；后续可见性由工具栏状态刷新
 
 sed -i '/^            mToolbarBackButton = findViewById(R.id.back_button);$/a\
 // Alice patch start 0011\

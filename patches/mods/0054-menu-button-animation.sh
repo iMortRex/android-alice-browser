@@ -43,7 +43,6 @@ sed -i '/^TabModel::TabLaunchType GetTabLaunchType(const NavigateParams\* params
                               "chrome-extension"));\
   // Alice patch end 0054' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i '/^  \/\/ 3\. Foreground Navigation:$/i\
   // Alice patch start 0054\
   if (aliceExtensionNavigation \&\& !is_background) {\
@@ -55,7 +54,6 @@ sed -i '/^  \/\/ 3\. Foreground Navigation:$/i\
 
 # 增加右下角动画起点。
 sed -i 's|^        RectStart\.BOTTOM_CENTER$|        // Alice patch start 0054\n        RectStart.BOTTOM_CENTER,\n        RectStart.BOTTOM_RIGHT\n        // Alice patch end 0054|' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        int BOTTOM_CENTER = 5;$|        // Alice patch start 0054\n        int BOTTOM_CENTER = 5;\n        int BOTTOM_RIGHT = 6;\n        // Alice patch end 0054|' "$path4"
 
 # 右下角起点从右上角开始，再向左上铺满。

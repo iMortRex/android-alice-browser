@@ -54,7 +54,7 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/a\
         // Alice patch end 0064\
 ' "$path9"
 
-# 23) 将 IME 逐帧位移投递到 compositor 线程，只 pan visual viewport。
+# 将 IME 逐帧位移投递到 compositor 线程，只 pan visual viewport。
 #     不进入 Blink scroll/layout，也不平移 Android ContentView。
 # 为 Proxy 接口补充几何类型 include。
 sed -i '/^#include "services\/metrics\/public\/cpp\/ukm_source_id.h"$/a\

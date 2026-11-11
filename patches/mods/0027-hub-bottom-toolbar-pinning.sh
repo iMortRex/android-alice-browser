@@ -19,7 +19,6 @@ sed -i '/^import android\.widget\.FrameLayout;$/i\
 import android.view.View;\
 import android.view.ViewParent;\
 // Alice patch end 0027' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.animation\.RunOnNextLayout;$/i\
 // Alice patch start 0027\
 import org.chromium.build.annotations.Nullable;\

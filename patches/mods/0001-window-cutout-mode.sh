@@ -70,7 +70,7 @@ sed -i '/^    protected void onStart() {$/i\
 # 修正新方法插入后错误保留在方法上的 @Override 注解。
 sed -i '/^    @Override$/{N;/^    @Override\n    \/\/ Alice patch start 0001$/s/^    @Override\n//}' "$path2"
 
-# 首次启动后同步一次挖孔模式。
+# 配置变化后重新应用挖孔模式。
 sed -i '/^        super\.onConfigurationChanged(newConfig);$/a\
         // Alice patch start 0001\
         updateAliceDisplayCutoutMode(newConfig);\
@@ -83,18 +83,15 @@ sed -i 's|^        Insets cutout = windowInsets\.getInsets(Type\.displayCutout()
                 WindowInsetsUtils.shouldPadDisplayCutout(windowInsets, mContext);\
         // Alice patch end 0001|' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        if (WindowInsetsUtils\.shouldPadDisplayCutout(windowInsets, mContext)) {$|        // Alice patch start 0001\
         if (shouldPadDisplayCutout) {\
         // Alice patch end 0001|' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mView\.setDisplayCutoutInsetLeft(cutout\.left > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
             mView.setDisplayCutoutInsetLeft(\
                     shouldPadDisplayCutout \&\& cutout.left > 0 ? cutout : Insets.NONE);\
             // Alice patch end 0001|' "$path3"
 
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^            mView\.setDisplayCutoutInsetRight(cutout\.right > 0 ? cutout : Insets\.NONE);$|            // Alice patch start 0001\
             mView.setDisplayCutoutInsetRight(\
                     shouldPadDisplayCutout \&\& cutout.right > 0 ? cutout : Insets.NONE);\

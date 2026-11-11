@@ -16,11 +16,8 @@ fi
 
 # 重排图标行：去掉后退和页面信息，下载改为「下载内容」，新增「扩展」。
 sed -i '/^            if (ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled()) {$/,/^            }$/d' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            iconModels\.add(buildDownloadActionModel(currentTab));$/d' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (!ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled()) {$/,/^$/d' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            iconModels\.add(buildBookmarkActionModel(currentTab));$/a\
             // Alice patch start 0026\
             // 下载此网页 → 下载内容\
@@ -46,12 +43,10 @@ sed -i '/^import android\.view\.View;$/i\
 // Alice patch start 0026\
 import android.view.LayoutInflater;\
 // Alice patch end 0026' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import android\.widget\.ListView;$/i\
 // Alice patch start 0026\
 import android.widget.LinearLayout;\
 // Alice patch end 0026' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.modelutil\.PropertyModel;$/a\
 // Alice patch start 0026\
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;\
@@ -82,9 +77,7 @@ sed -i '/^        mAppMenu\.show($/i\
         }\
         // Alice patch end 0026\
 ' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^                mDelegate\.buildFooterView(this),$|                // Alice patch start 0026\n                footer,\n                // Alice patch end 0026|' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        if (mModelList == null || mModelList\.isEmpty()) return false;$/,/^        return mModelList\.get(0)\.type != AppMenuItemType\.BUTTON_ROW;$/c\
         // Alice patch start 0026\
         return false;\

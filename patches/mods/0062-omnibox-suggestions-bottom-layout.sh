@@ -42,9 +42,7 @@ sed -i '/^    void setToolbarOnBottom(boolean toolbarOnBottom) {$/,/^    }$/c\
 # 搜索页建议容器改为顶部 gravity，不再锚定顶部工具栏。
 sed -i '/^    <org\.chromium\.ui\.AsyncViewStub$/i\
     <!-- Alice patch start 0062 -->' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i 's|^        app:layout_anchor="@id/toolbar"$|        android:layout_gravity="top"|' "$path3"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        app:inflatedId="@+id\/search_activity_suggestions_container"\/>$/a\
     <!-- Alice patch end 0062 -->' "$path3"
 
@@ -62,7 +60,6 @@ sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
 import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0062' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.ui\.base\.ViewUtils;$/a\
 // Alice patch start 0062\
 import org.chromium.ui.insets.InsetObserver;\
@@ -241,12 +238,10 @@ sed -i '/^import android\.view\.ViewGroup;$/a\
 // Alice patch start 0062\
 import android.view.WindowManager;\
 // Alice patch end 0062' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.chrome\.browser\.tabwindow\.TabWindowInfo;$/a\
 // Alice patch start 0062\
 import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;\
 // Alice patch end 0062' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    protected ModalDialogManager createModalDialogManager() {$/,/^    protected void triggerLayoutInflation() {$/{
     /^    @Override$/i\
     // Alice patch start 0062\
@@ -291,7 +286,6 @@ sed -i '/^    protected ModalDialogManager createModalDialogManager() {$/,/^    
     }\
     // Alice patch end 0062
 }' "$path7"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        setContentView(contentView);$/a\
         // Alice patch start 0062\
         contentView.addOnLayoutChangeListener(\
@@ -313,7 +307,6 @@ sed -i '/^            getViewTreeObserver().addOnPreDrawListener(mStickListener)
                         mSuggestionsImeListener);\
             }\
             // Alice patch end 0062' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        getViewTreeObserver().removeOnPreDrawListener(mStickListener);$/a\
             // Alice patch start 0062\
             mAliceBottomViewportHeight = -1;\
@@ -325,7 +318,6 @@ sed -i '/^        getViewTreeObserver().removeOnPreDrawListener(mStickListener);
                 mSuggestionsInsetObserver = null;\
             }\
             // Alice patch end 0062' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0062\
         if (mSuggestionsInsetObserver != null) {\
@@ -346,18 +338,15 @@ sed -i '/^        private @Nullable Callback<Integer> mScrollOffsetListener;$/a\
             mIsScrolledToTop = !bottomAnchored;\
         }\
         // Alice patch end 0062' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (OmniboxFeatures\.sResetSuggestionsScroll\.isEnabled()) {$/c\
             // Alice patch start 0062\
             if (OmniboxFeatures.sResetSuggestionsScroll.isEnabled()\
                     \&\& !mAliceBottomAnchored) {\
             // Alice patch end 0062' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    private float mChildAlpha = 1.0f;$/a\
     // Alice patch start 0062\
     private boolean mAliceBottomAnchored;\
     // Alice patch end 0062' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void resetSelection() {$/,/^    }$/c\
     public void resetSelection() {\
         // Alice patch start 0062\
@@ -367,17 +356,14 @@ sed -i '/^    public void resetSelection() {$/,/^    }$/c\
         // Alice patch end 0062\
         mSelectionController.reset();\
     }' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            if (!mIsScrolledToTop) return;$/c\
             // Alice patch start 0062\
             if (!mIsScrolledToTop || mAliceBottomAnchored) return;\
             // Alice patch end 0062' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                int resultingDeltaY, int requestedDeltaY) {$/a\
             // Alice patch start 0062\
             if (mAliceBottomAnchored) return resultingDeltaY;\
             // Alice patch end 0062' "$path4"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^    public void translateChildrenVertical(float translation) {$/,/^    }$/c\
     public void translateChildrenVertical(float translation) {\
         mChildVerticalTranslation = translation;\
@@ -472,7 +458,6 @@ sed -i '/^            int availableViewportHeight = mOmniboxAlignment\.height;$/
             int availableViewportHeight = MeasureSpec.getSize(heightMeasureSpec);\
             if (availableViewportHeight <= 0) availableViewportHeight = mOmniboxAlignment.height;\
             // Alice patch end 0062' "$path1"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CHILD_TRANSLATION_Y) {$/,/^        } else if (propertyKey == SuggestionListProperties\.COLOR_SCHEME) {$/c\
         // Alice patch start 0062\
         } else if (propertyKey == SuggestionListProperties.CHILD_TRANSLATION_Y) {\
@@ -484,7 +469,6 @@ sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CHILD_TRAN
             view.dropdown.translateChildrenVertical(aliceTranslation);\
         // Alice patch end 0062\
         } else if (propertyKey == SuggestionListProperties.COLOR_SCHEME) {' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        } else if (propertyKey == SuggestionListProperties\.ALPHA) {$/,/^        } else if (propertyKey == SuggestionListProperties\.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {$/c\
         // Alice patch start 0062\
         } else if (propertyKey == SuggestionListProperties.ALPHA) {\
@@ -496,7 +480,6 @@ sed -i '/^        } else if (propertyKey == SuggestionListProperties\.ALPHA) {$/
             view.dropdown.setChildAlpha(aliceAlpha);\
         // Alice patch end 0062\
         } else if (propertyKey == SuggestionListProperties.APPLY_MARGIN_FOR_LEFT_SIDE_BAR) {' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^        } else if (propertyKey == SuggestionListProperties\.CONTAINER_ALWAYS_VISIBLE) {$/i\
         // Alice patch start 0062\
         } else if (propertyKey == SuggestionListProperties.TOOLBAR_ON_BOTTOM) {\
@@ -524,12 +507,10 @@ sed -i '/^    private void updateColorScheme(PropertyModel model, SuggestionList
             holder.container.setBackgroundColor(backgroundColor);\
         }\
     }' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/a\
 // Alice patch start 0062\
 import org.chromium.build.annotations.Nullable;\
 // Alice patch end 0062' "$path2"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^            listItems\.addObserver($/,/^                    });$/c\
             // Alice patch start 0062\
             listItems.addObserver(\
@@ -562,18 +543,15 @@ sed -i '/^    ReadableObjectPropertyKey<ModelList> SUGGESTION_MODELS = new Reada
     // Alice patch start 0062\
     WritableBooleanPropertyKey TOOLBAR_ON_BOTTOM = new WritableBooleanPropertyKey();\
     // Alice patch end 0062' "$path8"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                SUGGESTION_MODELS,$/i\
                 // Alice patch start 0062\
                 TOOLBAR_ON_BOTTOM,\
                 // Alice patch end 0062\
 ' "$path8"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^import org\.chromium\.build\.annotations\.Nullable;$/a\
 // Alice patch start 0062\
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;\
 // Alice patch end 0062' "$path9"
-# 修改对应源码以完成本补丁功能。
 sed -i '/^                        \.with(SuggestionListProperties\.SUGGESTION_MODELS, listItems)$/a\
                         // Alice patch start 0062\
                         .with(\
