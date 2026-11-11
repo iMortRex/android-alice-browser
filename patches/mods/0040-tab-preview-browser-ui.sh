@@ -409,10 +409,19 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                 mAliceLastToolbarBitmap.recycle();\
                 mAliceLastToolbarBitmap = null;\
             }\
-            @Nullable View toolbarView = getAliceToolbarView(tab);\
-            @Nullable Bitmap toolbarBitmap = captureAliceToolbarBitmap(toolbarView);\
+            final boolean aliceCaptureToolbarForTab =\
+                    shouldCaptureAliceToolbar()\
+                            \&\& !tab.isLoading()\
+                            \&\& !tab.isHidden()\
+                            \&\& tab.isUserInteractable();\
+            @Nullable View toolbarView =\
+                    aliceCaptureToolbarForTab ? getAliceToolbarView(tab) : null;\
+            @Nullable Bitmap toolbarBitmap =\
+                    aliceCaptureToolbarForTab ? captureAliceToolbarBitmap(toolbarView) : null;\
             if (toolbarBitmap != null) rememberAliceToolbarBitmap(toolbarBitmap);\
-            final boolean deferCache = toolbarView != null || mAliceLastToolbarBitmap != null;\
+            final boolean deferCache =\
+                    toolbarView != null\
+                            || (aliceCaptureToolbarForTab \&\& mAliceLastToolbarBitmap != null);\
             if (deferCache) {\
                 mAliceCompositingTabIds.add(tab.getId());\
             }\
@@ -421,7 +430,8 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
                     (@Nullable Bitmap bitmap) -> {\
                         @Nullable Bitmap finalBitmap = bitmap;\
                         // Alice patch start 0040\
-                        boolean aliceCaptureToolbar = shouldCaptureAliceToolbar();\
+                        boolean aliceCaptureToolbar =\
+                                aliceCaptureToolbarForTab \&\& shouldCaptureAliceToolbar();\
                         Bitmap aliceToolbarForComposition =\
                                 aliceCaptureToolbar ? toolbarBitmap : null;\
                         if (!aliceCaptureToolbar \&\& toolbarBitmap != null) {\

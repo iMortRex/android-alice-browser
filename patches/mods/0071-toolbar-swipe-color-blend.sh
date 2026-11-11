@@ -6,6 +6,7 @@ set -e
 path1="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/ToolbarSwipeLayout.java"
 path2="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerImpl.java"
 path3="chrome/browser/ui/android/theme/java/src/org/chromium/chrome/browser/theme/ToolbarThemeColorProvider.java"
+path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0071' "$path1"; then
@@ -155,3 +156,29 @@ sed -i 's|^        @ColorInt int toolbarBackgroundColor = toolbarTheme\.getToolb
         @ColorInt int toolbarBackgroundColor =\
                 toolbarTheme.getToolbarBackgroundColorForTab(tab);\
         // Alice patch end 0071|' "$path2"
+
+# Hub 转场时用真实工具栏颜色刷新导航栏底色缓存，避免横滑渐变颜色残留。
+sed -i '/^    public void setAliceTabSwitcherBackgroundAlpha(float alpha) {$/i\
+    // Alice patch start 0071\
+    private void syncAliceNavigationBarBackgroundColorFromToolbar() {\
+        int toolbarColor = mControlContainer.getToolbarBackgroundColor();\
+        if (toolbarColor != 0) {\
+            mNavigationBarBackgroundColor = toolbarColor;\
+        }\
+    }\
+    // Alice patch end 0071\
+\
+' "$path4"
+
+sed -i '/^    public void setAliceTabSwitcherBackgroundAlpha(float alpha) {$/a\
+        // Alice patch start 0071\
+        syncAliceNavigationBarBackgroundColorFromToolbar();\
+        if (mNavigationBarBackground != null) {\
+            mNavigationBarBackground.setBackgroundColor(mNavigationBarBackgroundColor);\
+        }\
+        // Alice patch end 0071' "$path4"
+
+sed -i '/^    void refreshAliceNavigationBarBackground() {$/a\
+        // Alice patch start 0071\
+        syncAliceNavigationBarBackgroundColorFromToolbar();\
+        // Alice patch end 0071' "$path4"
