@@ -1,0 +1,428 @@
+#!/bin/bash
+# 搜索页进入、退出和状态栏过渡。
+
+set -e
+
+path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
+path2="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsContainer.java"
+path3="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/SuggestionListViewBinder.java"
+path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+path5="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBar.java"
+path6="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 0073' "$path1"; then
+    exit 100
+fi
+
+# --- ToolbarPhone：搜索页进入渐显 ---
+
+sed -i '/^    private boolean mDropdownListScrolled;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SEARCH_PAGE_ENTER_FADE_MS = 225L;\
+    private @Nullable ValueAnimator mAliceSearchPageEnterAnimator;\
+    private float mAliceSearchPageEnterAlpha = 1f;\
+    private boolean mAliceSearchPageEnterActive;\
+    private boolean mAliceSearchPageShown;\
+    private static boolean mAliceSearchPageFadeOutDeferring;\
+    private @Nullable ValueAnimator mAliceSearchPageFadeAnimator;\
+    private float mAliceSearchPageFadeAlpha = 1f;\
+    // Alice patch end 0073\
+' "$path1"
+
+sed -i '/^        super\.onUrlFocusChange(hasFocus);$/a\
+        // Alice patch start 0073\
+        animateAliceSearchPageEnter(hasFocus);\
+        // Alice patch end 0073\
+' "$path1"
+
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
+    // Alice patch start 0073\
+    /** 9999 诊断补丁引用的颜色诊断符号。 */\
+    private String aliceColors9999() {\
+        return "";\
+    }\
+\
+    private void animateAliceSearchPageEnter(boolean hasFocus) {\
+        boolean aliceWasActive = mAliceSearchPageEnterActive;\
+        boolean aliceWasShown = mAliceSearchPageShown;\
+        if (mAliceSearchPageEnterAnimator != null) {\
+            mAliceSearchPageEnterAnimator.cancel();\
+            mAliceSearchPageEnterAnimator = null;\
+        }\
+        if (!hasFocus) {\
+            mAliceSearchPageEnterActive = false;\
+            mAliceSearchPageShown = false;\
+            setAliceSearchPageEnterAlpha(1f);\
+            return;\
+        }\
+        mAliceSearchPageShown = true;\
+        float aliceStart =\
+                aliceWasActive\
+                        ? mAliceSearchPageEnterAlpha\
+                        : (aliceWasShown ? 1f : 0f);\
+        startAliceSearchPageEnterFade(aliceStart, 1f);\
+    }\
+\
+    private void startAliceSearchPageEnterFade(float start, float target) {\
+        mAliceSearchPageEnterActive = true;\
+        if (start >= 1f \&\& target >= 1f) {\
+            finishAliceSearchPageEnterFade();\
+            return;\
+        }\
+        ValueAnimator animator = ValueAnimator.ofFloat(start, target);\
+        animator.setDuration(ALICE_SEARCH_PAGE_ENTER_FADE_MS);\
+        animator.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);\
+        animator.addUpdateListener(\
+                animation ->\
+                        setAliceSearchPageEnterAlpha(\
+                                (float) animation.getAnimatedValue()));\
+        animator.addListener(\
+                new CancelAwareAnimatorListener() {\
+                    @Override\
+                    public void onEnd(Animator animation) {\
+                        if (mAliceSearchPageEnterAnimator != animation) return;\
+                        finishAliceSearchPageEnterFade();\
+                    }\
+                });\
+        mAliceSearchPageEnterAnimator = animator;\
+        animator.start();\
+    }\
+\
+    private void setAliceSearchPageEnterAlpha(float alpha) {\
+        mAliceSearchPageEnterAlpha = MathUtils.clamp(alpha, 0f, 1f);\
+        OmniboxSuggestionsContainer.setAliceSearchPageEnterAlpha(\
+                mAliceSearchPageEnterAlpha);\
+        invalidate();\
+    }\
+\
+    private void finishAliceSearchPageEnterFade() {\
+        mAliceSearchPageEnterAnimator = null;\
+        mAliceSearchPageEnterActive = false;\
+        setAliceSearchPageEnterAlpha(1f);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path1"
+
+sed -i 's|^    public void draw(Canvas canvas) {$|    // Alice patch start 0073\n    public void draw(Canvas canvas) {\n        int aliceFadeLayer = -1;\n        if (!mTextureCaptureMode\n                \&\& mAliceSearchPageEnterActive\n                \&\& mAliceSearchPageEnterAlpha < 1f) {\n            aliceFadeLayer =\n                    canvas.saveLayerAlpha(\n                            0,\n                            0,\n                            getWidth(),\n                            getHeight(),\n                            Math.round(mAliceSearchPageEnterAlpha * 255));\n        }\n        aliceDrawWithEnterFadeInner(canvas);\n        if (aliceFadeLayer >= 0) {\n            canvas.restoreToCount(aliceFadeLayer);\n        }\n    }\n\n    private void aliceDrawWithEnterFadeInner(Canvas canvas) {\n    // Alice patch end 0073|' "$path1"
+
+sed -i '/^    private void cancelAnimations() {$/a\
+        // Alice patch start 0073\
+        if (mAliceSearchPageEnterAnimator != null) {\
+            mAliceSearchPageEnterAnimator.cancel();\
+            mAliceSearchPageEnterAnimator = null;\
+        }\
+        mAliceSearchPageEnterActive = false;\
+        mAliceSearchPageShown = false;\
+        setAliceSearchPageEnterAlpha(1f);\
+        // Alice patch end 0073\
+' "$path1"
+
+sed -i '/^import org\.chromium\.chrome\.browser\.omnibox\.suggestions\.OmniboxSuggestionsDropdownScrollListener;$/a\
+// Alice patch start 0073\
+import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer;\
+// Alice patch end 0073\
+' "$path1"
+
+# --- 推荐列表：跟随搜索页进入渐显 ---
+
+sed -i '/^    \/\*\* Clean up resources and remove observers installed by this class\. \*\/$/i\
+    // Alice patch start 0073\
+    private static float sAliceSearchPageEnterAlpha = 1f;\
+    private static @Nullable OmniboxSuggestionsContainer sAliceSearchPageEnterInstance;\
+\
+    public static void setAliceSearchPageEnterAlpha(float alpha) {\
+        sAliceSearchPageEnterAlpha = Math.max(0f, Math.min(1f, alpha));\
+        OmniboxSuggestionsContainer aliceInstance = sAliceSearchPageEnterInstance;\
+        if (aliceInstance != null) aliceInstance.setAlpha(sAliceSearchPageEnterAlpha);\
+    }\
+\
+    public void registerAliceSearchPageEnterInstance() {\
+        sAliceSearchPageEnterInstance = this;\
+        setAlpha(sAliceSearchPageEnterAlpha);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path2"
+
+sed -i '/^        mDropdown\.destroy();$/i\
+        // Alice patch start 0073\
+        if (sAliceSearchPageEnterInstance == this) {\
+            sAliceSearchPageEnterInstance = null;\
+        }\
+        // Alice patch end 0073\
+' "$path2"
+
+sed -i '/^        holder\.dropdown\.setVisibility(listVisibility);$/a\
+        // Alice patch start 0073\
+        if (containerVisibility == View.VISIBLE) {\
+            holder.container.registerAliceSearchPageEnterInstance();\
+        }\
+        // Alice patch end 0073\
+' "$path3"
+
+# --- UrlBar：失焦前冻结流程并捕获整屏快照 ---
+
+sed -i '/^    private @Nullable Callback<UrlBarFocusChangeInfo> mFocusChangeCallback;$/a\
+    // Alice patch start 0073\
+    private android.widget.@Nullable ImageView mAliceSnapshotView;\
+    private android.graphics.@Nullable Bitmap mAliceSnapshotBitmap;\
+    private android.animation.@Nullable ObjectAnimator mAliceSnapshotAnimator;\
+    private int mAliceSnapshotGeneration;\
+    private boolean mAliceSnapshotReentering;\
+    // Alice patch end 0073\
+' "$path5"
+
+sed -i '/^    public void destroy() {$/i\
+    // Alice patch start 0073\
+    private void startAliceExitSnapshot(Runnable continuation) {\
+        releaseAliceExitSnapshot();\
+        if (!(getContext() instanceof android.app.Activity)) {\
+            continuation.run();\
+            return;\
+        }\
+        android.app.Activity aliceActivity = (android.app.Activity) getContext();\
+        View aliceDecorView = aliceActivity.getWindow().getDecorView();\
+        if (!(aliceDecorView instanceof android.view.ViewGroup)\
+                || aliceDecorView.getWidth() <= 0\
+                || aliceDecorView.getHeight() <= 0) {\
+            continuation.run();\
+            return;\
+        }\
+        int aliceGeneration = mAliceSnapshotGeneration;\
+        android.graphics.Bitmap aliceBitmap =\
+                android.graphics.Bitmap.createBitmap(\
+                        aliceDecorView.getWidth(),\
+                        aliceDecorView.getHeight(),\
+                        android.graphics.Bitmap.Config.ARGB_8888);\
+        android.view.PixelCopy.request(\
+                aliceActivity.getWindow(),\
+                aliceBitmap,\
+                result -> {\
+                    if (aliceGeneration != mAliceSnapshotGeneration) {\
+                        aliceBitmap.recycle();\
+                        return;\
+                    }\
+                    if (result == android.view.PixelCopy.SUCCESS) {\
+                        showAliceExitSnapshot(\
+                                aliceBitmap, aliceGeneration, continuation);\
+                    } else {\
+                        aliceBitmap.recycle();\
+                        continuation.run();\
+                    }\
+                },\
+                new android.os.Handler(android.os.Looper.getMainLooper()));\
+    }\
+\
+    private void showAliceExitSnapshot(\
+            android.graphics.Bitmap aliceBitmap,\
+            int aliceGeneration,\
+            Runnable continuation) {\
+        android.app.Activity aliceActivity = (android.app.Activity) getContext();\
+        View aliceDecorView = aliceActivity.getWindow().getDecorView();\
+        android.widget.ImageView aliceImageView =\
+                new android.widget.ImageView(getContext());\
+        aliceImageView.setImageBitmap(aliceBitmap);\
+        aliceImageView.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);\
+        aliceImageView.setAlpha(0f);\
+        aliceImageView.setClickable(false);\
+        aliceImageView.setFocusable(false);\
+        aliceImageView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);\
+        ((android.view.ViewGroup) aliceDecorView)\
+                .addView(\
+                        aliceImageView,\
+                        new android.widget.FrameLayout.LayoutParams(\
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,\
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT));\
+        aliceImageView.bringToFront();\
+        aliceImageView.setTranslationZ(10000f);\
+        mAliceSnapshotView = aliceImageView;\
+        mAliceSnapshotBitmap = aliceBitmap;\
+        aliceImageView\
+                .getViewTreeObserver()\
+                .addOnDrawListener(\
+                        new android.view.ViewTreeObserver.OnDrawListener() {\
+                            @Override\
+                            public void onDraw() {\
+                                android.view.ViewTreeObserver observer =\
+                                        aliceImageView.getViewTreeObserver();\
+                                if (observer.isAlive()) {\
+                                    observer.removeOnDrawListener(this);\
+                                }\
+                                aliceImageView.post(\
+                                        () -> {\
+                                            if (aliceGeneration\
+                                                            != mAliceSnapshotGeneration\
+                                                    || mAliceSnapshotView != aliceImageView) {\
+                                                return;\
+                                            }\
+                                            aliceImageView.setAlpha(1f);\
+                                            android.animation.ObjectAnimator animator =\
+                                                    android.animation.ObjectAnimator.ofFloat(\
+                                                            aliceImageView,\
+                                                            View.ALPHA,\
+                                                            1f,\
+                                                            0f);\
+                                            animator.setDuration(225L);\
+                                            animator.setInterpolator(\
+                                                    org.chromium.ui.interpolators.Interpolators\
+                                                            .FAST_OUT_SLOW_IN_INTERPOLATOR);\
+                                            animator.addListener(\
+                                                    new android.animation.AnimatorListenerAdapter() {\
+                                                        @Override\
+                                                        public void onAnimationEnd(\
+                                                                android.animation.Animator\
+                                                                        animation) {\
+                                                            if (mAliceSnapshotAnimator\
+                                                                    != animation) {\
+                                                                return;\
+                                                            }\
+                                                            finishAliceExitSnapshot();\
+                                                        }\
+                                                    });\
+                                            mAliceSnapshotAnimator = animator;\
+                                            animator.start();\
+                                            continuation.run();\
+                                        });\
+                            }\
+                        });\
+    }\
+\
+    private void finishAliceExitSnapshot() {\
+        mAliceSnapshotAnimator = null;\
+        android.widget.@Nullable ImageView aliceImageView = mAliceSnapshotView;\
+        mAliceSnapshotView = null;\
+        if (aliceImageView != null) {\
+            aliceImageView.setImageDrawable(null);\
+            android.view.@Nullable ViewParent aliceParent = aliceImageView.getParent();\
+            if (aliceParent instanceof android.view.ViewGroup) {\
+                ((android.view.ViewGroup) aliceParent).removeView(aliceImageView);\
+            }\
+        }\
+        android.graphics.@Nullable Bitmap aliceBitmap = mAliceSnapshotBitmap;\
+        mAliceSnapshotBitmap = null;\
+        if (aliceBitmap != null \&\& !aliceBitmap.isRecycled()) aliceBitmap.recycle();\
+    }\
+\
+    private void releaseAliceExitSnapshot() {\
+        mAliceSnapshotGeneration++;\
+        android.animation.@Nullable ObjectAnimator animator = mAliceSnapshotAnimator;\
+        mAliceSnapshotAnimator = null;\
+        if (animator != null) animator.cancel();\
+        finishAliceExitSnapshot();\
+    }\
+    // Alice patch end 0073\
+\
+' "$path5"
+
+sed -i '/^        boolean wasFocused = mFocused;$/i\
+    // Alice patch start 0073\
+        if (!focused \&\& mFocused \&\& !mAliceSnapshotReentering) {\
+            startAliceExitSnapshot(\
+                    () -> {\
+                        mAliceSnapshotReentering = true;\
+                        try {\
+                            onFocusChanged(focused, direction, previouslyFocusedRect);\
+                        } finally {\
+                            mAliceSnapshotReentering = false;\
+                        }\
+                    });\
+            return;\
+        }\
+        if (focused) releaseAliceExitSnapshot();\
+    // Alice patch end 0073\
+' "$path5"
+
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0073\
+        releaseAliceExitSnapshot();\
+        // Alice patch end 0073\
+' "$path5"
+
+# --- StatusBarColorController：搜索页状态栏颜色过渡 ---
+
+sed -i '/^    private boolean mIsOmniboxFocused;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SEARCH_STATUS_BAR_FADE_MS = 225L;\
+    private final AliceStatusBarColorTransitionController mAliceSearchStatusBarController;\
+    private final AliceStatusBarColorTransitionController.Observer\
+            mAliceSearchStatusBarObserver = ignored -> updateStatusBarColor();\
+    private int mAliceSearchStatusBarToken;\
+    private @ColorInt int mAliceSearchStatusBarLastBrowsingColor = Color.TRANSPARENT;\
+    // Alice patch end 0073\
+' "$path6"
+
+sed -i '/^        mActivity = activity;$/a\
+        // Alice patch start 0073\
+        mAliceSearchStatusBarController =\
+                AliceStatusBarColorTransitionController.forActivity(activity);\
+        mAliceSearchStatusBarController.addObserver(mAliceSearchStatusBarObserver);\
+        // Alice patch end 0073\
+' "$path6"
+
+sed -i '/^    public void onUrlFocusChange(boolean hasFocus) {$/,/^    }$/c\
+    public void onUrlFocusChange(boolean hasFocus) {\
+        // Alice patch start 0073\
+        if (hasFocus) {\
+            @ColorInt int startColor =\
+                    mAliceSearchStatusBarLastBrowsingColor != Color.TRANSPARENT\
+                            ? mAliceSearchStatusBarLastBrowsingColor\
+                            : ColorUtils.getOpaqueColor(\
+                                    mStatusBarColorWithoutStatusIndicator);\
+            mIsOmniboxFocused = true;\
+            @ColorInt int targetColor =\
+                    ColorUtils.getOpaqueColor(calculateDefaultStatusBarColor());\
+            setStatusBarColor(\
+                    mEdgeToEdgeSystemBarColorHelper,\
+                    mActivity,\
+                    startColor,\
+                    /* forceLightIconColor= */ false);\
+            int aliceToken =\
+                    mAliceSearchStatusBarController.animateTo(\
+                            startColor, targetColor, ALICE_SEARCH_STATUS_BAR_FADE_MS);\
+            mAliceSearchStatusBarToken = aliceToken;\
+            mActivity\
+                    .getWindow()\
+                    .getDecorView()\
+                    .postDelayed(\
+                            () -> {\
+                                if (mAliceSearchStatusBarToken != aliceToken\
+                                        || !mIsOmniboxFocused) {\
+                                    return;\
+                                }\
+                                mAliceSearchStatusBarController.clearOverride(aliceToken);\
+                                mAliceSearchStatusBarToken = 0;\
+                                updateStatusBarColor();\
+                            },\
+                            ALICE_SEARCH_STATUS_BAR_FADE_MS + 16L);\
+        } else {\
+            mIsOmniboxFocused = false;\
+            mAliceSearchStatusBarController.clearOverride(mAliceSearchStatusBarToken);\
+            mAliceSearchStatusBarToken = 0;\
+        }\
+        // Alice patch end 0073\
+        updateStatusBarColor();\
+    }\
+' "$path6"
+
+sed -i '/^        @ColorInt int statusBarColor = calculateFinalStatusBarColor();$/a\
+        // Alice patch start 0073\
+        if (!mIsOmniboxFocused\
+                \&\& !mAliceSearchStatusBarController.isOverriding()) {\
+            mAliceSearchStatusBarLastBrowsingColor =\
+                    ColorUtils.getOpaqueColor(statusBarColor);\
+        }\
+        if (mAliceSearchStatusBarController.isOverriding()) {\
+            statusBarColor = mAliceSearchStatusBarController.getCurrentColor();\
+        }\
+        // Alice patch end 0073\
+' "$path6"
+
+sed -i '/^    public void onDestroy() {$/a\
+        // Alice patch start 0073\
+        mAliceSearchStatusBarController.clearOverride(mAliceSearchStatusBarToken);\
+        mAliceSearchStatusBarToken = 0;\
+        mAliceSearchStatusBarController.removeObserver(mAliceSearchStatusBarObserver);\
+        // Alice patch end 0073\
+' "$path6"
