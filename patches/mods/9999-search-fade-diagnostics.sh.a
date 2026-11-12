@@ -13,7 +13,7 @@ if grep -q 'Alice patch start 9999' "$path1"; then
 fi
 
 # ToolbarPhone：焦点变化后连续采样 400ms，观察搜索框 alpha、可见性和坐标。
-sed -i '/^    public void onUrlFocusChange(final boolean hasFocus) {$/i\
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch start 9999\
     private static final String ALICE_LOG_TAG = "Alice9999";\
     private static final long ALICE_LOG_SAMPLE_DURATION_MS = 400;\
@@ -53,14 +53,38 @@ sed -i '/^    public void onUrlFocusChange(final boolean hasFocus) {$/i\
                         + (isLocationBarShownInGeneralNtp() || isLocationBarShownInNtp())\
                         + " focusAnimating="\
                         + mUrlFocusChangeInProgress\
+                        + " fadeActive="\
+                        + mAliceSearchPageFadeActive\
+                        + " fadeAlpha="\
+                        + mAliceSearchPageFadeAlpha\
                         + " controlsPosition="\
                         + controlsPosition);\
+        String locationBarColor = "null";\
+        GradientDrawable aliceGradient = getActiveLocationBarGradientDrawable();\
+        @Nullable ColorStateList aliceGradientColors =\
+                aliceGradient == null ? null : aliceGradient.getColor();\
+        if (aliceGradientColors != null) {\
+            locationBarColor =\
+                    Integer.toHexString(aliceGradientColors.getDefaultColor());\
+        }\
+        View hairline = getToolbarHairline();\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "colors toolbar="\
+                        + Integer.toHexString(mToolbarBackground.getColor())\
+                        + " locationBar="\
+                        + locationBarColor\
+                        + " hairlineVis="\
+                        + (hairline == null ? -1 : hairline.getVisibility())\
+                        + " hairlineAlpha="\
+                        + (hairline == null ? -1f : hairline.getAlpha()));\
         logAlice9999View("toolbar", this);\
         logAlice9999View("searchBox", mLocationBar.getContainerView());\
         if (mActiveLocationBarBackgroundView != null) {\
             logAlice9999View(\
                     "searchBoxBackground", mActiveLocationBarBackgroundView);\
         }\
+        if (hairline != null) logAlice9999View("hairline", hairline);\
     }\
 \
     private static void logAlice9999View(String label, View view) {\
@@ -126,7 +150,22 @@ sed -i '/^        super.onUrlFocusChange(hasFocus);$/a\
         startAlice9999Sampling(hasFocus);\
         // Alice patch end 9999\
 ' "$path1"
-
+sed -i '/^                mLocationBarBackground.draw(canvas);$/i\
+                // Alice patch start 9999\
+                if (mAliceSearchPageFadeActive) {\
+                    org.chromium.base.Log.i(\
+                            ALICE_LOG_TAG,\
+                            "searchBoxBackgroundDraw color="\
+                                    + Integer.toHexString(mCurrentLocationBarColor)\
+                                    + " fadeAlpha="\
+                                    + mAliceSearchPageFadeAlpha\
+                                    + " visible="\
+                                    + mLocationBar.getPhoneCoordinator().getVisibility()\
+                                    + " bounds="\
+                                    + mLocationBarBackground.getBounds());\
+                }\
+                // Alice patch end 9999\
+' "$path1"
 # SuggestionListViewBinder：在可见性更新后立即、50ms、250ms 各采样一次。
 sed -i '/^    \/\*\* Holds the view components needed to renderer the suggestion list\. \*\/$/i\
     // Alice patch start 9999\

@@ -31,12 +31,11 @@ sed -i '/^        super.onUrlFocusChange(hasFocus);$/a\
 ' "$path1"
 
 # 搜索页透明度同时作用于工具栏和整个搜索框元素。
-sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) [{]$/i\
     // Alice patch start 0073\
     private void animateAliceSearchPageBackground(boolean hasFocus) {\
         boolean aliceWasActive = mAliceSearchPageFadeActive;\
-        boolean aliceIsSearchPage =\
-                isLocationBarShownInGeneralNtp() || isLocationBarShownInNtp();\
+        boolean aliceIsSearchPage = hasFocus || aliceWasActive;\
         if (!aliceIsSearchPage \&\& !aliceWasActive) {\
             if (mAliceSearchPageFadeAnimator != null) {\
                 mAliceSearchPageFadeAnimator.cancel();\
@@ -101,10 +100,11 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
 \
     private void setAliceSearchPageFadeAlpha(float alpha) {\
         mAliceSearchPageFadeAlpha = MathUtils.clamp(alpha, 0f, 1f);\
-        mLocationBar.getPhoneCoordinator().setAlpha(mAliceSearchPageFadeAlpha);\
-        mLocationBar.getContainerView().setAlpha(mAliceSearchPageFadeAlpha);\
         if (mActiveLocationBarBackgroundView != null) {\
             mActiveLocationBarBackgroundView.setAlpha(mAliceSearchPageFadeAlpha);\
+        }\
+        if (getToolbarHairline() != null) {\
+            getToolbarHairline().setAlpha(0f);\
         }\
         invalidate();\
     }\
@@ -116,10 +116,14 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
         if (ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {\
             setBackground(mToolbarBackground);\
         }\
-        mLocationBar.getPhoneCoordinator().setAlpha(0f);\
-        mLocationBar.getContainerView().setAlpha(0f);\
+        mLocationBar.getPhoneCoordinator().setAlpha(1f);\
+        mLocationBar.getContainerView().setAlpha(1f);\
         if (mActiveLocationBarBackgroundView != null) {\
             mActiveLocationBarBackgroundView.setAlpha(0f);\
+        }\
+        if (getToolbarHairline() != null) {\
+            getToolbarHairline().setAlpha(1f);\
+            updateHairlineVisibility();\
         }\
         invalidate();\
     }\
@@ -127,20 +131,17 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
 \
 ' "$path1"
 
-# 旧动画路径直接绘制搜索框背景时也跟随整个搜索框透明度。
-sed -i 's|^                mLocationBarBackground.draw(canvas);$|                // Alice patch start 0073\n                int aliceLocationBarLayer = -1;\n                if (mAliceSearchPageFadeActive \&\& mAliceSearchPageFadeAlpha < 1f) {\n                    aliceLocationBarLayer =\n                            canvas.saveLayerAlpha(\n                                    mLocationBarBackgroundBounds.left\n                                            + mLocationBarBackgroundNtpOffset.left,\n                                    mLocationBarBackgroundBounds.top\n                                            + mLocationBarBackgroundNtpOffset.top,\n                                    mLocationBarBackgroundBounds.right\n                                            + mLocationBarBackgroundNtpOffset.right,\n                                    mLocationBarBackgroundBounds.bottom\n                                            + mLocationBarBackgroundNtpOffset.bottom,\n                                    Math.round(mAliceSearchPageFadeAlpha * 255));\n                }\n                mLocationBarBackground.draw(canvas);\n                if (aliceLocationBarLayer >= 0) {\n                    canvas.restoreToCount(aliceLocationBarLayer);\n                }\n                // Alice patch end 0073|' "$path1"
+# NTP 重置时地址栏内容保持可见。
+sed -i 's|^                mLocationBarBackground.draw(canvas);$|                // Alice patch start 0073\n                int aliceLocationBarLayer = -1;\n                if (mAliceSearchPageFadeActive \&\& mAliceSearchPageFadeAlpha < 1f) {\n                    aliceLocationBarLayer =\n                            canvas.saveLayerAlpha(\n                                    0,\n                                    0,\n                                    canvas.getWidth(),\n                                    canvas.getHeight(),\n                                    Math.round(mAliceSearchPageFadeAlpha * 255));\n                }\n                mLocationBarBackground.draw(canvas);\n                if (aliceLocationBarLayer >= 0) {\n                    canvas.restoreToCount(aliceLocationBarLayer);\n                }\n                // Alice patch end 0073|' "$path1"
 
-# 焦点动画开始时保持整个搜索框元素的当前透明度。
-sed -i 's|^        mLocationBar.getPhoneCoordinator().setAlpha(1.f);$|        // Alice patch start 0073\n        mLocationBar.getPhoneCoordinator().setAlpha(\n                mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n        // Alice patch end 0073|' "$path1"
-sed -i 's|^        mActiveLocationBarBackgroundView.setAlpha(1.f);$|        // Alice patch start 0073\n        mActiveLocationBarBackgroundView.setAlpha(\n                mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n        // Alice patch end 0073|' "$path1"
+# 搜索框背景层在焦点动画开始时保留当前淡化进度。
 sed -i 's|^            mActiveLocationBarBackgroundView.setAlpha(1.f);$|            // Alice patch start 0073\n            mActiveLocationBarBackgroundView.setAlpha(\n                    mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n            // Alice patch end 0073|' "$path1"
 
-# NTP 重置和旧动画路径不得把整个搜索框透明度重置为不透明。
-sed -i 's|^        mLocationBar.getPhoneCoordinator().setAlpha(1);$|        // Alice patch start 0073\n        mLocationBar.getPhoneCoordinator().setAlpha(\n                mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n        // Alice patch end 0073|' "$path1"
+sed -i 's|^        mLocationBar.getPhoneCoordinator().setAlpha(1);$|        // Alice patch start 0073\n        mLocationBar.getPhoneCoordinator().setAlpha(1f);\n        // Alice patch end 0073|' "$path1"
 sed -i 's|^        float relativeAlpha = isExpanded ? 1f : 0f;$|        // Alice patch start 0073\n        float relativeAlpha =\n                isExpanded\n                        ? (mAliceSearchPageFadeActive\n                                        ? mAliceSearchPageFadeAlpha\n                                        : 1f)\n                        : 0f;\n        // Alice patch end 0073|' "$path1"
 
 # 关闭或销毁时取消搜索页背景动画。
-sed -i '/^    private void cancelAnimations() {$/a\
+sed -i '/^    private void cancelAnimations() [{]$/a\
         // Alice patch start 0073\
         if (mAliceSearchPageFadeAnimator != null) {\
             mAliceSearchPageFadeAnimator.cancel();\
@@ -163,16 +164,30 @@ sed -i '/^        mAliceSearchPageGradientEnabled =$/,/^                        
                         .readBoolean(ALICE_SEARCH_PAGE_GRADIENT_PREF, false)\
                         \&\& (hasFocus || mAliceSearchPageFadeActive);\
         // Alice patch end 0073' "$path1"
-sed -i 's|^                && urlHasFocus()) {$|                // Alice patch start 0073\n                && (urlHasFocus()\n                        || (mAliceSearchPageFadeActive\n                                \&\& mAliceSearchPageFadeAlpha > 0f))) {\n                // Alice patch end 0073|' "$path1"
-sed -i '/^        mAliceSearchPageBackgroundPaint.setColor(color);$/a\
+sed -i 's#^                && urlHasFocus()) [{]$#                // Alice patch start 0073\n                \&\& (urlHasFocus()\n                        || (mAliceSearchPageFadeActive\n                                \&\& mAliceSearchPageFadeAlpha > 0f))) {\n                // Alice patch end 0073#' "$path1"
+sed -i '/^        int saveCount = canvas.saveLayer(0, 0, width, height, null);$/c\
         // Alice patch start 0073\
-        mAliceSearchPageBackgroundPaint.setAlpha(\
-                mAliceSearchPageFadeActive\
-                        ? Math.round(mAliceSearchPageFadeAlpha * 255)\
-                        : 255);\
+        int aliceFadeLayer = -1;\
+        if (mAliceSearchPageFadeActive \&\& mAliceSearchPageFadeAlpha < 1f) {\
+            aliceFadeLayer =\
+                    canvas.saveLayerAlpha(\
+                            0,\
+                            0,\
+                            width,\
+                            height,\
+                            Math.round(mAliceSearchPageFadeAlpha * 255));\
+        }\
+        int saveCount = canvas.saveLayer(0, 0, width, height, null);\
         // Alice patch end 0073\
 ' "$path1"
-
+sed -i '/^        canvas.restoreToCount(saveCount);$/a\
+        // Alice patch start 0073\
+        if (aliceFadeLayer >= 0) {\
+            canvas.restoreToCount(aliceFadeLayer);\
+        }\
+        // Alice patch end 0073\
+' "$path1"
+sed -i 's#^        return super.shouldDrawHairline()$#        // Alice patch start 0073\n        return super.shouldDrawHairline()\n                \&\& !(mAliceSearchPageFadeActive\n                        \&\& mAliceSearchPageFadeAlpha < 1f)#' "$path1"
 # 建议行等容器淡出结束后再清空，避免列表内容先消失。
 sed -i '/^    private static final long OMNIBOX_SUGGESTION_START_DELAY_MS = 30;$/a\
     // Alice patch start 0073\
@@ -184,7 +199,7 @@ sed -i '/^    private @Nullable AutocompleteResult mAutocompleteResult;$/a\
     private @Nullable Runnable mAliceSuggestionListClearRunnable;\
     // Alice patch end 0073\
 ' "$path4"
-sed -i '/^    void endInput() {$/i\
+sed -i '/^    void endInput() [{]$/i\
     // Alice patch start 0073\
     private void cancelAliceSuggestionListClear() {\
         Runnable clearRunnable = mAliceSuggestionListClearRunnable;\
@@ -198,7 +213,6 @@ sed -i '/^    void endInput() {$/i\
         Runnable clearRunnable =\
                 () -> {\
                     mAliceSuggestionListClearRunnable = null;\
-                    if (isInInputSession()) return;\
                     mDropdownViewInfoListManager.clear();\
                     mAutocompleteResult = null;\
                 };\
@@ -208,7 +222,7 @@ sed -i '/^    void endInput() {$/i\
     // Alice patch end 0073\
 \
 ' "$path4"
-sed -i '/^    void beginInput(FuseboxSessionState session) {$/a\
+sed -i '/^    void beginInput(FuseboxSessionState session) [{]$/a\
         // Alice patch start 0073\
         cancelAliceSuggestionListClear();\
         // Alice patch end 0073\
@@ -218,6 +232,15 @@ sed -i '/^        clearSuggestions();$/c\
         stopAutocomplete(AutocompleteStopReason.CLOBBERED);\
         dismissDeleteDialog(DialogDismissalCause.NAVIGATE_BACK_OR_TOUCH_OUTSIDE);\
         scheduleAliceSuggestionListClear();\
+        // Alice patch end 0073' "$path4"
+sed -i '/^        mDropdownViewInfoListManager.setSourceViewInfoList(viewInfoList);$/c\
+        // Alice patch start 0073\
+        if (viewInfoList.isEmpty() \&\& mSuggestionModels.size() > 0) {\
+            scheduleAliceSuggestionListClear();\
+            return;\
+        }\
+        cancelAliceSuggestionListClear();\
+        mDropdownViewInfoListManager.setSourceViewInfoList(viewInfoList);\
         // Alice patch end 0073' "$path4"
 
 # 建议列表增加整体透明度状态。
