@@ -75,6 +75,12 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
             updateScrimBottomMargin(0);\
             return;\
         }\
+        if (mIsImeAnimationRunning) {\
+            if (mCurrentImeAnimationHeight >= 0) {\
+                updateScrimBottomMargin(mCurrentImeAnimationHeight);\
+            }\
+            return;\
+        }\
         if (!(mContext instanceof Activity)) {\
             updateScrimBottomMargin(0);\
             return;\
@@ -85,12 +91,6 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
                 || !KeyboardVisibilityDelegate.getInstance()\
                         .isKeyboardShowing(aliceBoundary)) {\
             updateScrimBottomMargin(0);\
-            return;\
-        }\
-        if (mIsImeAnimationRunning) {\
-            if (mCurrentImeAnimationHeight >= 0) {\
-                updateScrimBottomMargin(mCurrentImeAnimationHeight);\
-            }\
             return;\
         }\
         // Alice patch end 0058\

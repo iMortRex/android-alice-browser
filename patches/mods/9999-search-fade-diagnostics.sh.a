@@ -12,16 +12,20 @@ if grep -q 'Alice patch start 9999' "$path1"; then
     exit 100
 fi
 
-# ToolbarPhone：焦点变化后连续采样 400ms，观察搜索框 alpha、可见性和坐标。
+# ToolbarPhone：焦点变化后连续采样 1000ms，观察绘制分支、背景和几何。
 sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch start 9999\
     private static final String ALICE_LOG_TAG = "Alice9999";\
-    private static final long ALICE_LOG_SAMPLE_DURATION_MS = 400;\
+    private static final long ALICE_LOG_SAMPLE_DURATION_MS = 800;\
     private static final long ALICE_LOG_SAMPLE_INTERVAL_MS = 16;\
     private long mAliceLogSampleEndTime;\
+    private int mAliceLogSequence;\
+    private int mAliceLogDrawSequence;\
     private final Runnable mAliceLogSampleRunnable = this::sampleAlice9999State;\
 \
     private void startAlice9999Sampling(boolean hasFocus) {\
+        mAliceLogSequence = 0;\
+        mAliceLogDrawSequence = 0;\
         mAliceLogSampleEndTime =\
                 SystemClock.uptimeMillis() + ALICE_LOG_SAMPLE_DURATION_MS;\
         removeCallbacks(mAliceLogSampleRunnable);\
@@ -39,13 +43,18 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     }\
 \
     private void logAlice9999State(String event) {\
+        int sequence = ++mAliceLogSequence;\
         int controlsPosition =\
                 mBrowserControlsStateProvider == null\
                         ? -1\
                         : mBrowserControlsStateProvider.getControlsPosition();\
         org.chromium.base.Log.i(\
                 ALICE_LOG_TAG,\
-                "toolbarState event="\
+                "toolbarState seq="\
+                        + sequence\
+                        + " time="\
+                        + SystemClock.uptimeMillis()\
+                        + " event="\
                         + event\
                         + " focus="\
                         + urlHasFocus()\
@@ -57,6 +66,24 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
                         + mAliceSearchPageFadeActive\
                         + " fadeAlpha="\
                         + mAliceSearchPageFadeAlpha\
+                        + " gradientEnabled="\
+                        + mAliceSearchPageGradientEnabled\
+                        + " snapshot="\
+                        + (mAliceSearchBoxSnapshotBitmap == null\
+                                ? "null"\
+                                : mAliceSearchBoxSnapshotBitmap.getWidth()\
+                                        + "x"\
+                                        + mAliceSearchBoxSnapshotBitmap.getHeight())\
+                        + " solidFadeActive="\
+                        + (mAliceSearchPageSolidFadeAnimator != null)\
+                        + " visualState="\
+                        + mVisualState\
+                        + " tabSwitcherState="\
+                        + mTabSwitcherState\
+                        + " expansion="\
+                        + mUrlExpansionFraction\
+                        + " focusFraction="\
+                        + mUrlFocusChangeFraction\
                         + " controlsPosition="\
                         + controlsPosition);\
         String locationBarColor = "null";\
@@ -78,6 +105,14 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
                         + (hairline == null ? -1 : hairline.getVisibility())\
                         + " hairlineAlpha="\
                         + (hairline == null ? -1f : hairline.getAlpha()));\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "background seq="\
+                        + sequence\
+                        + " root="\
+                        + describeAlice9999Background(this)\
+                        + " toolbarDrawableAlpha="\
+                        + mToolbarBackground.getAlpha());\
         logAlice9999View("toolbar", this);\
         logAlice9999View("searchBox", mLocationBar.getContainerView());\
         if (mActiveLocationBarBackgroundView != null) {\
@@ -85,6 +120,73 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
                     "searchBoxBackground", mActiveLocationBarBackgroundView);\
         }\
         if (hairline != null) logAlice9999View("hairline", hairline);\
+    }\
+\
+    private static String describeAlice9999Background(View view) {\
+        Drawable background = view.getBackground();\
+        if (background == null) return "null";\
+        String color = "";\
+        if (background instanceof ColorDrawable) {\
+            color =\
+                    " color="\
+                            + Integer.toHexString(((ColorDrawable) background).getColor())\
+                            + " alpha="\
+                            + background.getAlpha();\
+        }\
+        return background.getClass().getSimpleName()\
+                + "#"\
+                + System.identityHashCode(background)\
+                + color;\
+    }\
+\
+    private void logAlice9999DrawState() {\
+        boolean gradientDrawn =\
+                !mTextureCaptureMode\
+                        \&\& mAliceSearchPageGradientEnabled\
+                        \&\& (urlHasFocus()\
+                                || (mAliceSearchPageFadeActive\
+                                        \&\& mAliceSearchPageFadeAlpha > 0f));\
+        boolean solidDrawn =\
+                !gradientDrawn\
+                        \&\& !mTextureCaptureMode\
+                        \&\& mToolbarBackground.getColor() != Color.TRANSPARENT;\
+        String mode = gradientDrawn ? "gradient" : (solidDrawn ? "solid" : "none");\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "toolbarDraw seq="\
+                        + (++mAliceLogDrawSequence)\
+                        + " time="\
+                        + SystemClock.uptimeMillis()\
+                        + " mode="\
+                        + mode\
+                        + " focus="\
+                        + urlHasFocus()\
+                        + " fadeActive="\
+                        + mAliceSearchPageFadeActive\
+                        + " fadeAlpha="\
+                        + mAliceSearchPageFadeAlpha\
+                        + " gradientEnabled="\
+                        + mAliceSearchPageGradientEnabled\
+                        + " toolbarColor="\
+                        + Integer.toHexString(mToolbarBackground.getColor())\
+                        + " snapshot="\
+                        + (mAliceSearchBoxSnapshotBitmap == null\
+                                ? "null"\
+                                : mAliceSearchBoxSnapshotBitmap.getWidth()\
+                                        + "x"\
+                                        + mAliceSearchBoxSnapshotBitmap.getHeight())\
+                        + " solidFadeActive="\
+                        + (mAliceSearchPageSolidFadeAnimator != null)\
+                        + " tabSwitcherState="\
+                        + mTabSwitcherState\
+                        + " toolbarDrawableAlpha="\
+                        + mToolbarBackground.getAlpha()\
+                        + " root="\
+                        + describeAlice9999Background(this)\
+                        + " size="\
+                        + getWidth()\
+                        + "x"\
+                        + getHeight());\
     }\
 \
     private static void logAlice9999View(String label, View view) {\
@@ -150,6 +252,67 @@ sed -i '/^        super.onUrlFocusChange(hasFocus);$/a\
         startAlice9999Sampling(hasFocus);\
         // Alice patch end 9999\
 ' "$path1"
+sed -i '/^    protected void dispatchDraw(Canvas canvas) {$/a\
+        // Alice patch start 9999\
+        logAlice9999DrawState();\
+        // Alice patch end 9999\
+' "$path1"
+sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "toolbarColorUpdate time="\
+                        + SystemClock.uptimeMillis()\
+                        + " old="\
+                        + Integer.toHexString(mToolbarBackground.getColor())\
+                        + " new="\
+                        + Integer.toHexString(color)\
+                        + " fadeActive="\
+                        + mAliceSearchPageFadeActive\
+                        + " fadeAlpha="\
+                        + mAliceSearchPageFadeAlpha\
+                        + " solidFadeActive="\
+                        + (mAliceSearchPageSolidFadeAnimator != null));\
+        // Alice patch end 9999\
+' "$path1"
+sed -i '/^    private void updateBackground(final boolean hasFocus) {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "updateBackground time="\
+                        + SystemClock.uptimeMillis()\
+                        + " hasFocus="\
+                        + hasFocus\
+                        + " fadeActive="\
+                        + mAliceSearchPageFadeActive\
+                        + " fadeAlpha="\
+                        + mAliceSearchPageFadeAlpha\
+                        + " gradientBefore="\
+                        + mAliceSearchPageGradientEnabled\
+                        + " toolbarColor="\
+                        + Integer.toHexString(mToolbarBackground.getColor()));\
+        // Alice patch end 9999\
+' "$path1"
+sed -i '/^    private void finishAliceSearchPageFadeOut() {$/a\
+        // Alice patch start 9999\
+        org.chromium.base.Log.i(\
+                ALICE_LOG_TAG,\
+                "finishFadeOut time="\
+                        + SystemClock.uptimeMillis()\
+                        + " focus="\
+                        + urlHasFocus()\
+                        + " fadeAlpha="\
+                        + mAliceSearchPageFadeAlpha\
+                        + " gradientEnabled="\
+                        + mAliceSearchPageGradientEnabled\
+                        + " visualState="\
+                        + mVisualState\
+                        + " toolbarColor="\
+                        + Integer.toHexString(mToolbarBackground.getColor())\
+                        + " root="\
+                        + describeAlice9999Background(this));\
+        // Alice patch end 9999\
+' "$path1"
 sed -i '/^                mLocationBarBackground.draw(canvas);$/i\
                 // Alice patch start 9999\
                 if (mAliceSearchPageFadeActive) {\
@@ -159,6 +322,7 @@ sed -i '/^                mLocationBarBackground.draw(canvas);$/i\
                                     + Integer.toHexString(mCurrentLocationBarColor)\
                                     + " fadeAlpha="\
                                     + mAliceSearchPageFadeAlpha\
+                                    + " appliedAlpha=1.0 decoupled=true"\
                                     + " visible="\
                                     + mLocationBar.getPhoneCoordinator().getVisibility()\
                                     + " bounds="\

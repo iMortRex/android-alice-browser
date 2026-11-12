@@ -13,11 +13,23 @@ if grep -q 'Alice patch start 0073' "$path1"; then
     exit 100
 fi
 
+# 搜索框快照需要 Bitmap。
+sed -i '/^import android\.graphics\.Canvas;$/a\
+// Alice patch start 0073\
+import android.graphics.Bitmap;\
+// Alice patch end 0073' "$path1"
+
 # 工具栏增加搜索页背景透明度状态和动画。
 sed -i '/^    private boolean mDropdownListScrolled;$/a\
     // Alice patch start 0073\
     private static final long ALICE_SEARCH_PAGE_FADE_DURATION_MS = 225;\
+    private static final long ALICE_SEARCH_PAGE_SOLID_FADE_DURATION_MS = 96;\
     private @Nullable ValueAnimator mAliceSearchPageFadeAnimator;\
+    private @Nullable ValueAnimator mAliceSearchPageSolidFadeAnimator;\
+    private final Paint mAliceSearchBoxSnapshotPaint = new Paint(Paint.FILTER_BITMAP_FLAG);\
+    private @Nullable Bitmap mAliceSearchBoxSnapshotBitmap;\
+    private int mAliceSearchBoxSnapshotLeft;\
+    private int mAliceSearchBoxSnapshotTop;\
     private float mAliceSearchPageFadeAlpha = 1f;\
     private boolean mAliceSearchPageFadeActive;\
     // Alice patch end 0073\
@@ -43,11 +55,6 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) [{]$/i\
             }\
             mAliceSearchPageFadeActive = false;\
             mAliceSearchPageFadeAlpha = 1f;\
-            if (aliceWasActive) {\
-                mLocationBar.getPhoneCoordinator().setAlpha(1f);\
-                mLocationBar.getContainerView().setAlpha(1f);\
-                mActiveLocationBarBackgroundView.setAlpha(1f);\
-            }\
             if (aliceWasActive\
                     \&\& ChromeFeatureList.sToolbarPhoneAnimationRefactor\
                             .isEnabled()) {\
@@ -61,6 +68,17 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) [{]$/i\
         if (mAliceSearchPageFadeAnimator != null) {\
             mAliceSearchPageFadeAnimator.cancel();\
             mAliceSearchPageFadeAnimator = null;\
+        }\
+        if (mAliceSearchPageSolidFadeAnimator != null) {\
+            mAliceSearchPageSolidFadeAnimator.cancel();\
+            mAliceSearchPageSolidFadeAnimator = null;\
+        }\
+        mToolbarBackground.setAlpha(255);\
+        if (hasFocus) {\
+            releaseAliceSearchBoxSnapshot();\
+        } else if (mAliceSearchBoxSnapshotBitmap == null\
+                \&\& mAliceSearchPageGradientEnabled) {\
+            captureAliceSearchBoxSnapshot();\
         }\
 \
         float target = hasFocus ? 1f : 0f;\
@@ -100,27 +118,103 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) [{]$/i\
 \
     private void setAliceSearchPageFadeAlpha(float alpha) {\
         mAliceSearchPageFadeAlpha = MathUtils.clamp(alpha, 0f, 1f);\
-        if (mActiveLocationBarBackgroundView != null) {\
-            mActiveLocationBarBackgroundView.setAlpha(mAliceSearchPageFadeAlpha);\
-        }\
         if (getToolbarHairline() != null) {\
             getToolbarHairline().setAlpha(0f);\
         }\
         invalidate();\
     }\
 \
-    private void finishAliceSearchPageFadeOut() {\
-        mAliceSearchPageFadeActive = false;\
-        mAliceSearchPageFadeAlpha = 1f;\
-        mToolbarBackground.setAlpha(255);\
+    private void captureAliceSearchBoxSnapshot() {\
+        releaseAliceSearchBoxSnapshot();\
+        View aliceSearchBox = mLocationBar.getContainerView();\
+        int aliceWidth = aliceSearchBox.getWidth();\
+        int aliceHeight = aliceSearchBox.getHeight();\
+        if (aliceWidth <= 0 || aliceHeight <= 0) return;\
+        Bitmap aliceBitmap =\
+                Bitmap.createBitmap(\
+                        aliceWidth, aliceHeight, Bitmap.Config.ARGB_8888);\
+        Canvas aliceCanvas = new Canvas(aliceBitmap);\
+        if (mLocationBarBackground != null) {\
+            aliceCanvas.save();\
+            aliceCanvas.translate(-aliceSearchBox.getLeft(), -aliceSearchBox.getTop());\
+            mLocationBarBackground.draw(aliceCanvas);\
+            aliceCanvas.restore();\
+        }\
+        ViewUtils.captureBitmap(aliceSearchBox, aliceCanvas);\
+        mAliceSearchBoxSnapshotBitmap = aliceBitmap;\
+        mAliceSearchBoxSnapshotLeft = aliceSearchBox.getLeft();\
+        mAliceSearchBoxSnapshotTop = aliceSearchBox.getTop();\
+    }\
+\
+    private void releaseAliceSearchBoxSnapshot() {\
+        Bitmap aliceSnapshot = mAliceSearchBoxSnapshotBitmap;\
+        mAliceSearchBoxSnapshotBitmap = null;\
+        if (aliceSnapshot != null \&\& !aliceSnapshot.isRecycled()) {\
+            aliceSnapshot.recycle();\
+        }\
+    }\
+\
+    private void drawAliceSearchBoxSnapshot(Canvas canvas) {\
+        Bitmap aliceSnapshot = mAliceSearchBoxSnapshotBitmap;\
+        if (mTextureCaptureMode\
+                || aliceSnapshot == null\
+                || aliceSnapshot.isRecycled()\
+                || !mAliceSearchPageFadeActive\
+                || urlHasFocus()\
+                || mAliceSearchPageFadeAlpha <= 0f) {\
+            return;\
+        }\
+        mAliceSearchBoxSnapshotPaint.setAlpha(\
+                Math.round(mAliceSearchPageFadeAlpha * 255f));\
+        canvas.drawBitmap(\
+                aliceSnapshot,\
+                mAliceSearchBoxSnapshotLeft,\
+                mAliceSearchBoxSnapshotTop,\
+                mAliceSearchBoxSnapshotPaint);\
+    }\
+\
+    private void fadeInAliceSearchPageSolidBackground() {\
+        if (!mAliceSearchPageGradientEnabled) {\
+            mToolbarBackground.setAlpha(255);\
+            return;\
+        }\
+        if (mAliceSearchPageSolidFadeAnimator != null) {\
+            mAliceSearchPageSolidFadeAnimator.cancel();\
+        }\
+        mToolbarBackground.setAlpha(0);\
         if (ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {\
             setBackground(mToolbarBackground);\
         }\
-        mLocationBar.getPhoneCoordinator().setAlpha(1f);\
-        mLocationBar.getContainerView().setAlpha(1f);\
-        if (mActiveLocationBarBackgroundView != null) {\
-            mActiveLocationBarBackgroundView.setAlpha(0f);\
-        }\
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);\
+        animator.setDuration(ALICE_SEARCH_PAGE_SOLID_FADE_DURATION_MS);\
+        animator.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);\
+        animator.addUpdateListener(\
+                animation -> {\
+                    mToolbarBackground.setAlpha(\
+                            Math.round(\
+                                    (float) animation.getAnimatedValue() * 255f));\
+                    invalidate();\
+                });\
+        animator.addListener(\
+                new CancelAwareAnimatorListener() {\
+                    @Override\
+                    public void onEnd(Animator animation) {\
+                        if (mAliceSearchPageSolidFadeAnimator != animation) return;\
+                        mAliceSearchPageSolidFadeAnimator = null;\
+                        mToolbarBackground.setAlpha(255);\
+                        updateBackground(false);\
+                        invalidate();\
+                    }\
+                });\
+        mAliceSearchPageSolidFadeAnimator = animator;\
+        animator.start();\
+    }\
+\
+    private void finishAliceSearchPageFadeOut() {\
+        mAliceSearchPageFadeActive = false;\
+        mAliceSearchPageFadeAlpha = 1f;\
+        fadeInAliceSearchPageSolidBackground();\
+        releaseAliceSearchBoxSnapshot();\
         if (getToolbarHairline() != null) {\
             getToolbarHairline().setAlpha(1f);\
             updateHairlineVisibility();\
@@ -131,15 +225,6 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) [{]$/i\
 \
 ' "$path1"
 
-# NTP 重置时地址栏内容保持可见。
-sed -i 's|^                mLocationBarBackground.draw(canvas);$|                // Alice patch start 0073\n                int aliceLocationBarLayer = -1;\n                if (mAliceSearchPageFadeActive \&\& mAliceSearchPageFadeAlpha < 1f) {\n                    aliceLocationBarLayer =\n                            canvas.saveLayerAlpha(\n                                    0,\n                                    0,\n                                    canvas.getWidth(),\n                                    canvas.getHeight(),\n                                    Math.round(mAliceSearchPageFadeAlpha * 255));\n                }\n                mLocationBarBackground.draw(canvas);\n                if (aliceLocationBarLayer >= 0) {\n                    canvas.restoreToCount(aliceLocationBarLayer);\n                }\n                // Alice patch end 0073|' "$path1"
-
-# 搜索框背景层在焦点动画开始时保留当前淡化进度。
-sed -i 's|^            mActiveLocationBarBackgroundView.setAlpha(1.f);$|            // Alice patch start 0073\n            mActiveLocationBarBackgroundView.setAlpha(\n                    mAliceSearchPageFadeActive ? mAliceSearchPageFadeAlpha : 1f);\n            // Alice patch end 0073|' "$path1"
-
-sed -i 's|^        mLocationBar.getPhoneCoordinator().setAlpha(1);$|        // Alice patch start 0073\n        mLocationBar.getPhoneCoordinator().setAlpha(1f);\n        // Alice patch end 0073|' "$path1"
-sed -i 's|^        float relativeAlpha = isExpanded ? 1f : 0f;$|        // Alice patch start 0073\n        float relativeAlpha =\n                isExpanded\n                        ? (mAliceSearchPageFadeActive\n                                        ? mAliceSearchPageFadeAlpha\n                                        : 1f)\n                        : 0f;\n        // Alice patch end 0073|' "$path1"
-
 # 关闭或销毁时取消搜索页背景动画。
 sed -i '/^    private void cancelAnimations() [{]$/a\
         // Alice patch start 0073\
@@ -147,6 +232,12 @@ sed -i '/^    private void cancelAnimations() [{]$/a\
             mAliceSearchPageFadeAnimator.cancel();\
             mAliceSearchPageFadeAnimator = null;\
         }\
+        if (mAliceSearchPageSolidFadeAnimator != null) {\
+            mAliceSearchPageSolidFadeAnimator.cancel();\
+            mAliceSearchPageSolidFadeAnimator = null;\
+        }\
+        mToolbarBackground.setAlpha(255);\
+        releaseAliceSearchBoxSnapshot();\
         // Alice patch end 0073\
 ' "$path1"
 
@@ -156,7 +247,7 @@ sed -i '/^            org\.chromium\.ui\.base\.ViewUtils\.captureBitmap(aliceCap
             // Background-only snapshot; the real search box owns the fade.\
             // Alice patch end 0073' "$path3"
 
-# 0039 的渐变在失焦期间继续存在，并与搜索框共用同一淡化进度。
+# 0039 的工具栏渐变在淡出期间继续存在。
 sed -i '/^        mAliceSearchPageGradientEnabled =$/,/^                                        false);$/c\
         // Alice patch start 0073\
         mAliceSearchPageGradientEnabled =\
@@ -188,6 +279,18 @@ sed -i '/^        canvas.restoreToCount(saveCount);$/a\
         // Alice patch end 0073\
 ' "$path1"
 sed -i 's#^        return super.shouldDrawHairline()$#        // Alice patch start 0073\n        return super.shouldDrawHairline()\n                \&\& !(mAliceSearchPageFadeActive\n                        \&\& mAliceSearchPageFadeAlpha < 1f)#' "$path1"
+sed -i '/^            if (!ChromeFeatureList\.sToolbarPhoneAnimationRefactor\.isEnabled()) {$/,/^            }$/c\
+            // Alice patch start 0073\
+            if (!ChromeFeatureList.sToolbarPhoneAnimationRefactor.isEnabled()) {\
+                mToolbarBackground.draw(canvas);\
+            } else if (mAliceSearchPageSolidFadeAnimator == null) {\
+                mToolbarBackground.setAlpha(255);\
+            }\
+            // Alice patch end 0073' "$path1"
+sed -i '/^            super\.dispatchDraw(canvas);$/a\
+            // Alice patch start 0073\
+            drawAliceSearchBoxSnapshot(canvas);\
+            // Alice patch end 0073' "$path1"
 # 建议行等容器淡出结束后再清空，避免列表内容先消失。
 sed -i '/^    private static final long OMNIBOX_SUGGESTION_START_DELAY_MS = 30;$/a\
     // Alice patch start 0073\

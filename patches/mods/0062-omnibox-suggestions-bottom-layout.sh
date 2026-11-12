@@ -79,6 +79,7 @@ sed -i '/^    private final int\[\] mStickPosition = new int\[2\];$/a\
                             \&\& mEmbedder.isToolbarOnBottom()\
                             \&\& (animation.getTypeMask() \& WindowInsetsCompat.Type.ime()) != 0) {\
                         mAliceImeAnimationActive = true;\
+                        prepareAliceBottomAnchoredAnimation();\
                     }\
                 }\
 \
@@ -185,15 +186,7 @@ sed -i '/^    private boolean stickToAnchor() {$/i\
                 Math.min(\
                         aliceViewportHeight,\
                         Math.max(0, aliceCurrentAnchorTop - aliceContainerTop));\
-        if (aliceViewportHeight <= 0) return;\
-        mAliceBottomViewportHeight = aliceViewportHeight;\
-        setAliceDropdownStackFromEnd(true);\
-        updateAliceDropdownViewportHeight(aliceViewportHeight);\
-        float aliceTranslationY =\
-                aliceCurrentAnchorTop - (aliceContainerTop + aliceViewportHeight);\
-        if (mDropdown.getTranslationY() != aliceTranslationY) {\
-            mDropdown.setTranslationY(aliceTranslationY);\
-        }\
+        updateAliceBottomAnchoredPosition(aliceCurrentAnchorTop, aliceContainerTop);\
         int aliceBaseBottomPadding = mDropdown.getBaseBottomPadding();\
         if (mDropdown.getPaddingBottom() != aliceBaseBottomPadding) {\
             mDropdown.setPaddingRelative(\
