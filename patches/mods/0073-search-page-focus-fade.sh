@@ -10,6 +10,7 @@ path4="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/om
 path5="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBar.java"
 path6="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
 path7="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarMediator.java"
+path8="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarFocusScrimHandler.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0073' "$path1"; then
@@ -45,6 +46,7 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
             mAliceSearchPageEnterAnimator.cancel();\
             mAliceSearchPageEnterAnimator = null;\
         }\
+        if (hasFocus) refreshAliceSearchPageLayout();\
         if (!hasFocus) {\
             mAliceSearchPageEnterActive = false;\
             mAliceSearchPageShown = false;\
@@ -57,6 +59,28 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
                         ? mAliceSearchPageEnterAlpha\
                         : (aliceWasShown ? 1f : 0f);\
         startAliceSearchPageEnterFade(aliceStart, 1f);\
+    }\
+\
+    private void refreshAliceSearchPageLayout() {\
+        View aliceRootView = getRootView();\
+        View aliceControlContainer =\
+                aliceRootView.findViewById(R.id.control_container);\
+        aliceRootView.requestApplyInsets();\
+        aliceRootView.requestLayout();\
+        if (aliceControlContainer != null) {\
+            aliceControlContainer.requestApplyInsets();\
+            aliceControlContainer.requestLayout();\
+        }\
+        aliceRootView.postOnAnimation(\
+                () -> {\
+                    if (!urlHasFocus()) return;\
+                    aliceRootView.requestApplyInsets();\
+                    aliceRootView.requestLayout();\
+                    if (aliceControlContainer != null) {\
+                        aliceControlContainer.requestApplyInsets();\
+                        aliceControlContainer.requestLayout();\
+                    }\
+                });\
     }\
 \
     private void startAliceSearchPageEnterFade(float start, float target) {\
@@ -419,14 +443,57 @@ sed -i '/^    \/\* package \*\/ void clearFocus() {$/i\
 
 sed -i '/^    private boolean mDeferredFocusCurrentTab;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_SCRIM_SHOW_DELAY_MS = 125L;\
     private boolean mAliceEndingInput;\
-    private boolean mAliceScrimShowPending;\
-    private int mAliceScrimShowGeneration;\
     // Alice patch end 0073\
 ' "$path7"
 
 sed -i 's|mScrimHandler\.setVisibility(|setAliceSearchScrimVisibility(|g' "$path7"
+
+# --- LocationBarFocusScrimHandler：立即建立 scrim 层，延迟后直接显示 ---
+
+sed -i '/^    private boolean mScrimShown;$/a\
+    // Alice patch start 0073\
+    private static final long ALICE_SCRIM_SHOW_DELAY_MS = 125L;\
+    private final android.os.Handler mAliceScrimHandler =\
+            new android.os.Handler(android.os.Looper.getMainLooper());\
+    private int mAliceScrimShowGeneration;\
+    // Alice patch end 0073\
+' "$path8"
+
+sed -i '/^    public void setVisibility(boolean shouldShow) {$/i\
+    // Alice patch start 0073\
+    private void scheduleAliceScrimShow() {\
+        cancelAliceScrimShow();\
+        int aliceGeneration = ++mAliceScrimShowGeneration;\
+        mAliceScrimHandler.postDelayed(\
+                () -> {\
+                    if (aliceGeneration != mAliceScrimShowGeneration) return;\
+                    mScrimManager.setAlpha(1f, mScrimModel);\
+                },\
+                ALICE_SCRIM_SHOW_DELAY_MS);\
+    }\
+\
+    private void cancelAliceScrimShow() {\
+        mAliceScrimShowGeneration++;\
+        mAliceScrimHandler.removeCallbacksAndMessages(null);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path8"
+
+sed -i 's|^            mScrimManager\.showScrim(mScrimModel);$|            // Alice patch start 0073\n            mScrimManager.showScrim(mScrimModel, /* animate= */ false);\n            mScrimManager.setAlpha(0f, mScrimModel);\n            scheduleAliceScrimShow();\n            // Alice patch end 0073|' "$path8"
+
+sed -i '/^            mScrimManager.hideScrim(mScrimModel, animate);$/i\
+            // Alice patch start 0073\
+            cancelAliceScrimShow();\
+            // Alice patch end 0073\
+' "$path8"
+
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0073\
+        cancelAliceScrimShow();\
+        // Alice patch end 0073\
+' "$path8"
 
 sed -i '/^    public void clearUrlBarFocus() {$/i\
     // Alice patch start 0073\
@@ -437,29 +504,8 @@ sed -i '/^    public void clearUrlBarFocus() {$/i\
     private void setAliceSearchScrimVisibility(boolean shouldShow) {\
         LocationBarFocusScrimHandler aliceScrimHandler = mScrimHandler;\
         if (aliceScrimHandler == null) return;\
-        if (!shouldShow) {\
-            mAliceScrimShowGeneration++;\
-            mAliceScrimShowPending = false;\
-            aliceScrimHandler.setVisibility(false, /* animate= */ false);\
-            return;\
-        }\
-        if (aliceScrimHandler.isScrimShown() || mAliceScrimShowPending) return;\
-        mAliceScrimShowPending = true;\
-        int aliceGeneration = ++mAliceScrimShowGeneration;\
-        mLocationBarLayout\
-                .getRootView()\
-                .postDelayed(\
-                        () -> {\
-                            if (aliceGeneration != mAliceScrimShowGeneration\
-                                    || !mAliceScrimShowPending) {\
-                                return;\
-                            }\
-                            mAliceScrimShowPending = false;\
-                            if (!aliceScrimHandler.isScrimShown()) {\
-                                aliceScrimHandler.setVisibility(true);\
-                            }\
-                        },\
-                        ALICE_SEARCH_SCRIM_SHOW_DELAY_MS);\
+        aliceScrimHandler.setVisibility(\
+                shouldShow, /* animate= */ shouldShow);\
     }\
     // Alice patch end 0073\
 ' "$path7"
