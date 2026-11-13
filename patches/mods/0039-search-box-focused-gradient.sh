@@ -104,8 +104,10 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch start 0039\
     private void drawAliceSearchPageBackgroundGradient(Canvas canvas) {\
         int width = getWidth();\
-        int height = getHeight();\
-        if (width <= 0 || height <= 0) return;\
+        int gradientHeight =\
+                mLocationBarBackgroundBounds.top\
+                        + mLocationBarBackgroundNtpOffset.top;\
+        if (width <= 0 || gradientHeight <= 0) return;\
 \
         @ColorInt int color = mToolbarBackground.getColor();\
         if (Color.alpha(color) == 0) {\
@@ -115,30 +117,33 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
         if (mAliceSearchPageBackgroundShader == null\
                 || mAliceSearchPageBackgroundColor != color\
                 || mAliceSearchPageBackgroundWidth != width\
-                || mAliceSearchPageBackgroundHeight != height) {\
+                || mAliceSearchPageBackgroundHeight != gradientHeight) {\
             mAliceSearchPageBackgroundColor = color;\
             mAliceSearchPageBackgroundWidth = width;\
-            mAliceSearchPageBackgroundHeight = height;\
+            mAliceSearchPageBackgroundHeight = gradientHeight;\
             mAliceSearchPageBackgroundShader =\
                     new LinearGradient(\
                             0,\
                             0,\
                             0,\
-                            height,\
+                            gradientHeight,\
                             color,\
                             color \& 0x00FFFFFF,\
                             Shader.TileMode.CLAMP);\
         }\
-        int saveCount = canvas.saveLayer(0, 0, width, height, null);\
+        int saveCount =\
+                canvas.saveLayer(0, 0, width, gradientHeight, null);\
         mAliceSearchPageBackgroundPaint.setShader(null);\
         mAliceSearchPageBackgroundPaint.setColor(color);\
         mAliceSearchPageBackgroundPaint.setXfermode(null);\
-        canvas.drawRect(0, 0, width, height, mAliceSearchPageBackgroundPaint);\
+        canvas.drawRect(\
+                0, 0, width, gradientHeight, mAliceSearchPageBackgroundPaint);\
 \
         mAliceSearchPageBackgroundMaskPaint.setShader(mAliceSearchPageBackgroundShader);\
         mAliceSearchPageBackgroundMaskPaint.setXfermode(\
                 mAliceSearchPageBackgroundMaskXfermode);\
-        canvas.drawRect(0, 0, width, height, mAliceSearchPageBackgroundMaskPaint);\
+        canvas.drawRect(\
+                0, 0, width, gradientHeight, mAliceSearchPageBackgroundMaskPaint);\
         canvas.restoreToCount(saveCount);\
     }\
     // Alice patch end 0039\
@@ -157,9 +162,8 @@ sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&
     <!-- Alice patch start 0039 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
         android:key="alice_search_page_gradient_switch"\
-        android:order="4"\
-        android:title="Fade the search page background"\
-        android:summary="Fade the search page background and end the focus scrim at the top of the search box when the address bar is active" />\
+        android:order="5"\
+        android:title="Fade the search box background" />\
     <!-- Alice patch end 0039 -->|' "$path2"
 
 # 6) Fragment：读/写开关（默认关，与行为默认值一致）。
@@ -178,7 +182,7 @@ sed -i '/^        initTabPositionPref();$/a\
 
 sed -i '/^    private void updateUiThemePref() {$/i\
     // Alice patch start 0039\
-    /** Alice: 点击地址栏后是否让搜索页背景竖向渐隐。 */\
+    /** Alice: 搜索框背景渐隐开关。 */\
     private void initAliceSearchPageGradientPref() {\
         ChromeSwitchPreference switchPref =\
                 (ChromeSwitchPreference)\
@@ -186,8 +190,7 @@ sed -i '/^    private void updateUiThemePref() {$/i\
         String aliceLanguage =\
                 getResources().getConfiguration().getLocales().get(0).getLanguage();\
         if ("zh".equals(aliceLanguage)) {\
-            switchPref.setTitle("搜索页背景渐隐");\
-            switchPref.setSummary("点击地址栏后，搜索页背景上下渐隐，聚焦遮罩底边停在搜索框顶部");\
+            switchPref.setTitle("搜索框背景渐隐");\
         }\
         switchPref.setChecked(\
                 ChromeSharedPreferences.getInstance()\

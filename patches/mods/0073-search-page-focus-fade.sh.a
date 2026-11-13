@@ -18,9 +18,11 @@ fi
 
 # --- ToolbarPhone：搜索页进入渐显 ---
 
+sed -i 's|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 225;|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 100;|' "$path1"
+
 sed -i '/^    private boolean mDropdownListScrolled;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_PAGE_ENTER_FADE_MS = 225L;\
+    private static final long ALICE_SEARCH_PAGE_ENTER_FADE_MS = 100L;\
     private @Nullable ValueAnimator mAliceSearchPageEnterAnimator;\
     private float mAliceSearchPageEnterAlpha = 1f;\
     private boolean mAliceSearchPageEnterActive;\
@@ -84,6 +86,7 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
 \
     private void setAliceSearchPageEnterAlpha(float alpha) {\
         mAliceSearchPageEnterAlpha = MathUtils.clamp(alpha, 0f, 1f);\
+        setAlpha(mAliceSearchPageEnterAlpha);\
         OmniboxSuggestionsContainer.setAliceSearchPageEnterAlpha(\
                 mAliceSearchPageEnterAlpha);\
         invalidate();\
@@ -97,8 +100,6 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch end 0073\
 \
 ' "$path1"
-
-sed -i 's|^    public void draw(Canvas canvas) {$|    // Alice patch start 0073\n    public void draw(Canvas canvas) {\n        int aliceFadeLayer = -1;\n        if (!mTextureCaptureMode\n                \&\& mAliceSearchPageEnterActive\n                \&\& mAliceSearchPageEnterAlpha < 1f) {\n            aliceFadeLayer =\n                    canvas.saveLayerAlpha(\n                            0,\n                            0,\n                            getWidth(),\n                            getHeight(),\n                            Math.round(mAliceSearchPageEnterAlpha * 255));\n        }\n        aliceDrawWithEnterFadeInner(canvas);\n        if (aliceFadeLayer >= 0) {\n            canvas.restoreToCount(aliceFadeLayer);\n        }\n    }\n\n    private void aliceDrawWithEnterFadeInner(Canvas canvas) {\n    // Alice patch end 0073|' "$path1"
 
 sed -i '/^    private void cancelAnimations() {$/a\
         // Alice patch start 0073\
@@ -340,7 +341,7 @@ sed -i '/^    public void destroy() {$/i\
                                                             View.ALPHA,\
                                                             1f,\
                                                             0f);\
-                                            animator.setDuration(225L);\
+                                            animator.setDuration(100L);\
                                             animator.setInterpolator(\
                                                     org.chromium.ui.interpolators.Interpolators\
                                                             .FAST_OUT_SLOW_IN_INTERPOLATOR);\
@@ -494,7 +495,7 @@ sed -i '/^    public void destroy() {$/a\
 
 sed -i '/^    private boolean mIsOmniboxFocused;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_STATUS_BAR_FADE_MS = 225L;\
+    private static final long ALICE_SEARCH_STATUS_BAR_FADE_MS = 100L;\
     private final AliceStatusBarColorTransitionController mAliceSearchStatusBarController;\
     private final AliceStatusBarColorTransitionController.Observer\
             mAliceSearchStatusBarObserver = ignored -> updateStatusBarColor();\
