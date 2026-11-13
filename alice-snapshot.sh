@@ -8,8 +8,6 @@
 
 set -euo pipefail
 
-echo "=== 创建快照 ==="
-
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 CHROMIUM_ROOT="$SCRIPT_DIR/chromium/src"
 PATCH_MODS_DIR="$SCRIPT_DIR/patches/mods"
