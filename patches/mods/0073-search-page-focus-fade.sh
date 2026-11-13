@@ -18,11 +18,11 @@ fi
 
 # --- ToolbarPhone：搜索页进入渐显 ---
 
-sed -i 's|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 225;|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 100;|' "$path1"
+sed -i 's|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 225;|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 125;|' "$path1"
 
 sed -i '/^    private boolean mDropdownListScrolled;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_PAGE_ENTER_FADE_MS = 100L;\
+    private static final long ALICE_SEARCH_PAGE_ENTER_FADE_MS = 125L;\
     private @Nullable ValueAnimator mAliceSearchPageEnterAnimator;\
     private float mAliceSearchPageEnterAlpha = 1f;\
     private boolean mAliceSearchPageEnterActive;\
@@ -341,7 +341,7 @@ sed -i '/^    public void destroy() {$/i\
                                                             View.ALPHA,\
                                                             1f,\
                                                             0f);\
-                                            animator.setDuration(100L);\
+                                            animator.setDuration(125L);\
                                             animator.setInterpolator(\
                                                     org.chromium.ui.interpolators.Interpolators\
                                                             .FAST_OUT_SLOW_IN_INTERPOLATOR);\
@@ -419,7 +419,7 @@ sed -i '/^    \/\* package \*\/ void clearFocus() {$/i\
 
 sed -i '/^    private boolean mDeferredFocusCurrentTab;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_SCRIM_SHOW_DELAY_MS = 100L;\
+    private static final long ALICE_SEARCH_SCRIM_SHOW_DELAY_MS = 125L;\
     private boolean mAliceEndingInput;\
     private boolean mAliceScrimShowPending;\
     private int mAliceScrimShowGeneration;\
@@ -536,7 +536,7 @@ sed -i '/^    public void destroy() {$/a\
 
 sed -i '/^    private boolean mIsOmniboxFocused;$/a\
     // Alice patch start 0073\
-    private static final long ALICE_SEARCH_STATUS_BAR_FADE_MS = 100L;\
+    private static final long ALICE_SEARCH_STATUS_BAR_FADE_MS = 125L;\
     private final AliceStatusBarColorTransitionController mAliceSearchStatusBarController;\
     private final AliceStatusBarColorTransitionController.Observer\
             mAliceSearchStatusBarObserver = ignored -> updateStatusBarColor();\
