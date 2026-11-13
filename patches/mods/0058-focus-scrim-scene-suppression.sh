@@ -39,6 +39,15 @@ sed -i '/^        mTabStripHeightSupplier\.addSyncObserverAndPostIfNonNull(mTabS
                         (v, left, top, right, bottom,\
                                 oldLeft, oldTop, oldRight, oldBottom) ->\
                                 updateScrimBottomMargin());\
+                mAliceScrimBoundaryView = aliceBottomBoundary;\
+                mAliceScrimPreDrawListener =\
+                        () -> {\
+                            alignAliceScrimToSearchBox();\
+                            return true;\
+                        };\
+                aliceBottomBoundary\
+                        .getViewTreeObserver()\
+                        .addOnPreDrawListener(mAliceScrimPreDrawListener);\
                 ViewCompat.setWindowInsetsAnimationCallback(\
                         aliceBottomBoundary,\
                         new WindowInsetsAnimationCompat.Callback(\
@@ -70,7 +79,9 @@ sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(Lay
 sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
     // Alice patch start 0058\
     private final int[] mAliceScrimToolbarLocation = new int[2];\
-    private final int[] mAliceScrimParentLocation = new int[2];\
+    private final int[] mAliceScrimViewLocation = new int[2];\
+    private @Nullable View mAliceScrimBoundaryView;\
+    private ViewTreeObserver.@Nullable OnPreDrawListener mAliceScrimPreDrawListener;\
     // Alice patch end 0058\
 ' "$path1"
 
@@ -103,49 +114,54 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
         // Alice patch end 0058\
     }\
 \
+    private void alignAliceScrimToSearchBox() {\
+        if (!isBottomToolbarActive() || !(mContext instanceof Activity)) {\
+            if (mOmniboxScrimView != null) mOmniboxScrimView.setTranslationY(0);\
+            return;\
+        }\
+\
+        View aliceScrim = mOmniboxScrimView;\
+        if (aliceScrim == null || aliceScrim.getParent() == null) {\
+            if (!mScrimShown) return;\
+            View aliceAnchor = mScrimModel.get(ScrimProperties.ANCHOR_VIEW);\
+            if (aliceAnchor == null) return;\
+            aliceScrim = findAliceScrimView(aliceAnchor.getRootView());\
+            mOmniboxScrimView = aliceScrim;\
+        }\
+        if (aliceScrim == null || aliceScrim.getVisibility() == View.GONE) return;\
+\
+        View aliceToolbar = ((Activity) mContext).findViewById(R.id.toolbar);\
+        if (aliceToolbar == null || aliceToolbar.getVisibility() != View.VISIBLE) return;\
+        aliceToolbar.getLocationInWindow(mAliceScrimToolbarLocation);\
+        aliceScrim.getLocationInWindow(mAliceScrimViewLocation);\
+        int aliceScrimBottom =\
+                mAliceScrimViewLocation[1] + aliceScrim.getHeight();\
+        int aliceDelta = mAliceScrimToolbarLocation[1] - aliceScrimBottom;\
+        if (aliceDelta != 0) {\
+            aliceScrim.setTranslationY(aliceScrim.getTranslationY() + aliceDelta);\
+        }\
+    }\
+\
+    private @Nullable View findAliceScrimView(View view) {\
+        if (view.getVisibility() != View.GONE \&\& view instanceof ScrimView) {\
+            return view;\
+        }\
+        if (!(view instanceof ViewGroup)) return null;\
+        ViewGroup aliceGroup = (ViewGroup) view;\
+        for (int i = 0; i < aliceGroup.getChildCount(); i++) {\
+            @Nullable View aliceResult = findAliceScrimView(aliceGroup.getChildAt(i));\
+            if (aliceResult != null) return aliceResult;\
+        }\
+        return null;\
+    }\
+    // Alice patch end 0058\
+\
     private void updateScrimBottomMargin(int bottomMargin) {\
         // Alice patch start 0058\
-        if (isBottomToolbarActive() \&\& mContext instanceof Activity) {\
-            View aliceToolbar =\
-                    ((Activity) mContext).findViewById(R.id.toolbar);\
-            View aliceAnchor = mScrimModel.get(ScrimProperties.ANCHOR_VIEW);\
-            View aliceParent =\
-                    aliceAnchor != null \&\& aliceAnchor.getParent() instanceof View\
-                            ? (View) aliceAnchor.getParent()\
-                            : null;\
-            if (aliceToolbar != null\
-                    \&\& aliceToolbar.getVisibility() == View.VISIBLE\
-                    \&\& aliceParent != null\
-                    \&\& aliceParent.getHeight() > 0) {\
-                aliceToolbar.getLocationInWindow(mAliceScrimToolbarLocation);\
-                aliceParent.getLocationInWindow(mAliceScrimParentLocation);\
-                int aliceParentBottom =\
-                        mAliceScrimParentLocation[1] + aliceParent.getHeight();\
-                int aliceSearchBoxBottomMargin =\
-                        Math.max(\
-                                0,\
-                                Math.min(\
-                                        aliceParent.getHeight(),\
-                                        aliceParentBottom\
-                                                - mAliceScrimToolbarLocation[1]));\
-                mScrimModel.set(\
-                        ScrimProperties.BOTTOM_MARGIN,\
-                        aliceSearchBoxBottomMargin);\
-                return;\
-            }\
-        }\
-        int aliceSearchBoxTopInset = 0;\
-        if (isBottomToolbarActive() \&\& mScrimShown) {\
-            aliceSearchBoxTopInset =\
-                    Math.max(\
-                            0,\
-                            mBottomControlsStacker.getHeightFromLayerToBottom(\
-                                    LayerType.BOTTOM_TOOLBAR));\
-        }\
+        int aliceBottomMargin =\
+                isBottomToolbarActive() ? 0 : Math.max(0, bottomMargin);\
         // Alice patch end 0058\
-        mScrimModel.set(\
-                ScrimProperties.BOTTOM_MARGIN,\
-                Math.max(0, bottomMargin + aliceSearchBoxTopInset));\
+        mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, aliceBottomMargin);\
     }\
     // Alice patch end 0058\
 ' "$path1"
@@ -173,6 +189,23 @@ sed -i '/^    public void setVisibility(boolean shouldShow, boolean animate) {$/
         mScrimShown = shouldShow;\
     }\
     // Alice patch end 0058\
+' "$path1"
+
+# 生命周期结束时移除逐帧对齐监听器。
+sed -i '/^    public void destroy() {$/a\
+        // Alice patch start 0058\
+        if (mAliceScrimBoundaryView != null \&\& mAliceScrimPreDrawListener != null) {\
+            ViewTreeObserver aliceBoundaryObserver =\
+                    mAliceScrimBoundaryView.getViewTreeObserver();\
+            if (aliceBoundaryObserver.isAlive()) {\
+                aliceBoundaryObserver.removeOnPreDrawListener(\
+                        mAliceScrimPreDrawListener);\
+            }\
+        }\
+        mAliceScrimBoundaryView = null;\
+        mAliceScrimPreDrawListener = null;\
+        mOmniboxScrimView = null;\
+        // Alice patch end 0058\
 ' "$path1"
 
 # ToolbarManager 记录地址栏聚焦状态并提供导航栏工具栏颜色。
