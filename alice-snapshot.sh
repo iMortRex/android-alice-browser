@@ -4,6 +4,7 @@
 #   -td <tag>  删除 Git tag 和 third_party tar 快照
 #   -tl        列出已有快照
 #   -h         显示帮助
+#   01         等价于 -t alice-state-01
 
 set -euo pipefail
 
@@ -22,6 +23,7 @@ Alice 快照工具
   ./alice-snapshot.sh -td alice-state-00
   ./alice-snapshot.sh -tl
   ./alice-snapshot.sh -h
+  ./alice-snapshot.sh 01          # 等价于 -t alice-state-01
 
 说明:
   -t   在 chromium/src 创建 Git snapshot commit/tag，
@@ -29,6 +31,9 @@ Alice 快照工具
        backups/third_party/<tag>.tar
   -td  删除 chromium/src 中的 tag，并删除对应的 tar 快照
   -tl  列出 Git tag 和 third_party tar 快照
+
+  如果 tag 只包含数字，会自动添加 alice-state- 前缀。
+  例如输入 01，实际 tag 为 alice-state-01。
 
 环境变量:
   ALICE_SNAPSHOT_PREFIX  可选 tag 前缀；设置后 -t 要求前缀，
@@ -44,6 +49,15 @@ die() {
 require_layout() {
     [ -d "$CHROMIUM_ROOT/.git" ] || die "不是 Chromium Git 仓库: $CHROMIUM_ROOT"
     [ -d "$PATCH_MODS_DIR" ] || die "补丁目录不存在: $PATCH_MODS_DIR"
+}
+
+normalize_tag() {
+    local tag="$1"
+    if [[ "$tag" =~ ^[0-9]+$ ]]; then
+        printf 'alice-state-%s\n' "$tag"
+    else
+        printf '%s\n' "$tag"
+    fi
 }
 
 validate_tag() {
@@ -62,11 +76,13 @@ third_party_archive() {
 }
 
 create_snapshot() {
-    local tag="$1"
+    local tag
     local archive
     local list_file
     local path_line path_value
     local -A seen=()
+
+    tag=$(normalize_tag "$1")
 
     require_layout
     validate_tag "$tag"
@@ -140,8 +156,10 @@ create_snapshot() {
 }
 
 delete_snapshot() {
-    local tag="$1"
+    local tag
     local archive
+
+    tag=$(normalize_tag "$1")
 
     require_layout
     validate_tag "$tag"
@@ -211,6 +229,11 @@ case "${1:-}" in
     -tl)
         [ $# -eq 1 ] || { usage; exit 1; }
         list_snapshots
+        ;;
+    [0-9]*)
+        [[ "$1" =~ ^[0-9]+$ ]] || { usage; exit 1; }
+        [ $# -eq 1 ] || { usage; exit 1; }
+        create_snapshot "$1"
         ;;
     -h|--help|"")
         usage
