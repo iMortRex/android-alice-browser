@@ -419,7 +419,48 @@ sed -i '/^    \/\* package \*\/ void clearFocus() {$/i\
 
 sed -i '/^    private boolean mDeferredFocusCurrentTab;$/a\
     // Alice patch start 0073\
+    private static final long ALICE_SEARCH_SCRIM_SHOW_DELAY_MS = 100L;\
     private boolean mAliceEndingInput;\
+    private boolean mAliceScrimShowPending;\
+    private int mAliceScrimShowGeneration;\
+    // Alice patch end 0073\
+' "$path7"
+
+sed -i 's|mScrimHandler\.setVisibility(|setAliceSearchScrimVisibility(|g' "$path7"
+
+sed -i '/^    public void clearUrlBarFocus() {$/i\
+    // Alice patch start 0073\
+    private void setAliceSearchScrimVisibility(boolean shouldShow, boolean animate) {\
+        setAliceSearchScrimVisibility(shouldShow);\
+    }\
+\
+    private void setAliceSearchScrimVisibility(boolean shouldShow) {\
+        LocationBarFocusScrimHandler aliceScrimHandler = mScrimHandler;\
+        if (aliceScrimHandler == null) return;\
+        if (!shouldShow) {\
+            mAliceScrimShowGeneration++;\
+            mAliceScrimShowPending = false;\
+            aliceScrimHandler.setVisibility(false, /* animate= */ false);\
+            return;\
+        }\
+        if (aliceScrimHandler.isScrimShown() || mAliceScrimShowPending) return;\
+        mAliceScrimShowPending = true;\
+        int aliceGeneration = ++mAliceScrimShowGeneration;\
+        mLocationBarLayout\
+                .getRootView()\
+                .postDelayed(\
+                        () -> {\
+                            if (aliceGeneration != mAliceScrimShowGeneration\
+                                    || !mAliceScrimShowPending) {\
+                                return;\
+                            }\
+                            mAliceScrimShowPending = false;\
+                            if (!aliceScrimHandler.isScrimShown()) {\
+                                aliceScrimHandler.setVisibility(true);\
+                            }\
+                        },\
+                        ALICE_SEARCH_SCRIM_SHOW_DELAY_MS);\
+    }\
     // Alice patch end 0073\
 ' "$path7"
 

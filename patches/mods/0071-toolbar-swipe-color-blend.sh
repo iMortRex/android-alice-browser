@@ -7,11 +7,21 @@ path1="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/To
 path2="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerImpl.java"
 path3="chrome/browser/ui/android/theme/java/src/org/chromium/chrome/browser/theme/ToolbarThemeColorProvider.java"
 path4="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
+path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0071' "$path1"; then
     exit 100
 fi
+
+# 主题色尚未解析时，相邻页可能都暂时使用默认色。此时
+# updateToolbarBackground() 会提前返回，模拟导航栏需要的颜色通知也随之丢失。
+sed -i '/^    public void setToolbarColorsForSwipe($/,/^    }$/ s|^        updateToolbarBackground(toolbarColor);$|        // Alice patch start 0071\
+        if (mToolbarBackground.getColor() == toolbarColor) {\
+            notifyToolbarColorChanged(toolbarColor);\
+        }\
+        updateToolbarBackground(toolbarColor);\
+        // Alice patch end 0071|' "$path5"
 
 # 补充颜色混合和主题色计算 import。
 sed -i '/^import android\.content\.Context;$/i\
