@@ -8,6 +8,8 @@
 
 set -euo pipefail
 
+echo "=== 创建快照 ==="
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 CHROMIUM_ROOT="$SCRIPT_DIR/chromium/src"
 PATCH_MODS_DIR="$SCRIPT_DIR/patches/mods"
@@ -101,7 +103,7 @@ create_snapshot() {
         die "快照名已存在，已取消，不会覆盖"
     fi
 
-    echo "=== 创建 Git 快照: $tag ==="
+    echo "创建 Git 快照: $tag"
     git -C "$CHROMIUM_ROOT" add -A
     git -C "$CHROMIUM_ROOT" commit -m "snapshot: $tag"
     git -C "$CHROMIUM_ROOT" tag "$tag"
@@ -143,7 +145,7 @@ create_snapshot() {
         die "没有找到可备份的 third_party 文件"
     fi
 
-    echo "=== 创建 third_party tar 快照 ==="
+    echo "创建 third_party tar 快照"
     tar -cpf "$archive" \
         -C "$CHROMIUM_ROOT" \
         --verbatim-files-from \

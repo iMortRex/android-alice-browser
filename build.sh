@@ -33,7 +33,6 @@ gclient sync -D --no-history --nohooks
 gclient runhooks
 ./build/install-build-deps.sh --no-prompt
 
-"$SCRIPT_DIR/alice-snapshot.sh" --td alice-state-00
 source $SCRIPT_DIR/patch.sh
 cp $SCRIPT_DIR/args.gn out/Default/args.gn
 gn gen out/Default # gn args out/Default; echo 'treat_warnings_as_errors = false' >> out/Default/args.gn

@@ -155,7 +155,7 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
                 ? Math.round(\
                         HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 0.55f)\
                 : Math.round(\
-                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f);\
+                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f));\
         animator.setStartDelay(\
                 showingHub ? 0L : ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS);\
         animator.setInterpolator(Interpolators.EMPHASIZED);\
