@@ -19,7 +19,7 @@ cd "$CHROMIUM"
 
 # 恢复干净（撤销上次所有 patch 和 mod 的修改）
 echo "=== 恢复工作区 ==="
-"$SCRIPT_DIR/restore-paths.sh" -td alice-state-00
+"$SCRIPT_DIR/restore-paths.sh" --td alice-state-00
 "$SCRIPT_DIR/restore-paths.sh" --all alice-state-00
 
 export VERSION=$(grep -m1 -o '[0-9]\+\(\.[0-9]\+\)\{3\}' \
