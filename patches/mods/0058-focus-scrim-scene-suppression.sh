@@ -1,5 +1,5 @@
 #!/bin/bash
-# 地址栏聚焦：遮罩跟随搜索栏底部，抑制 compositor 工具栏残留层。
+# 地址栏聚焦：遮罩底边跟随搜索框顶部，抑制 compositor 工具栏残留层。
 
 set -e
 
@@ -67,6 +67,13 @@ sed -i '/^                mBottomControlsStacker\.getHeightFromLayerToBottom(Lay
     // Alice patch end 0058' "$path1"
 
 # 新增遮罩底部边距计算方法。
+sed -i '/^    private final BottomControlsStacker mBottomControlsStacker;$/a\
+    // Alice patch start 0058\
+    private final int[] mAliceScrimToolbarLocation = new int[2];\
+    private final int[] mAliceScrimParentLocation = new int[2];\
+    // Alice patch end 0058\
+' "$path1"
+
 sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
     // Alice patch start 0058\
     private void updateScrimBottomMargin() {\
@@ -98,8 +105,37 @@ sed -i '/^    \/\*\* Controls the visibility of scrim overlay\. \*\/$/i\
 \
     private void updateScrimBottomMargin(int bottomMargin) {\
         // Alice patch start 0058\
+        if (isBottomToolbarActive() \&\& mContext instanceof Activity) {\
+            View aliceToolbar =\
+                    ((Activity) mContext).findViewById(R.id.toolbar);\
+            View aliceAnchor = mScrimModel.get(ScrimProperties.ANCHOR_VIEW);\
+            View aliceParent =\
+                    aliceAnchor != null \&\& aliceAnchor.getParent() instanceof View\
+                            ? (View) aliceAnchor.getParent()\
+                            : null;\
+            if (aliceToolbar != null\
+                    \&\& aliceToolbar.getVisibility() == View.VISIBLE\
+                    \&\& aliceParent != null\
+                    \&\& aliceParent.getHeight() > 0) {\
+                aliceToolbar.getLocationInWindow(mAliceScrimToolbarLocation);\
+                aliceParent.getLocationInWindow(mAliceScrimParentLocation);\
+                int aliceParentBottom =\
+                        mAliceScrimParentLocation[1] + aliceParent.getHeight();\
+                int aliceSearchBoxBottomMargin =\
+                        Math.max(\
+                                0,\
+                                Math.min(\
+                                        aliceParent.getHeight(),\
+                                        aliceParentBottom\
+                                                - mAliceScrimToolbarLocation[1]));\
+                mScrimModel.set(\
+                        ScrimProperties.BOTTOM_MARGIN,\
+                        aliceSearchBoxBottomMargin);\
+                return;\
+            }\
+        }\
         int aliceSearchBoxTopInset = 0;\
-        if (mScrimShown) {\
+        if (isBottomToolbarActive() \&\& mScrimShown) {\
             aliceSearchBoxTopInset =\
                     Math.max(\
                             0,\

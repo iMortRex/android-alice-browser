@@ -104,10 +104,8 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
     // Alice patch start 0039\
     private void drawAliceSearchPageBackgroundGradient(Canvas canvas) {\
         int width = getWidth();\
-        int gradientHeight =\
-                mLocationBarBackgroundBounds.top\
-                        + mLocationBarBackgroundNtpOffset.top;\
-        if (width <= 0 || gradientHeight <= 0) return;\
+        int height = getHeight();\
+        if (width <= 0 || height <= 0) return;\
 \
         @ColorInt int color = mToolbarBackground.getColor();\
         if (Color.alpha(color) == 0) {\
@@ -117,33 +115,30 @@ sed -i '/^    private void updateToolbarBackground(@ColorInt int color) {$/i\
         if (mAliceSearchPageBackgroundShader == null\
                 || mAliceSearchPageBackgroundColor != color\
                 || mAliceSearchPageBackgroundWidth != width\
-                || mAliceSearchPageBackgroundHeight != gradientHeight) {\
+                || mAliceSearchPageBackgroundHeight != height) {\
             mAliceSearchPageBackgroundColor = color;\
             mAliceSearchPageBackgroundWidth = width;\
-            mAliceSearchPageBackgroundHeight = gradientHeight;\
+            mAliceSearchPageBackgroundHeight = height;\
             mAliceSearchPageBackgroundShader =\
                     new LinearGradient(\
                             0,\
                             0,\
                             0,\
-                            gradientHeight,\
+                            height,\
                             color,\
                             color \& 0x00FFFFFF,\
                             Shader.TileMode.CLAMP);\
         }\
-        int saveCount =\
-                canvas.saveLayer(0, 0, width, gradientHeight, null);\
+        int saveCount = canvas.saveLayer(0, 0, width, height, null);\
         mAliceSearchPageBackgroundPaint.setShader(null);\
         mAliceSearchPageBackgroundPaint.setColor(color);\
         mAliceSearchPageBackgroundPaint.setXfermode(null);\
-        canvas.drawRect(\
-                0, 0, width, gradientHeight, mAliceSearchPageBackgroundPaint);\
+        canvas.drawRect(0, 0, width, height, mAliceSearchPageBackgroundPaint);\
 \
         mAliceSearchPageBackgroundMaskPaint.setShader(mAliceSearchPageBackgroundShader);\
         mAliceSearchPageBackgroundMaskPaint.setXfermode(\
                 mAliceSearchPageBackgroundMaskXfermode);\
-        canvas.drawRect(\
-                0, 0, width, gradientHeight, mAliceSearchPageBackgroundMaskPaint);\
+        canvas.drawRect(0, 0, width, height, mAliceSearchPageBackgroundMaskPaint);\
         canvas.restoreToCount(saveCount);\
     }\
     // Alice patch end 0039\
