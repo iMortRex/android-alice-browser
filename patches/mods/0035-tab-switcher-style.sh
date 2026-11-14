@@ -1,18 +1,15 @@
 #!/bin/bash
-# 设置-外观：新增「标签切换器」入口（点击进入子页选择样式），并在入口下方显示当前选项。
+# 设置-标签页和标签页分组：新增「标签切换器」入口（点击进入子页选择样式），并在入口下方显示当前选项。
 #   0 默认（上游标签网格） / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0036 实现）
 # 取值保存在 ChromeSharedPreferences: alice_tab_switcher_style
 
 set -e
 
 # 目标文件路径
-path1="chrome/android/java/res/xml/appearance_preferences.xml"
+path1="chrome/android/features/tab_ui/java/res/xml/tabs_settings.xml"
 path2="alice/chromium_src/chrome/android/chrome_java_ext_sources.gni"
 path3="alice/chromium_src/chrome/android/chrome_app_java_resources_ext_sources.gni"
-path4="alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings"
-path5="alice/chromium_src/chrome/android/java/res/xml"
-path6="alice/chromium_src/chrome/android/java/res/layout"
-path7="chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AppearanceSettingsFragment.java"
+path4="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabsSettings.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0035' "$path1"; then
@@ -20,9 +17,8 @@ if grep -q 'Alice patch start 0035' "$path1"; then
 fi
 
 # ---------- 新增文件 ----------
-mkdir -p "$path4" "$path5" "$path6"
-
-cat > "$path5/alice_tab_switcher_style_preferences.xml" << 'ALICE_EOF'
+mkdir -p "alice/chromium_src/chrome/android/java/res/xml"
+cat > "alice/chromium_src/chrome/android/java/res/xml/alice_tab_switcher_style_preferences.xml" << 'ALICE_EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Alice: 标签切换器样式设置页 -->
 <PreferenceScreen
@@ -37,7 +33,8 @@ cat > "$path5/alice_tab_switcher_style_preferences.xml" << 'ALICE_EOF'
 </PreferenceScreen>
 ALICE_EOF
 
-cat > "$path6/alice_tab_switcher_style_preference.xml" << 'ALICE_EOF'
+mkdir -p "alice/chromium_src/chrome/android/java/res/layout"
+cat > "alice/chromium_src/chrome/android/java/res/layout/alice_tab_switcher_style_preference.xml" << 'ALICE_EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Alice: 标签切换器样式的单选组 -->
 <LinearLayout
@@ -85,7 +82,8 @@ cat > "$path6/alice_tab_switcher_style_preference.xml" << 'ALICE_EOF'
 </LinearLayout>
 ALICE_EOF
 
-cat > "$path4/AliceTabSwitcherStylePreference.java" << 'ALICE_EOF'
+mkdir -p "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings"
+cat > "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStylePreference.java" << 'ALICE_EOF'
 // Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -189,7 +187,7 @@ public class AliceTabSwitcherStylePreference extends ContainedRadioButtonGroupPr
         return STYLE_DEFAULT;
     }
 
-    /** @return 样式的短名称，用于「设置-外观」入口下方的摘要。 */
+    /** @return 样式的短名称，用于「标签页和标签页分组」入口下方的摘要。 */
     public static String getStyleTitle(int style) {
         if (style == STYLE_VERTICAL) return "竖向（暂未支持）";
         if (style == STYLE_HORIZONTAL) return "横向";
@@ -203,7 +201,8 @@ public class AliceTabSwitcherStylePreference extends ContainedRadioButtonGroupPr
 }
 ALICE_EOF
 
-cat > "$path4/AliceTabSwitcherStyleSettingsFragment.java" << 'ALICE_EOF'
+mkdir -p "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings"
+cat > "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/appearance/settings/AliceTabSwitcherStyleSettingsFragment.java" << 'ALICE_EOF'
 // Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -253,7 +252,9 @@ public class AliceTabSwitcherStyleSettingsFragment extends ChromeBaseSettingsFra
 
     @Override
     public @Nullable String getMainMenuKey() {
-        return "appearance";
+        // Alice patch start 0035
+        return "tabs";
+        // Alice patch end 0035
     }
 
     private void initStylePref() {
@@ -284,15 +285,17 @@ sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.ja
 
 sed -i 's|^  "java/res/xml/privacy_preferences_ext.xml",$|&\n  # Alice patch start 0035\n  "java/res/xml/alice_tab_switcher_style_preferences.xml",\n  "java/res/layout/alice_tab_switcher_style_preference.xml",\n  # Alice patch end 0035|' "$path3"
 
-# ---------- 设置-外观 新增入口 ----------
-sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0035 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:order="4"\n        android:persistent="false"\n        android:title="标签切换器" />\n    <!-- Alice patch end 0035 -->\n</PreferenceScreen>|' "$path1"
+# ---------- 设置-标签页和标签页分组 新增入口 ----------
+sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0035 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:persistent="false"\n        android:title="标签切换器" />\n    <!-- Alice patch end 0035 -->\n</PreferenceScreen>|' "$path1"
 
-# ---------- 设置-外观 入口下方显示当前选项 ----------
-sed -i 's|^    public static final String PREF_UI_THEME = "ui_theme";$|&\n\n    // Alice patch start 0035\n    public static final String PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY =\n            "alice_tab_switcher_style_entry";\n    // Alice patch end 0035|' "$path7"
+# ---------- 设置-标签页和标签页分组 入口下方显示当前选项 ----------
+sed -i 's|^import org.chromium.chrome.R;$|&\n// Alice patch start 0035\nimport org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStylePreference;\n// Alice patch end 0035|' "$path4"
 
-sed -i 's|^        updateUiThemePref();$|&\n        // Alice patch start 0035\n        updateAliceTabSwitcherStylePref();\n        // Alice patch end 0035|' "$path7"
+sed -i 's|^    static final String PREF_CCT_ALWAYS_OPEN_IN_BROWSER = "cct_always_open_in_browser";$|&\n\n    // Alice patch start 0035\n    public static final String PREF_ALICE_TAB_SWITCHER_STYLE_ENTRY =\n            "alice_tab_switcher_style_entry";\n    // Alice patch end 0035|' "$path4"
 
-sed -i '/^    private void updateUiThemePref() {$/i\
+sed -i 's|^        configureTabArchiveSettings();$|&\n        // Alice patch start 0035\n        updateAliceTabSwitcherStylePref();\n        // Alice patch end 0035|' "$path4"
+
+sed -i '/^    private void configureAutoOpenSyncedTabGroupsSwitch() {$/i\
     // Alice patch start 0035\
     /** 标签切换器入口下方显示当前选中的样式。 */\
     private void updateAliceTabSwitcherStylePref() {\
@@ -303,4 +306,4 @@ sed -i '/^    private void updateUiThemePref() {$/i\
                         AliceTabSwitcherStylePreference.getCurrentStyle()));\
     }\
     // Alice patch end 0035\
-' "$path7"
+' "$path4"
