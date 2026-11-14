@@ -148,7 +148,7 @@ import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContain
 
 sed -i '/^        if (mDestroyChecker\.isDestroyed()) return;$/a\
         // Alice patch start 0073\
-        if (!OmniboxSuggestionsContainer.isAliceExitSnapshotVisible()) return;\
+        if (!OmniboxSuggestionsContainer.isAliceToolbarVisible()) return;\
         // Alice patch end 0073\
 ' "$path1"
 
@@ -164,6 +164,7 @@ sed -i '/^    \/\*\* Clean up resources and remove observers installed by this c
     // Alice patch start 0073\
     private static float sAliceSearchPageEnterAlpha = 1f;\
     private static boolean sAliceSearchPageUiVisible = true;\
+    private static boolean sAliceToolbarVisible = true;\
     private static @Nullable OmniboxSuggestionsContainer sAliceSearchPageEnterInstance;\
 \
     public static void setAliceSearchPageEnterAlpha(float alpha) {\
@@ -180,6 +181,14 @@ sed -i '/^    \/\*\* Clean up resources and remove observers installed by this c
 \
     public static boolean isAliceExitSnapshotVisible() {\
         return sAliceSearchPageUiVisible;\
+    }\
+\
+    public static void setAliceToolbarVisible(boolean visible) {\
+        sAliceToolbarVisible = visible;\
+    }\
+\
+    public static boolean isAliceToolbarVisible() {\
+        return sAliceToolbarVisible;\
     }\
 \
     @Override\
@@ -295,6 +304,8 @@ sed -i '/^    public void destroy() {$/i\
         View aliceDecorView = aliceActivity.getWindow().getDecorView();\
         org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
                 .setAliceExitSnapshotVisible(false);\
+        org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
+                .setAliceToolbarVisible(false);\
         LocationBarFocusScrimHandler.setAliceExitSnapshotVisible(false);\
         aliceDecorView.invalidate();\
         aliceDecorView.postInvalidateOnAnimation();\
@@ -322,6 +333,7 @@ sed -i '/^    public void destroy() {$/i\
         aliceImageView.setTranslationZ(10000f);\
         mAliceSnapshotView = aliceImageView;\
         mAliceSnapshotBitmap = aliceBitmap;\
+        scheduleAliceSearchPageRestore(aliceDecorView, aliceGeneration);\
         boolean[] aliceDrawConsumed = new boolean[1];\
         aliceImageView\
                 .getViewTreeObserver()\
@@ -390,6 +402,8 @@ sed -i '/^    public void destroy() {$/i\
         if (aliceBitmap != null \&\& !aliceBitmap.isRecycled()) aliceBitmap.recycle();\
         org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
                 .setAliceExitSnapshotVisible(true);\
+        org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
+                .setAliceToolbarVisible(true);\
         LocationBarFocusScrimHandler.setAliceExitSnapshotVisible(true);\
         invalidateAliceToolbar();\
     }\
@@ -405,6 +419,29 @@ sed -i '/^    public void destroy() {$/i\
             }\
             aliceParent = aliceView.getParent();\
         }\
+    }\
+\
+    private void scheduleAliceSearchPageRestore(View aliceDecorView, int aliceGeneration) {\
+        int[] aliceFrames = new int[1];\
+        Runnable aliceRestore =\
+                new Runnable() {\
+                    @Override\
+                    public void run() {\
+                        if (aliceGeneration != mAliceSnapshotGeneration) return;\
+                        aliceFrames[0]++;\
+                        if (aliceFrames[0] >= 3) {\
+                            org.chromium.chrome.browser.omnibox.suggestions\
+                                    .OmniboxSuggestionsContainer.setAliceExitSnapshotVisible(true);\
+                            org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
+                                    .setAliceToolbarVisible(true);\
+                            LocationBarFocusScrimHandler.setAliceExitSnapshotVisible(true);\
+                            invalidateAliceToolbar();\
+                            return;\
+                        }\
+                        aliceDecorView.postOnAnimation(this);\
+                    }\
+                };\
+        aliceDecorView.postOnAnimation(aliceRestore);\
     }\
 \
     private void releaseAliceExitSnapshot() {\

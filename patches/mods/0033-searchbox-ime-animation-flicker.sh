@@ -468,6 +468,18 @@ sed -i '/^                    public void onConfigurationChanged(Configuration c
                         mToolbar.onPrimaryColorChanged(/* shouldAnimate= */ false);\
                         // Alice patch end 0033' "$path2"
 
+# 页面导航的主题色直接提交。动画从旧工具栏颜色起帧会把已经生效的新页颜色
+# 临时拉回旧色，状态栏也会跟随逐帧回调一起回退。
+sed -i 's|^        mToolbar\.onPrimaryColorChanged(shouldAnimate);$|        // Alice patch start 0033\
+        // Commit navigation theme changes immediately; the new page color is already visible.\
+        mToolbar.onPrimaryColorChanged(/* shouldAnimate= */ false);\
+        // Alice patch end 0033|' "$path2"
+
+sed -i 's|^            onPrimaryColorChanged(/\* shouldAnimate= \*/ true);$|            // Alice patch start 0033\
+            // Keep the first painted page color in sync with the committed navigation.\
+            onPrimaryColorChanged(/* shouldAnimate= */ false);\
+            // Alice patch end 0033|' "$path8"
+
 # 5) 搜索页位于底部时，始终保留 IME 高度，避免 resize mode 功能开关把键盘高度清零。
 sed -i '/^    private boolean shouldIgnoreKeyboardHeightInResizeMode() {$/,/^    }$/c\
     private boolean shouldIgnoreKeyboardHeightInResizeMode() {\
