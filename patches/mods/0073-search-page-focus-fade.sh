@@ -11,6 +11,9 @@ path5="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/om
 path6="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
 path7="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarMediator.java"
 path8="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarFocusScrimHandler.java"
+path9="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteDelegate.java"
+path10="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java"
+path11="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/LocationBarCoordinator.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0073' "$path1"; then
@@ -143,17 +146,46 @@ import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContain
 // Alice patch end 0073\
 ' "$path1"
 
+sed -i '/^        if (mDestroyChecker\.isDestroyed()) return;$/a\
+        // Alice patch start 0073\
+        if (!OmniboxSuggestionsContainer.isAliceExitSnapshotVisible()) return;\
+        // Alice patch end 0073\
+' "$path1"
+
 # --- 推荐列表：跟随搜索页进入渐显 ---
+
+sed -i '/^import android\.content\.res\.Configuration;$/a\
+// Alice patch start 0073\
+import android.graphics.Canvas;\
+// Alice patch end 0073\
+' "$path2"
 
 sed -i '/^    \/\*\* Clean up resources and remove observers installed by this class\. \*\/$/i\
     // Alice patch start 0073\
     private static float sAliceSearchPageEnterAlpha = 1f;\
+    private static boolean sAliceSearchPageUiVisible = true;\
     private static @Nullable OmniboxSuggestionsContainer sAliceSearchPageEnterInstance;\
 \
     public static void setAliceSearchPageEnterAlpha(float alpha) {\
         sAliceSearchPageEnterAlpha = Math.max(0f, Math.min(1f, alpha));\
         OmniboxSuggestionsContainer aliceInstance = sAliceSearchPageEnterInstance;\
         if (aliceInstance != null) aliceInstance.setAlpha(sAliceSearchPageEnterAlpha);\
+    }\
+\
+    public static void setAliceExitSnapshotVisible(boolean visible) {\
+        sAliceSearchPageUiVisible = visible;\
+        OmniboxSuggestionsContainer aliceInstance = sAliceSearchPageEnterInstance;\
+        if (aliceInstance != null) aliceInstance.invalidate();\
+    }\
+\
+    public static boolean isAliceExitSnapshotVisible() {\
+        return sAliceSearchPageUiVisible;\
+    }\
+\
+    @Override\
+    public void draw(Canvas canvas) {\
+        if (!sAliceSearchPageUiVisible) return;\
+        super.draw(canvas);\
     }\
 \
     public void registerAliceSearchPageEnterInstance() {\
@@ -194,6 +226,10 @@ sed -i '/^    private @Nullable Callback<UrlBarFocusChangeInfo> mFocusChangeCall
 sed -i '/^    public void destroy() {$/i\
     // Alice patch start 0073\
     public void captureAliceExitSnapshot(Runnable continuation) {\
+        if (mAliceSnapshotView != null) {\
+            continuation.run();\
+            return;\
+        }\
         releaseAliceExitSnapshot();\
         if (!(getContext() instanceof android.app.Activity)) {\
             continuation.run();\
@@ -208,64 +244,11 @@ sed -i '/^    public void destroy() {$/i\
             return;\
         }\
         int aliceGeneration = mAliceSnapshotGeneration;\
-        waitAliceExitSnapshotWindow(\
+        captureAliceSnapshotBitmap(\
                 aliceActivity,\
                 aliceDecorView,\
                 aliceGeneration,\
-                -1,\
-                0,\
-                0,\
-                () -> captureAliceSnapshotBitmap(\
-                        aliceActivity,\
-                        aliceDecorView,\
-                        aliceGeneration,\
-                        continuation));\
-    }\
-\
-    private void waitAliceExitSnapshotWindow(\
-            android.app.Activity aliceActivity,\
-            View aliceDecorView,\
-            int aliceGeneration,\
-            int aliceLastHeight,\
-            int aliceStableFrames,\
-            int aliceAttempt,\
-            Runnable continuation) {\
-        if (aliceGeneration != mAliceSnapshotGeneration\
-                || aliceActivity.isFinishing()\
-                || aliceActivity.isDestroyed()) {\
-            return;\
-        }\
-        if (aliceAttempt >= 120) {\
-            continuation.run();\
-            return;\
-        }\
-        android.view.WindowInsets aliceInsets = aliceDecorView.getRootWindowInsets();\
-        boolean aliceImeVisible = false;\
-        if (aliceInsets != null) {\
-            androidx.core.view.WindowInsetsCompat aliceCompatInsets =\
-                    androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\
-                            aliceInsets, aliceDecorView);\
-            aliceImeVisible =\
-                    aliceCompatInsets.isVisible(\
-                            androidx.core.view.WindowInsetsCompat.Type.ime());\
-        }\
-        int aliceHeight = aliceDecorView.getHeight();\
-        boolean aliceHeightStable =\
-                aliceHeight > 0 \&\& aliceHeight == aliceLastHeight;\
-        if (!aliceImeVisible \&\& (aliceHeightStable || aliceStableFrames >= 2)) {\
-            continuation.run();\
-            return;\
-        }\
-        aliceDecorView.postOnAnimation(\
-                () ->\
-                        waitAliceExitSnapshotWindow(\
-                                aliceActivity,\
-                                aliceDecorView,\
-                                aliceGeneration,\
-                                aliceHeight,\
-                                aliceHeightStable ? aliceStableFrames + 1 : 0,\
-                                aliceAttempt + 1,\
-                                continuation));\
+                continuation);\
     }\
 \
     private void captureAliceSnapshotBitmap(\
@@ -310,6 +293,12 @@ sed -i '/^    public void destroy() {$/i\
             Runnable continuation) {\
         android.app.Activity aliceActivity = (android.app.Activity) getContext();\
         View aliceDecorView = aliceActivity.getWindow().getDecorView();\
+        org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
+                .setAliceExitSnapshotVisible(false);\
+        LocationBarFocusScrimHandler.setAliceExitSnapshotVisible(false);\
+        aliceDecorView.invalidate();\
+        aliceDecorView.postInvalidateOnAnimation();\
+        invalidateAliceToolbar();\
         android.widget.ImageView aliceImageView =\
                 new android.widget.ImageView(getContext());\
         aliceImageView.setImageBitmap(aliceBitmap);\
@@ -318,12 +307,7 @@ sed -i '/^    public void destroy() {$/i\
                 aliceDecorView.getWidth() / (float) aliceBitmap.getWidth();\
         android.graphics.Matrix aliceMatrix = new android.graphics.Matrix();\
         aliceMatrix.setScale(aliceScale, aliceScale);\
-        aliceMatrix.postTranslate(\
-                0f,\
-                aliceDecorView.getHeight()\
-                        - aliceBitmap.getHeight() * aliceScale);\
         aliceImageView.setImageMatrix(aliceMatrix);\
-        aliceImageView.setBackgroundColor(aliceBitmap.getPixel(0, 0));\
         aliceImageView.setAlpha(1f);\
         aliceImageView.setClickable(false);\
         aliceImageView.setFocusable(false);\
@@ -382,9 +366,9 @@ sed -i '/^    public void destroy() {$/i\
                                                             finishAliceExitSnapshot();\
                                                         }\
                                                     });\
-                                            mAliceSnapshotAnimator = animator;\
-                                            animator.start();\
-                                            continuation.run();\
+            mAliceSnapshotAnimator = animator;\
+            continuation.run();\
+            aliceImageView.post(animator::start);\
                                         });\
                             }\
                         });\
@@ -404,6 +388,23 @@ sed -i '/^    public void destroy() {$/i\
         android.graphics.@Nullable Bitmap aliceBitmap = mAliceSnapshotBitmap;\
         mAliceSnapshotBitmap = null;\
         if (aliceBitmap != null \&\& !aliceBitmap.isRecycled()) aliceBitmap.recycle();\
+        org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsContainer\
+                .setAliceExitSnapshotVisible(true);\
+        LocationBarFocusScrimHandler.setAliceExitSnapshotVisible(true);\
+        invalidateAliceToolbar();\
+    }\
+\
+    private void invalidateAliceToolbar() {\
+        android.view.ViewParent aliceParent = getParent();\
+        while (aliceParent instanceof View) {\
+            View aliceView = (View) aliceParent;\
+            if ("org.chromium.chrome.browser.toolbar.top.ToolbarPhone"\
+                    .equals(aliceView.getClass().getName())) {\
+                aliceView.invalidate();\
+                return;\
+            }\
+            aliceParent = aliceView.getParent();\
+        }\
     }\
 \
     private void releaseAliceExitSnapshot() {\
@@ -433,8 +434,11 @@ sed -i '/^    \/\* package \*\/ void clearFocus() {$/i\
             onComplete.run();\
             return;\
         }\
-        mKeyboardVisibilityDelegate.hideKeyboard(mUrlBar);\
-        mUrlBar.captureAliceExitSnapshot(onComplete);\
+        mUrlBar.captureAliceExitSnapshot(\
+                () -> {\
+                    mKeyboardVisibilityDelegate.hideKeyboard(mUrlBar);\
+                    onComplete.run();\
+                });\
     }\
     // Alice patch end 0073\
 ' "$path4"
@@ -449,6 +453,63 @@ sed -i '/^    private boolean mDeferredFocusCurrentTab;$/a\
 
 sed -i 's|mScrimHandler\.setVisibility(|setAliceSearchScrimVisibility(|g' "$path7"
 
+# --- 推荐项和输入法前往：实际导航前统一捕获并显示快照 ---
+
+sed -i '/^    void loadUrl(OmniboxLoadUrlParams omniboxLoadUrlParams);$/a\
+    // Alice patch start 0073\
+    /** Captures the omnibox UI and resumes after the snapshot is displayed. */\
+    void captureOmniboxExitSnapshotAndWait(Runnable onComplete);\
+    // Alice patch end 0073\
+' "$path9"
+
+sed -i '/^    private void pushUrlBarData(UrlBarData data) {$/i\
+    // Alice patch start 0073\
+    /* package */ void captureAliceExitSnapshotAndWait(Runnable onComplete) {\
+        if (mUrlCoordinator == null) {\
+            onComplete.run();\
+            return;\
+        }\
+        mUrlCoordinator.captureAliceExitSnapshotAndWait(onComplete);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path7"
+
+sed -i '$i\
+    // Alice patch start 0073\
+    @Override\
+    public void captureOmniboxExitSnapshotAndWait(Runnable onComplete) {\
+        mLocationBarMediator.captureAliceExitSnapshotAndWait(onComplete);\
+    }\
+    // Alice patch end 0073\
+\
+' "$path11"
+
+sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/{\
+    /^            mDelegate\.loadUrl($/,/^            mHandler\.post(this::finishInteraction);$/d\
+}' "$path10"
+
+sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/{\
+    /^    }$/i\
+            OmniboxLoadUrlParams aliceLoadUrlParams =\
+                    new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)\
+                            .setInputStartTimestamp(inputStart)\
+                            .setPostData(suggestion.getPostData())\
+                            .setOpenInNewTab(openInNewTab)\
+                            .setOpenInNewWindow(openInNewWindow)\
+                            .setOpenInBackground(openInBackground)\
+                            .setExtraHeaders(suggestion.getExtraHeaders())\
+                            .setAutocompleteLoadCallback(autocompleteLoadCallback)\
+                            .build();\
+            // Alice patch start 0073\
+            mDelegate.captureOmniboxExitSnapshotAndWait(\
+                    () -> {\
+                        mDelegate.loadUrl(aliceLoadUrlParams);\
+                        mHandler.post(this::finishInteraction);\
+                    });\
+            // Alice patch end 0073
+}' "$path10"
+
 # --- LocationBarFocusScrimHandler：立即建立 scrim 层，延迟后直接显示 ---
 
 sed -i '/^    private boolean mScrimShown;$/a\
@@ -457,7 +518,15 @@ sed -i '/^    private boolean mScrimShown;$/a\
     private final android.os.Handler mAliceScrimHandler =\
             new android.os.Handler(android.os.Looper.getMainLooper());\
     private int mAliceScrimShowGeneration;\
+    private static @Nullable LocationBarFocusScrimHandler sAliceExitSnapshotScrimHandler;\
+    private boolean mAliceExitSnapshotHidden;\
     // Alice patch end 0073\
+' "$path8"
+
+sed -i '/^        mContext = context;$/a\
+        // Alice patch start 0073\
+        sAliceExitSnapshotScrimHandler = this;\
+        // Alice patch end 0073\
 ' "$path8"
 
 sed -i '/^    public void setVisibility(boolean shouldShow) {$/i\
@@ -468,6 +537,7 @@ sed -i '/^    public void setVisibility(boolean shouldShow) {$/i\
         mAliceScrimHandler.postDelayed(\
                 () -> {\
                     if (aliceGeneration != mAliceScrimShowGeneration) return;\
+                    if (mAliceExitSnapshotHidden) return;\
                     mScrimManager.setAlpha(1f, mScrimModel);\
                 },\
                 ALICE_SCRIM_SHOW_DELAY_MS);\
@@ -476,6 +546,20 @@ sed -i '/^    public void setVisibility(boolean shouldShow) {$/i\
     private void cancelAliceScrimShow() {\
         mAliceScrimShowGeneration++;\
         mAliceScrimHandler.removeCallbacksAndMessages(null);\
+    }\
+\
+    public static void setAliceExitSnapshotVisible(boolean visible) {\
+        LocationBarFocusScrimHandler aliceHandler = sAliceExitSnapshotScrimHandler;\
+        if (aliceHandler == null) return;\
+        aliceHandler.setAliceExitSnapshotVisibleInternal(visible);\
+    }\
+\
+    private void setAliceExitSnapshotVisibleInternal(boolean visible) {\
+        mAliceExitSnapshotHidden = !visible;\
+        cancelAliceScrimShow();\
+        float aliceAlpha = visible \&\& mScrimShown ? 1f : 0f;\
+        mScrimManager.setAlpha(aliceAlpha, mScrimModel);\
+        if (mOmniboxScrimView != null) mOmniboxScrimView.setAlpha(aliceAlpha);\
     }\
     // Alice patch end 0073\
 \
@@ -492,6 +576,9 @@ sed -i '/^            mScrimManager.hideScrim(mScrimModel, animate);$/i\
 sed -i '/^    public void destroy() {$/a\
         // Alice patch start 0073\
         cancelAliceScrimShow();\
+        if (sAliceExitSnapshotScrimHandler == this) {\
+            sAliceExitSnapshotScrimHandler = null;\
+        }\
         // Alice patch end 0073\
 ' "$path8"
 

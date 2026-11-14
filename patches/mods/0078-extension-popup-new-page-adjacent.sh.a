@@ -1,0 +1,37 @@
+#!/bin/bash
+# 扩展 popup 打开的选项页：在预览背后的当前标签页之后打开。
+
+set -e
+
+# 目标文件路径
+path1="chrome/browser/extensions/api/tabs/tabs_api.cc"
+
+# 检测是否已应用
+if grep -q 'Alice patch start 0078' "$path1"; then
+    exit 100
+fi
+
+# 使用 std::min 把插入位置限制在标签页数量范围内。
+sed -i '\|^#include "base/memory/weak_ptr.h"$|i\
+// Alice patch start 0078\
+#include <algorithm>\
+// Alice patch end 0078\
+\
+' "$path1"
+
+# chrome.tabs.create 未指定 index 时，popup 打开的新页面插到当前页之后。
+sed -i '\|^  options\.split_with_tab_id = split_with_tab_id_;$|a\
+  // Alice patch start 0078\
+#if BUILDFLAG(IS_ANDROID)\
+  content::WebContents* sender_contents = GetSenderWebContents();\
+  if (!options.index \&\& sender_contents \&\&\
+      sender_contents->GetLastCommittedURL().SchemeIs(kExtensionScheme)\
+      \&\& !tabs::TabInterface::MaybeGetFromContents(sender_contents)) {\
+    TabListInterface* tab_list = TabListInterface::From(&browser);\
+    if (tab_list) {\
+      options.index =\
+          std::min(tab_list->GetActiveIndex() + 1, tab_list->GetTabCount());\
+    }\
+  }\
+#endif\
+  // Alice patch end 0078' "$path1"

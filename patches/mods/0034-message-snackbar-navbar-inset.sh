@@ -1,5 +1,5 @@
 #!/bin/bash
-# 底部消息 UI：Snackbar、翻译气泡和 Hub Snackbar 容器的位置与导航栏避让。
+# 底部消息 UI：Snackbar、翻译气泡和 Hub Snackbar 容器的位置、层级与导航栏避让。
 
 set -e
 
@@ -97,6 +97,37 @@ sed -i '/^    void adjustViewPosition() {$/i\
             if (result != null) return result;\
         }\
         return null;\
+    }\
+\
+    private boolean isAliceUndoSnackbar() {\
+        int identifier = mSnackbar.getIdentifier();\
+        return identifier == Snackbar.UMA_TAB_CLOSE_UNDO\
+                || identifier == Snackbar.UMA_TAB_CLOSE_ALL_UNDO\
+                || identifier == Snackbar.UMA_TAB_CLOSE_MULTIPLE_UNDO\
+                || identifier == Snackbar.UMA_TAB_GROUP_DELETE_UNDO\
+                || identifier == Snackbar.UMA_SINGLE_TAB_GROUP_DELETE_UNDO\
+                || identifier == Snackbar.UMA_TAB_GROUP_MANUAL_CREATION_UNDO;\
+    }\
+\
+    private ViewGroup getAliceSnackbarParent(ViewGroup parent) {\
+        if (isAliceUndoSnackbar()\
+                \&\& parent == mOriginalParent\
+                \&\& mRootContentView instanceof ViewGroup) {\
+            return (ViewGroup) mRootContentView;\
+        }\
+        return parent;\
+    }\
+\
+    private void updateAliceSearchPageVisibility() {\
+        if (!isAliceUndoSnackbar()) {\
+            mContainerView.setTag(null);\
+            return;\
+        }\
+        mContainerView.setTag("alice_undo_snackbar");\
+        boolean aliceSearchPage =\
+                Boolean.TRUE.equals(mRootContentView.getTag());\
+        mContainerView.setVisibility(\
+                aliceSearchPage ? View.INVISIBLE : View.VISIBLE);\
     }\
 \
     private int getAliceParentBottomInset() {\
@@ -265,6 +296,43 @@ sed -i '/^import org\.chromium\.components\.messages\.MessageContainer;$/a\
 import org.chromium.ui.KeyboardVisibilityDelegate;\
 // Alice patch end 0034' "$path3"
 
+sed -i '/^    @EnsuresNonNull("mToolbarManager")$/i\
+    // Alice patch start 0034\
+    private void updateAliceSnackbarZOrder(boolean aliceSearchPage) {\
+        View aliceRootContent =\
+                mActivity.findViewById(android.R.id.content);\
+        if (aliceRootContent == null) return;\
+        aliceRootContent.setTag(aliceSearchPage);\
+        View aliceHubSnackbar =\
+                aliceRootContent.findViewWithTag("alice_hub_overlay_snackbar");\
+        if (aliceHubSnackbar != null) {\
+            aliceHubSnackbar.setZ(aliceSearchPage ? -1f : 2000f);\
+            if (!aliceSearchPage \&\& aliceRootContent instanceof ViewGroup) {\
+                ((ViewGroup) aliceRootContent)\
+                        .bringChildToFront(aliceHubSnackbar);\
+            }\
+        }\
+        View aliceBottomContainer =\
+                mActivity.findViewById(R.id.bottom_container);\
+        if (aliceBottomContainer != null) {\
+            aliceBottomContainer.setZ(aliceSearchPage ? -1f : 0f);\
+        }\
+        View aliceUndoSnackbar =\
+                aliceRootContent.findViewWithTag("alice_undo_snackbar");\
+        if (aliceUndoSnackbar != null) {\
+            aliceUndoSnackbar.setVisibility(\
+                    aliceSearchPage ? View.INVISIBLE : View.VISIBLE);\
+        }\
+    }\
+    // Alice patch end 0034\
+' "$path3"
+
+# 搜索页打开时把撤销 Snackbar 放到它下层，退出搜索页后恢复原层级。
+sed -i '/^                    hasFocus -> {$/a\
+                        // Alice patch start 0034\
+                        updateAliceSnackbarZOrder(hasFocus);\
+                        // Alice patch end 0034' "$path3"
+
 sed -i '/^                        mWindowAndroid::startAnimationOverContent,$/c\
                         // Alice patch start 0034\
                         animator -> {\
@@ -347,6 +415,18 @@ sed -i '/^    public void dismiss() {$/a\
             mAliceInsetObserver.removeWindowInsetsAnimationListener(\
                     mAliceImeAnimationListener);\
             mAliceInsetObserver = null;\
+        }\
+        // Restore the normal layer while dismissing so the bottom toolbar does not\
+        // clip the exit animation before it reaches the screen bottom.\
+        if (mParent != mRootContentView) {\
+            if ("alice_hub_overlay_snackbar".equals(mParent.getTag())) {\
+                mParent.setZ(2000f);\
+                if (mParent.getParent() instanceof ViewGroup) {\
+                    ((ViewGroup) mParent.getParent()).bringChildToFront(mParent);\
+                }\
+            } else {\
+                mParent.setZ(0f);\
+            }\
         }\
         // Alice patch end 0034' "$path1"
 
@@ -624,6 +704,7 @@ sed -i '/^                        mContainerView.removeOnLayoutChangeListener(th
                         // Alice patch start 0034\
                         adjustViewPosition();\
                         mContainerView.setVisibility(View.VISIBLE);\
+                        updateAliceSearchPageVisibility();\
                         // Alice patch end 0034' "$path1"
 
 sed -i '/^    protected void showMessageContainer() {$/,/^    }$/c\
@@ -893,31 +974,41 @@ sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(
         // Alice patch end 0034' "$path9"
 
 # 17) 撤销气泡的消失动画只移动到父容器底边。父容器 bottom_container 会被浏览器
-#     控件向上平移，所以动画停在导航栏上方。补上父容器到窗口底部的距离，并关闭
-#     父容器裁剪，让气泡一直滑出屏幕底部。
+#     控件向上平移，所以动画停在导航栏上方。普通网页的撤销气泡改挂到 Activity
+#     根层，与标签管理页使用同一套无裁剪绘制边界，并让动画一直滑出屏幕底部。
 sed -i '/^    protected int getYPositionForMoveAnimation() {$/,/^    }$/c\
     protected int getYPositionForMoveAnimation() {\
         // Alice patch start 0034\
-        if ("alice_hub_overlay_snackbar".equals(mParent.getTag())) {\
-            mRootContentView.getLocationInWindow(mAliceRootPosition);\
-            mContainerView.getLocationInWindow(mAliceParentPosition);\
-            int rootBottom =\
-                    mAliceRootPosition[1] + mRootContentView.getHeight();\
-            return Math.max(0, rootBottom - mAliceParentPosition[1]);\
-        }\
-        return mContainerView.getHeight()\
-                + getLayoutParams().bottomMargin\
-                + getAliceParentBottomInset();\
+        View aliceRootView = mRootContentView.getRootView();\
+        aliceRootView.getLocationInWindow(mAliceRootPosition);\
+        mContainerView.getLocationInWindow(mAliceParentPosition);\
+        int aliceRootBottom =\
+                mAliceRootPosition[1] + aliceRootView.getHeight();\
+        return Math.max(0, aliceRootBottom - mAliceParentPosition[1]);\
         // Alice patch end 0034\
     }' "$path1"
 
 sed -i '/^    private void addToParent() {$/,/^    }$/c\
     private void addToParent() {\
         // Alice patch start 0034\
-        // Allow the snackbar to slide past the parent bottom while dismissing.\
-        mParent.setClipChildren(false);\
+        // Host the normal-tab undo bar on the activity root so ancestor clipping\
+        // cannot stop its dismissal before it reaches the screen bottom.\
+        ViewGroup aliceSnackbarParent = getAliceSnackbarParent(mParent);\
+        mParent = aliceSnackbarParent;\
+        // Snackbars created while the search page is focused start below it too.\
+        if (Boolean.TRUE.equals(\
+                    mRootContentView.getTag())\
+                \&\& mParent != mRootContentView) {\
+            mParent.setZ(-1f);\
+        }\
         // Alice patch end 0034\
         mParent.addView(mContainerView);\
+        // Alice patch start 0034\
+        if (mParent == mRootContentView) {\
+            mParent.bringChildToFront(mContainerView);\
+        }\
+        updateAliceSearchPageVisibility();\
+        // Alice patch end 0034\
         mParent.addOnLayoutChangeListener(mLayoutListener);\
         // Alice patch start 0034\
         // Window insets can settle after the Hub overlay is first attached. Recalculate\
