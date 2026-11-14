@@ -522,12 +522,48 @@ sed -i '$i\
 \
 ' "$path11"
 
-sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/{\
-    /^            mDelegate\.loadUrl($/,/^            mHandler\.post(this::finishInteraction);$/d\
-}' "$path10"
-
-sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/{\
-    /^    }$/i\
+sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/c\
+    private void finishLoadUrlForOmniboxMatch(\
+            AutocompleteMatch suggestion,\
+            GURL url,\
+            long inputStart,\
+            boolean openInNewTab,\
+            boolean openInNewWindow,\
+            boolean openInBackground,\
+            int transition) {\
+        try (TraceEvent e =\
+                TraceEvent.scoped("AutocompleteMediator.finishLoadUrlForOmniboxMatch")) {\
+            if (suggestion.isExtensionMatch()) {\
+                Tab tab = mDataProvider.getTab();\
+                WebContents webContents = tab != null ? tab.getWebContents() : null;\
+                if (webContents != null) {\
+                    ExtensionUi.onOmniboxExtensionInputEntered(\
+                            webContents, url.getSpec(), openInNewTab, openInNewWindow);\
+                }\
+                // Dismiss the suggestions list and clear focus immediately. This is an extension\
+                // match, so an event is fired to the extension rather than having any kind of\
+                // page navigation.\
+                finishInteraction();\
+                return;\
+            }\
+\
+            // Kick off an action to clear focus and dismiss the suggestions list.\
+            // This normally happens when the target site loads and focus is moved to the\
+            // webcontents. On Android T we occasionally observe focus events to be lost, resulting\
+            // with Suggestions list obscuring the view.\
+            var autocompleteLoadCallback =\
+                    new AutocompleteLoadCallback() {\
+                        @Override\
+                        public void onLoadUrl(LoadUrlParams params, LoadUrlResult loadUrlResult) {\
+                            if (loadUrlResult.navigationHandle != null) {\
+                                if (mAutocomplete != null) {\
+                                    mAutocomplete.createNavigationObserver(\
+                                            loadUrlResult.navigationHandle, suggestion);\
+                                }\
+                            }\
+                        }\
+                    };\
+\
             OmniboxLoadUrlParams aliceLoadUrlParams =\
                     new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)\
                             .setInputStartTimestamp(inputStart)\
@@ -544,8 +580,10 @@ sed -i '/^    private void finishLoadUrlForOmniboxMatch(/,/^    }$/{\
                         mDelegate.loadUrl(aliceLoadUrlParams);\
                         mHandler.post(this::finishInteraction);\
                     });\
-            // Alice patch end 0073
-}' "$path10"
+            // Alice patch end 0073\
+        }\
+    }
+' "$path10"
 
 # --- LocationBarFocusScrimHandler：立即建立 scrim 层，延迟后直接显示 ---
 
