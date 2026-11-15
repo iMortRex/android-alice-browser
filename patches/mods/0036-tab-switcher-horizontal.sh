@@ -8,6 +8,7 @@
 #     大跨度向右展开；所有卡片左边不会越过屏幕左侧。
 #   - 滚动停止时把离屏幕中心最近的卡片平滑吸附到中心。
 #   - 向上滑关闭标签；禁止左右拖拽（左右滑只用来滚动卡片列表）。
+#   - 上滑关闭时左侧卡片会向右挤压；点击时中心卡和邻卡严格跟随 Hub 预览图动画进度。
 #   - 设置里改样式后不用重启浏览器：下次打开标签管理页时会自动切换布局。
 #   - 横向样式捕获缩略图时使用更高倍率；默认样式继续沿用 0038 的清晰度设置。
 
@@ -26,6 +27,12 @@ path9="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/Singl
 path10="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
 path11="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 path12="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGridView.java"
+path13="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabSwitcherPaneCoordinator.java"
+path14="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView.java"
+path15="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
+path16="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/HubAnimationConstants.java"
+path17="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandImageView.java"
+path18="chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGridViewBinder.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0036' "$path1"; then
@@ -58,7 +65,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.tab_ui.R;
-
 import java.util.WeakHashMap;
 
 /**
@@ -84,6 +90,9 @@ public final class AliceTabStackHelper {
 
     /** 横向堆叠。 */
     public static final int STYLE_HORIZONTAL = 2;
+
+    /** 横向堆叠，但不重排标签。 */
+    public static final int STYLE_HORIZONTAL_NO_REORDER = 3;
 
     /** 卡片高度 = 去掉浏览器顶部/底部控制栏后的可用高度 × 这个比例。 */
     public static final float CARD_HEIGHT_FRACTION = 0.85f;
@@ -118,6 +127,21 @@ public final class AliceTabStackHelper {
     /** 竖直居中的微调：正数 = 整组卡片往下挪「可视区高度 × 这个比例」。 */
     private static final float VERTICAL_BIAS_FRACTION = 0.035f;
 
+    /** 上滑关闭时左侧卡片的挤压幅度。 */
+    private static final float SWIPE_PUSH_FRACTION = 0.8f;
+
+    /** 上滑关闭后左侧卡片补位动画时长。 */
+    private static final long SWIPE_REPLACE_DURATION_MS = 230;
+
+    /** 点击卡片时左右邻卡的放大增量。 */
+    private static final float TAP_NEIGHBOR_SCALE_GAIN = 0.2f;
+
+    /** 点击后两侧卡片完全移出屏幕的时长。 */
+    private static final long TAP_CARD_EXIT_DURATION_MS = 230L;
+
+    /** 横向 Hub 预览图缩放动画时长。 */
+    private static final long HUB_PREVIEW_DURATION_MS = 260L;
+
     /** 主线程 Handler：把可能触发布局的动作挪出当前布局流程。 */
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
 
@@ -126,8 +150,9 @@ public final class AliceTabStackHelper {
             new WeakHashMap<>();
     private static final WeakHashMap<RecyclerView, RecyclerView.OnScrollListener> sSnapListeners =
             new WeakHashMap<>();
+    private static final WeakHashMap<RecyclerView, RecyclerView.OnItemTouchListener>
+            sInteractionListeners = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> sStackCards = new WeakHashMap<>();
-
     private AliceTabStackHelper() {}
 
     /** 把动作放到主线程的下一个消息执行（不要在布局过程中直接改视图）。 */
@@ -143,17 +168,27 @@ public final class AliceTabStackHelper {
 
     /** @return 实际生效的样式（竖向还没做，按默认样式处理）。 */
     public static int getEffectiveStyle() {
-        return getStyle() == STYLE_HORIZONTAL ? STYLE_HORIZONTAL : STYLE_DEFAULT;
+        int style = getStyle();
+        return style == STYLE_HORIZONTAL || style == STYLE_HORIZONTAL_NO_REORDER
+                ? STYLE_HORIZONTAL
+                : STYLE_DEFAULT;
+    }
+
+    /** @return 当前样式是否允许把激活标签移动到模型末尾。 */
+    public static boolean shouldReorderTabs() {
+        return getStyle() != STYLE_HORIZONTAL_NO_REORDER;
+    }
+
+    /** @return Hub 预览动画时长；默认样式保持上游时长。 */
+    public static long getHubAnimationDurationMs() {
+        return getEffectiveStyle() == STYLE_HORIZONTAL
+                ? HUB_PREVIEW_DURATION_MS
+                : 325L;
     }
 
     /** @return 这个容器是不是标签切换器网格（只有它受「标签切换器」设置影响）。 */
     public static boolean isGridTabSwitcher(int componentId) {
         return componentId == TabComponentId.GRID_TAB_SWITCHER;
-    }
-
-    /** @return 这个容器是不是要用横向堆叠样式。 */
-    public static boolean isHorizontalStack(int componentId) {
-        return isGridTabSwitcher(componentId) && getEffectiveStyle() == STYLE_HORIZONTAL;
     }
 
     /** @return 这个 RecyclerView 当前是不是横向堆叠布局。 */
@@ -165,6 +200,7 @@ public final class AliceTabStackHelper {
     /** @return 该 View 是否属于横向牌堆，包括尚未直接挂到 RecyclerView 的阶段。 */
     public static boolean isInStackLayout(@Nullable View view) {
         if (view == null) return false;
+        if (getEffectiveStyle() != STYLE_HORIZONTAL) return false;
         if (sStackCards.containsKey(view)) return true;
         ViewParent parent = view.getParent();
         while (parent != null) {
@@ -304,7 +340,12 @@ public final class AliceTabStackHelper {
             int viewportWidth,
             int cardWidthPx,
             int cardInsetPx) {
-        final float distance = position - progress;
+        return getCardLeftPx(
+                position - progress, viewportWidth, cardWidthPx, cardInsetPx);
+    }
+
+    private static int getCardLeftPx(
+            float distance, int viewportWidth, int cardWidthPx, int cardInsetPx) {
         final float scale = getScaleForDistance(distance);
         final float translation =
                 getTranslationForDistance(
@@ -365,12 +406,108 @@ public final class AliceTabStackHelper {
                 };
         sSnapListeners.put(recyclerView, snapListener);
         recyclerView.addOnScrollListener(snapListener);
+        RecyclerView.OnItemTouchListener interactionListener =
+                new RecyclerView.OnItemTouchListener() {
+                    @Override
+                    public boolean onInterceptTouchEvent(
+                            RecyclerView recyclerView, android.view.MotionEvent event) {
+                        int action = event.getActionMasked();
+                        if (action == android.view.MotionEvent.ACTION_DOWN) {
+                            layoutManager.onUserInteractionStarted();
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    public void onTouchEvent(
+                            RecyclerView recyclerView, android.view.MotionEvent event) {}
+
+                    @Override
+                    public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) {}
+                };
+        sInteractionListeners.put(recyclerView, interactionListener);
+        recyclerView.addOnItemTouchListener(interactionListener);
         recyclerView.requestLayout();
+    }
+
+    /** 更新上滑关闭时左侧卡片的挤压滚动。 */
+    public static void updateSwipePush(
+            @Nullable RecyclerView recyclerView,
+            int anchorPosition,
+            float pushProgress,
+            boolean active) {
+        if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.setSwipePush(anchorPosition, pushProgress, active);
+        }
+    }
+
+    /** 上滑关闭时先完成左侧补位动画，再真正从列表移除卡片。 */
+    public static boolean animateSwipeReplacementAndThen(
+            @Nullable RecyclerView recyclerView,
+            int anchorPosition,
+            @Nullable Runnable onComplete) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.animateSwipeReplacementAndThen(anchorPosition, onComplete);
+            return true;
+        }
+        return false;
+    }
+
+    /** 上滑未达到关闭阈值或手势结束时清理挤压状态。 */
+    public static void onSwipeCleared(@Nullable RecyclerView recyclerView) {
+        if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.clearSwipePushUnlessCommitted();
+        }
+    }
+
+    /** 点击卡片时立即启动中心卡缩放和左右邻卡避让。 */
+    public static boolean animateNeighborAvoidance(
+            @Nullable RecyclerView recyclerView, int focusedPosition) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (!(layoutManager instanceof AliceStackLayoutManager stackLayoutManager)) {
+            return false;
+        }
+        stackLayoutManager.animateNeighborAvoidance(focusedPosition);
+        return true;
+    }
+
+    /** 重新进入 Hub 时强制把当前标签所在的最后一张卡重置到中心。 */
+    public static boolean resetToLastCard(@Nullable RecyclerView recyclerView) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (!(layoutManager instanceof AliceStackLayoutManager stackLayoutManager)) {
+            return false;
+        }
+        stackLayoutManager.resetToLastCard();
+        return true;
+    }
+
+    /** 把指定的标签卡滚动到中心。 */
+    public static boolean resetToCard(@Nullable RecyclerView recyclerView, int position) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (!(layoutManager instanceof AliceStackLayoutManager stackLayoutManager)) {
+            return false;
+        }
+        stackLayoutManager.resetToCard(position);
+        return true;
     }
 
     /** 卸载横向堆叠样式（切回「默认」样式之前调用）。 */
     public static void tearDown(@Nullable RecyclerView recyclerView) {
         if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.shutdown();
+        }
+        recyclerView.stopScroll();
         Integer previousOverScrollMode = sPreviousOverScrollModes.remove(recyclerView);
         if (previousOverScrollMode != null) {
             recyclerView.setOverScrollMode(previousOverScrollMode);
@@ -379,13 +516,27 @@ public final class AliceTabStackHelper {
         if (snapListener != null) {
             recyclerView.removeOnScrollListener(snapListener);
         }
+        RecyclerView.OnItemTouchListener interactionListener =
+                sInteractionListeners.remove(recyclerView);
+        if (interactionListener != null) {
+            recyclerView.removeOnItemTouchListener(interactionListener);
+        }
         for (int i = 0; i < recyclerView.getChildCount(); i++) {
             View child = recyclerView.getChildAt(i);
             if (child == null) continue;
             sStackCards.remove(child);
-            resetChildTransform(child);
-            child.setTranslationX(0f);
+            resetCardTransform(child);
         }
+    }
+
+    /** 清理横向动画留下的 View 变换，避免回收后污染默认样式。 */
+    public static void resetCardTransform(@Nullable View child) {
+        if (child == null) return;
+        sStackCards.remove(child);
+        child.animate().cancel();
+        resetChildTransform(child);
+        child.setPivotX(child.getWidth() / 2f);
+        child.setPivotY(child.getHeight() / 2f);
     }
 
     /** 按相对中心卡的距离更新缩放。 */
@@ -393,17 +544,15 @@ public final class AliceTabStackHelper {
         if (!isStackLayout(recyclerView)) return;
         RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
         if (!(layoutManager instanceof AliceStackLayoutManager stackLayoutManager)) return;
-        final float progress = stackLayoutManager.getProgress();
-        final int itemCount =
-                recyclerView.getAdapter() == null
-                        ? 0
-                        : recyclerView.getAdapter().getItemCount();
         for (int i = 0; i < recyclerView.getChildCount(); i++) {
             View child = recyclerView.getChildAt(i);
             if (child == null) continue;
+            if (stackLayoutManager.isTapAnimating(child)) continue;
             final int position = recyclerView.getChildAdapterPosition(child);
             if (position == RecyclerView.NO_POSITION) continue;
-            applyChildTransform(child, position - progress);
+            applyChildTransform(
+                    child,
+                    stackLayoutManager.getEffectiveDistance(position));
         }
     }
 
@@ -419,6 +568,9 @@ public final class AliceTabStackHelper {
     private static void resetChildTransform(View child) {
         child.setScaleX(1f);
         child.setScaleY(1f);
+        child.setTranslationX(0f);
+        child.setTranslationY(0f);
+        child.setTranslationZ(0f);
     }
 
     /** 用中心卡进度驱动整组卡片布局。 */
@@ -432,7 +584,26 @@ public final class AliceTabStackHelper {
         private int mPendingPosition = RecyclerView.NO_POSITION;
         private boolean mDidInitialLayout;
         private @Nullable ValueAnimator mSnapAnimator;
+        private int mSwipePushAnchor = RecyclerView.NO_POSITION;
+        private float mSwipePushProgress;
+        private boolean mSwipePushActive;
+        private boolean mSwipeCommitted;
+        private @Nullable ValueAnimator mSwipeReplaceAnimator;
+        private int mDismissingPosition = RecyclerView.NO_POSITION;
+        private float mSwipeReplacementStartProgress;
+        private int mTapFocusPosition = RecyclerView.NO_POSITION;
+        private @Nullable ValueAnimator mTapAnimator;
+        private int mEnterFocusPosition = RecyclerView.NO_POSITION;
+        private @Nullable ValueAnimator mEnterAnimator;
+        private final WeakHashMap<View, Boolean> mTapAnimatingViews = new WeakHashMap<>();
+        private RecyclerView.@Nullable ItemAnimator mSavedItemAnimator;
         private final Runnable mSnapRunnable = this::performSnap;
+        private final Runnable mTapResetRunnable = this::cancelHubTapAnimation;
+        private final Runnable mSwipeClearRunnable =
+                () -> {
+                    if (mSwipeCommitted) return;
+                    setSwipePush(RecyclerView.NO_POSITION, 0f, false);
+                };
 
         AliceStackLayoutManager(
                 RecyclerView recyclerView,
@@ -494,11 +665,399 @@ public final class AliceTabStackHelper {
             return dx;
         }
 
+        void animateSwipeReplacementAndThen(
+                int anchorPosition, @Nullable Runnable onComplete) {
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount == 0) {
+                if (onComplete != null) onComplete.run();
+                return;
+            }
+
+            mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+            final int targetProgress =
+                    Math.max(0, Math.min(itemCount - 1, anchorPosition - 1));
+            final float startProgress = mProgress;
+            final float startPushProgress = mSwipePushProgress;
+            mSwipeCommitted = true;
+            mDismissingPosition = anchorPosition;
+            mSwipeReplacementStartProgress = startProgress;
+            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+            mSwipeReplaceAnimator = animator;
+            animator.setDuration(SWIPE_REPLACE_DURATION_MS);
+            animator.setInterpolator(
+                    org.chromium.chrome.browser.hub.HubAnimationConstants
+                            .ALICE_STACK_INTERPOLATOR);
+            animator.addUpdateListener(
+                    animation -> {
+                        final float fraction = (float) animation.getAnimatedValue();
+                        mProgress =
+                                startProgress
+                                        + (targetProgress - startProgress) * fraction;
+                        mSwipePushProgress =
+                                startPushProgress * (1f - fraction);
+                        mSwipePushActive = mSwipePushProgress > 0.001f;
+                        mRecyclerView.requestLayout();
+                    });
+            animator.addListener(
+                    new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            if (mSwipeReplaceAnimator != animator) return;
+                            mProgress = targetProgress;
+                            mSwipePushProgress = 0f;
+                            mSwipePushActive = false;
+                            mSwipePushAnchor = RecyclerView.NO_POSITION;
+                            mSwipeCommitted = false;
+                            mSwipeReplaceAnimator = null;
+                            if (onComplete != null) {
+                                runWithoutItemAnimations(onComplete);
+                            }
+                            mDismissingPosition = RecyclerView.NO_POSITION;
+                            mSwipeReplacementStartProgress = 0f;
+                            mRecyclerView.requestLayout();
+                        }
+                    });
+            animator.start();
+        }
+
+        private void runWithoutItemAnimations(Runnable action) {
+            final RecyclerView.ItemAnimator itemAnimator = mRecyclerView.getItemAnimator();
+            if (itemAnimator == null) {
+                action.run();
+                return;
+            }
+            final long addDuration = itemAnimator.getAddDuration();
+            final long removeDuration = itemAnimator.getRemoveDuration();
+            final long moveDuration = itemAnimator.getMoveDuration();
+            final long changeDuration = itemAnimator.getChangeDuration();
+            itemAnimator.setAddDuration(0);
+            itemAnimator.setRemoveDuration(0);
+            itemAnimator.setMoveDuration(0);
+            itemAnimator.setChangeDuration(0);
+            action.run();
+            itemAnimator.endAnimations();
+            mRecyclerView.post(
+                    () -> {
+                        itemAnimator.setAddDuration(addDuration);
+                        itemAnimator.setRemoveDuration(removeDuration);
+                        itemAnimator.setMoveDuration(moveDuration);
+                        itemAnimator.setChangeDuration(changeDuration);
+                    });
+        }
+
         void onDragStarted() {
+            mRecyclerView.removeCallbacks(mSnapRunnable);
+            mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+            ValueAnimator animator = mSnapAnimator;
+            mSnapAnimator = null;
+            if (animator != null) animator.cancel();
+            ValueAnimator swipeReplaceAnimator = mSwipeReplaceAnimator;
+            mSwipeReplaceAnimator = null;
+            if (swipeReplaceAnimator != null) swipeReplaceAnimator.cancel();
+            mSwipeCommitted = false;
+            mDismissingPosition = RecyclerView.NO_POSITION;
+            mSwipeReplacementStartProgress = 0f;
+            cancelHubTapAnimation();
+        }
+
+        void shutdown() {
+            mRecyclerView.removeCallbacks(mSnapRunnable);
+            mRecyclerView.removeCallbacks(mTapResetRunnable);
+            mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+
+            ValueAnimator snapAnimator = mSnapAnimator;
+            mSnapAnimator = null;
+            if (snapAnimator != null) snapAnimator.cancel();
+
+            ValueAnimator tapAnimator = mTapAnimator;
+            mTapAnimator = null;
+            if (tapAnimator != null) tapAnimator.cancel();
+
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubEnterAnimationStarter(() -> {});
+            ValueAnimator enterAnimator = mEnterAnimator;
+            mEnterAnimator = null;
+            if (enterAnimator != null) enterAnimator.cancel();
+
+            ValueAnimator swipeReplaceAnimator = mSwipeReplaceAnimator;
+            mSwipeReplaceAnimator = null;
+            if (swipeReplaceAnimator != null) swipeReplaceAnimator.cancel();
+
+            mTapAnimatingViews.clear();
+            mTapFocusPosition = RecyclerView.NO_POSITION;
+            mEnterFocusPosition = RecyclerView.NO_POSITION;
+            mSwipePushAnchor = RecyclerView.NO_POSITION;
+            mSwipePushProgress = 0f;
+            mSwipePushActive = false;
+            mSwipeCommitted = false;
+            mDismissingPosition = RecyclerView.NO_POSITION;
+            mSwipeReplacementStartProgress = 0f;
+
+            if (mSavedItemAnimator != null) {
+                mRecyclerView.setItemAnimator(mSavedItemAnimator);
+                mSavedItemAnimator = null;
+            }
+            mRecyclerView.suppressLayout(false);
+        }
+
+        void onUserInteractionStarted() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             ValueAnimator animator = mSnapAnimator;
             mSnapAnimator = null;
             if (animator != null) animator.cancel();
+            cancelEnterAnimation();
+            if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+                mRecyclerView.stopScroll();
+            }
+        }
+
+        void cancelEnterAnimation() {
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubEnterAnimationStarter(() -> {});
+            ValueAnimator animator = mEnterAnimator;
+            mEnterAnimator = null;
+            boolean hadEnterAnimation =
+                    animator != null || mEnterFocusPosition != RecyclerView.NO_POSITION;
+            if (animator != null) animator.cancel();
+            mEnterFocusPosition = RecyclerView.NO_POSITION;
+            if (hadEnterAnimation) {
+                mTapAnimatingViews.clear();
+                mRecyclerView.requestLayout();
+            }
+        }
+
+        void setSwipePush(int anchorPosition, float pushProgress, boolean active) {
+            if (mSwipePushAnchor == anchorPosition
+                    && Math.abs(mSwipePushProgress - pushProgress) < 0.001f
+                    && mSwipePushActive == active) {
+                return;
+            }
+            mSwipePushAnchor = anchorPosition;
+            mSwipePushProgress = Math.max(0f, Math.min(1f, pushProgress));
+            mSwipePushActive = active;
+            mRecyclerView.requestLayout();
+        }
+
+        void clearSwipePushUnlessCommitted() {
+            mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+            mRecyclerView.postDelayed(mSwipeClearRunnable, 32);
+        }
+
+        void animateNeighborAvoidance(int focusedPosition) {
+            onUserInteractionStarted();
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount == 0) {
+                mRecyclerView.suppressLayout(false);
+                if (mSavedItemAnimator != null) {
+                    mRecyclerView.setItemAnimator(mSavedItemAnimator);
+                    mSavedItemAnimator = null;
+                }
+                return;
+            }
+            if (mTapFocusPosition != RecyclerView.NO_POSITION) {
+                cancelHubTapAnimation();
+            }
+            mRecyclerView.suppressLayout(true);
+            RecyclerView.ItemAnimator itemAnimator = mRecyclerView.getItemAnimator();
+            if (itemAnimator != null) {
+                itemAnimator.endAnimations();
+                mSavedItemAnimator = itemAnimator;
+                mRecyclerView.setItemAnimator(null);
+            }
+            mTapFocusPosition =
+                    Math.max(0, Math.min(itemCount - 1, focusedPosition));
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubTapAnimationStarter(this::startTapAnimationNow);
+        }
+
+        void startTapAnimationNow() {
+            if (mTapFocusPosition == RecyclerView.NO_POSITION) {
+                return;
+            }
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubTapAnimationStarter(() -> {});
+            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+            mTapAnimator = animator;
+            animator.setDuration(TAP_CARD_EXIT_DURATION_MS);
+            animator.setInterpolator(
+                    org.chromium.chrome.browser.hub.HubAnimationConstants
+                            .ALICE_STACK_INTERPOLATOR);
+            animator.addUpdateListener(
+                    animation -> {
+                        final float progress = (float) animation.getAnimatedValue();
+                        for (int i = 0; i < mRecyclerView.getChildCount(); i++) {
+                            View child = mRecyclerView.getChildAt(i);
+                            if (child == null) continue;
+                            int position = mRecyclerView.getChildAdapterPosition(child);
+                            if (position == RecyclerView.NO_POSITION) continue;
+                            if (position == mTapFocusPosition) continue;
+                            int distance = Math.abs(position - mTapFocusPosition);
+                            float scaleGain =
+                                    TAP_NEIGHBOR_SCALE_GAIN / Math.max(1, distance);
+                            float translationX =
+                                    getCardExitTranslationX(
+                                            child, position, scaleGain, mTapFocusPosition);
+
+                            float baseScale =
+                                    getScaleForDistance(getEffectiveDistance(position));
+                            float targetScale = baseScale + scaleGain;
+                            child.setPivotX(child.getWidth() / 2f);
+                            child.setPivotY(child.getHeight() / 2f);
+                            child.setScaleX(
+                                    baseScale + (targetScale - baseScale) * progress);
+                            child.setScaleY(
+                                    baseScale + (targetScale - baseScale) * progress);
+                            child.setTranslationX(translationX * progress);
+                            mTapAnimatingViews.put(child, true);
+                        }
+                        mRecyclerView.invalidate();
+                    });
+            animator.addListener(
+                    new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            if (mTapAnimator == animator) mTapAnimator = null;
+                        }
+                    });
+            animator.start();
+            mRecyclerView.removeCallbacks(mTapResetRunnable);
+            mRecyclerView.postDelayed(
+                    mTapResetRunnable,
+                    TAP_CARD_EXIT_DURATION_MS + 250);
+        }
+
+        void startEnterAnimationNow() {
+            if (mEnterFocusPosition == RecyclerView.NO_POSITION) return;
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubEnterAnimationStarter(() -> {});
+
+            ValueAnimator previousAnimator = mEnterAnimator;
+            mEnterAnimator = null;
+            if (previousAnimator != null) previousAnimator.cancel();
+            mTapAnimatingViews.clear();
+
+            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+            mEnterAnimator = animator;
+            animator.setDuration(HUB_PREVIEW_DURATION_MS);
+            animator.setInterpolator(
+                    org.chromium.chrome.browser.hub.HubAnimationConstants
+                            .ALICE_STACK_INTERPOLATOR);
+            animator.addUpdateListener(
+                    animation -> {
+                        final float progress = (float) animation.getAnimatedValue();
+                        final float reverseProgress = 1f - progress;
+                        for (int i = 0; i < mRecyclerView.getChildCount(); i++) {
+                            View child = mRecyclerView.getChildAt(i);
+                            if (child == null) continue;
+                            int position = mRecyclerView.getChildAdapterPosition(child);
+                            if (position == RecyclerView.NO_POSITION
+                                    || position == mEnterFocusPosition) {
+                                continue;
+                            }
+                            int distance = Math.abs(position - mEnterFocusPosition);
+                            float scaleGain =
+                                    TAP_NEIGHBOR_SCALE_GAIN / Math.max(1, distance);
+                            float baseScale =
+                                    getScaleForDistance(getEffectiveDistance(position));
+                            float targetScale = baseScale + scaleGain;
+                            float exitTranslation =
+                                    getCardExitTranslationX(
+                                            child,
+                                            position,
+                                            scaleGain,
+                                            mEnterFocusPosition);
+                            child.setPivotX(child.getWidth() / 2f);
+                            child.setPivotY(child.getHeight() / 2f);
+                            child.setScaleX(
+                                    baseScale
+                                            + (targetScale - baseScale)
+                                                    * reverseProgress);
+                            child.setScaleY(
+                                    baseScale
+                                            + (targetScale - baseScale)
+                                                    * reverseProgress);
+                            child.setTranslationX(exitTranslation * reverseProgress);
+                            mTapAnimatingViews.put(child, true);
+                        }
+                        mRecyclerView.invalidate();
+                    });
+            animator.addListener(
+                    new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            if (mEnterAnimator != animator) return;
+                            mEnterAnimator = null;
+                            mEnterFocusPosition = RecyclerView.NO_POSITION;
+                            mTapAnimatingViews.clear();
+                            mRecyclerView.requestLayout();
+                        }
+                    });
+            animator.start();
+        }
+
+        void cancelHubTapAnimation() {
+            mRecyclerView.removeCallbacks(mTapResetRunnable);
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubTapAnimationStarter(() -> {});
+            ValueAnimator tapAnimator = mTapAnimator;
+            mTapAnimator = null;
+            if (tapAnimator != null) tapAnimator.cancel();
+
+            cancelEnterAnimation();
+            for (View child : mTapAnimatingViews.keySet()) {
+                if (child != null) {
+                    child.animate().cancel();
+                }
+            }
+            mTapAnimatingViews.clear();
+            mTapFocusPosition = RecyclerView.NO_POSITION;
+            if (mSavedItemAnimator != null) {
+                mRecyclerView.setItemAnimator(mSavedItemAnimator);
+                mSavedItemAnimator = null;
+            }
+            mRecyclerView.suppressLayout(false);
+            mRecyclerView.requestLayout();
+        }
+
+        boolean isTapAnimating(View child) {
+            return mTapAnimatingViews.containsKey(child);
+        }
+
+        float getEffectiveDistance(int position) {
+            float distance =
+                    mDismissingPosition != RecyclerView.NO_POSITION
+                                    && position > mDismissingPosition
+                            ? position - mSwipeReplacementStartProgress
+                            : position - mProgress;
+            if (mSwipePushActive
+                    && mSwipePushAnchor != RecyclerView.NO_POSITION
+                    && position < mSwipePushAnchor) {
+                final int stepDistance = mSwipePushAnchor - position;
+                distance +=
+                        mSwipePushProgress
+                                * SWIPE_PUSH_FRACTION
+                                / Math.max(1, stepDistance);
+            }
+            return distance;
+        }
+
+        float getCardExitTranslationX(
+                View card, int position, float scaleGain, int focusPosition) {
+            int cardWidthPx = card.getWidth();
+            float targetScale =
+                    getScaleForDistance(getEffectiveDistance(position)) + scaleGain;
+            final float scaledWidth = cardWidthPx * targetScale;
+            final float scaledLeft =
+                    card.getLeft() + (cardWidthPx - scaledWidth) / 2f;
+            return position < focusPosition
+                    ? Math.min(0f, -scaledLeft - scaledWidth)
+                    : Math.max(0f, getWidth() - scaledLeft);
         }
 
         void snapToNearestCard() {
@@ -561,6 +1120,29 @@ public final class AliceTabStackHelper {
         @Override
         public void scrollToPosition(int position) {
             scrollToPositionWithOffset(position, 0);
+        }
+
+        void resetToLastCard() {
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount == 0) return;
+            resetToCard(itemCount - 1);
+        }
+
+        void resetToCard(int position) {
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount == 0) return;
+            mPendingScroll = true;
+            mPendingPosition = Math.max(0, Math.min(itemCount - 1, position));
+            mEnterFocusPosition = mPendingPosition;
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .setAliceHubEnterAnimationStarter(this::startEnterAnimationNow);
+            mRecyclerView.requestLayout();
         }
 
         @Override
@@ -685,6 +1267,11 @@ public final class AliceTabStackHelper {
                 if (child == null) continue;
                 final int position = getPosition(child);
                 if (position == RecyclerView.NO_POSITION) continue;
+                if (position == mDismissingPosition) {
+                    sStackCards.remove(child);
+                    removeAndRecycleViewAt(i, recycler);
+                    continue;
+                }
                 final int left = getCardLeftPx(position, cardWidthPx, itemCount);
                 if (left + cardWidthPx < visibleStart || left > visibleEnd) {
                     sStackCards.remove(child);
@@ -703,6 +1290,7 @@ public final class AliceTabStackHelper {
                                                             * VERTICAL_BIAS_FRACTION));
 
             for (int position = 0; position < itemCount; position++) {
+                if (position == mDismissingPosition) continue;
                 final int left = getCardLeftPx(position, cardWidthPx, itemCount);
                 if (left + cardWidthPx < visibleStart || left > visibleEnd) continue;
 
@@ -725,13 +1313,18 @@ public final class AliceTabStackHelper {
                 layoutDecoratedWithMargins(
                         child, left, top, left + cardWidthPx, top + cardHeightPx);
                 sStackCards.put(child, true);
-                applyChildTransform(child, position - mProgress);
+                if (!isTapAnimating(child)) {
+                    applyChildTransform(child, getEffectiveDistance(position));
+                }
             }
         }
 
         private int getCardLeftPx(int position, int cardWidthPx, int itemCount) {
             return AliceTabStackHelper.getCardLeftPx(
-                    mProgress, position, getWidth(), cardWidthPx, getCardInsetPx());
+                    getEffectiveDistance(position),
+                    getWidth(),
+                    cardWidthPx,
+                    getCardInsetPx());
         }
 
         private float clampProgress(float progress, int itemCount) {
@@ -792,8 +1385,8 @@ sed -i '/^    private @Nullable OnLayoutChangeListener mListLayoutListener;$/a\
     /** 本协调器是不是标签切换器网格（只有它对「标签切换器」设置生效）。 */\
     private boolean mAliceTabSwitcherGrid;\
 \
-    /** 已经应用到界面上的样式（-1 = 还没应用过）。 */\
-    private int mAliceAppliedStyle = -1;\
+    /** 已经应用到界面上的样式；初始值按默认样式处理，避免改动上游首屏。 */\
+    private int mAliceAppliedStyle = AliceTabStackHelper.STYLE_DEFAULT;\
     // Alice patch end 0036\
 ' "$path1"
 
@@ -815,10 +1408,18 @@ sed -i '/^    private void updateGridCardLayout(int viewWidth) {$/i\
      */\
     private void updateAliceTabSwitcherStyleIfNeeded() {\
         if (!mAliceTabSwitcherGrid) return;\
+        final int selectedStyle = AliceTabStackHelper.getStyle();\
         final int style = AliceTabStackHelper.getEffectiveStyle();\
-        if (style == mAliceAppliedStyle) return;\
-        mAliceAppliedStyle = style;\
-        if (style == AliceTabStackHelper.STYLE_HORIZONTAL) {\
+        final boolean horizontal = style == AliceTabStackHelper.STYLE_HORIZONTAL;\
+        final boolean appliedHorizontal =\
+                mAliceAppliedStyle == AliceTabStackHelper.STYLE_HORIZONTAL\
+                        || mAliceAppliedStyle\
+                                == AliceTabStackHelper.STYLE_HORIZONTAL_NO_REORDER;\
+        if (horizontal == appliedHorizontal) {\
+            mAliceAppliedStyle = selectedStyle;\
+            return;\
+        }\
+        if (horizontal) {\
             mMediator.setAliceStackStyle(true);\
             AliceTabStackHelper.setUp(\
                     mRecyclerView, mBrowserControlsStateProvider, this::checkAwaitingLayout);\
@@ -831,7 +1432,9 @@ sed -i '/^    private void updateGridCardLayout(int viewWidth) {$/i\
                 mRecyclerView.setLayoutManager(mAliceGridLayoutManager);\
             }\
             updateGridCardLayout(mRecyclerView.getWidth());\
+            mRecyclerView.requestLayout();\
         }\
+        mAliceAppliedStyle = selectedStyle;\
     }\
 \
     /**\
@@ -894,6 +1497,53 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
         // Alice patch end 0036\
 ' "$path2"
 
+sed -i '/^        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);$/a\
+        // Alice patch start 0036\
+        // 横向牌堆中禁止 ItemTouchHelper 提升被拖卡片层级。\
+        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+            viewHolder.itemView.setTranslationZ(0f);\
+            viewHolder.itemView.setElevation(0f);\
+            final int aliceAnchorPosition = viewHolder.getAdapterPosition();\
+            final float aliceCloseProgress =\
+                    Math.max(0f, -dY) / Math.max(1f, recyclerView.getHeight());\
+            final float alicePushProgress =\
+                    org.chromium.chrome.browser.hub.HubAnimationConstants\
+                            .ALICE_STACK_INTERPOLATOR\
+                            .getInterpolation(Math.min(1f, aliceCloseProgress));\
+            AliceTabStackHelper.updateSwipePush(\
+                    recyclerView,\
+                    aliceAnchorPosition,\
+                    alicePushProgress,\
+                    alicePushProgress > 0f);\
+        }\
+        // Alice patch end 0036\
+' "$path2"
+
+sed -i '/^            mTabClosedListener.run($/,/^                    \/\* triggeringMotion= \*\/ null);$/c\
+            // Alice patch start 0036\
+            Runnable aliceCloseTab =\
+                    () ->\
+                            mTabClosedListener.run(\
+                                    viewHolder.itemView,\
+                                    model.get(TabProperties.TAB_ID),\
+                                    /* triggeringMotion= */ null);\
+            RecyclerView aliceSwipeRecyclerView = mRecyclerViewSupplier.get();\
+            if (!AliceTabStackHelper.isStackLayout(aliceSwipeRecyclerView)\
+                    || !AliceTabStackHelper.animateSwipeReplacementAndThen(\
+                            aliceSwipeRecyclerView,\
+                            viewHolder.getBindingAdapterPosition(),\
+                            aliceCloseTab)) {\
+                aliceCloseTab.run();\
+            }\
+            // Alice patch end 0036\
+' "$path2"
+
+sed -i '/^        super.clearView(recyclerView, viewHolder);$/a\
+        // Alice patch start 0036\
+        AliceTabStackHelper.onSwipeCleared(recyclerView);\
+        // Alice patch end 0036\
+' "$path2"
+
 # ---------- 7) TabListContainerViewBinder：初始滚动偏移（当前卡片居中） ----------
 sed -i '/^        LinearLayoutManager layoutManager = (LinearLayoutManager) view.getLayoutManager();$/i\
         // Alice patch start 0036\
@@ -903,6 +1553,19 @@ sed -i '/^        LinearLayoutManager layoutManager = (LinearLayoutManager) view
                     model.get(BROWSER_CONTROLS_STATE_PROVIDER), view);\
         }\
         // Alice patch end 0036\
+' "$path3"
+
+sed -i '/^            int index = model.get(INITIAL_SCROLL_INDEX);$/a\
+            // Alice patch start 0036\
+            if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+                if (AliceTabStackHelper.shouldReorderTabs()) {\
+                    AliceTabStackHelper.resetToLastCard(recyclerView);\
+                } else {\
+                    AliceTabStackHelper.resetToCard(recyclerView, index);\
+                }\
+                return;\
+            }\
+            // Alice patch end 0036\
 ' "$path3"
 
 # ---------- 8) TabSwitcherPaneBase：允许非 GridLayoutManager ----------
@@ -923,11 +1586,148 @@ sed -i '/^    void scaleTabGridCardView(@AnimationStatus int status) {$/a\
         // Alice patch end 0036\
 ' "$path12"
 
+sed -i '/^    public static void bindTab(/,/^    }$/ s|^        assertNonNull(propertyKey);$|&\n        // Alice patch start 0036\n        if (propertyKey == TabProperties.TAB_ACTION_STATE\n                \&\& AliceTabStackHelper.getEffectiveStyle()\n                        != AliceTabStackHelper.STYLE_HORIZONTAL) {\n            AliceTabStackHelper.resetCardTransform(view);\n        }\n        // Alice patch end 0036|' "$path18"
+
+sed -i '/^    public static void onViewRecycled(PropertyModel model, View view) {$/a\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.getEffectiveStyle()\
+                != AliceTabStackHelper.STYLE_HORIZONTAL) {\
+            AliceTabStackHelper.resetCardTransform(view);\
+        }\
+        // Alice patch end 0036\
+' "$path18"
+
+# ---------- 8.2) TabSwitcherPaneCoordinator：点击后跟随 Hub 动画进度 ----------
+sed -i '/^    public Rect getTabThumbnailRect(int tabId) {$/i\
+    // Alice patch start 0036\
+    public java.util.@Nullable List<View> getAliceRightCardViews(int tabId) {\
+        int position = mTabListCoordinator.getIndexFromTabId(tabId);\
+        if (position == TabModel.INVALID_TAB_INDEX) return null;\
+        return mTabListCoordinator.getAliceRightCardViews(position);\
+    }\
+    // Alice patch end 0036\
+\
+' "$path13"
+
+sed -i '/^    private TabListItemOnClickListenerProvider getTabListItemOnClickListenerProvider() {$/,/^    }$/c\
+    // Alice patch start 0036\
+    private TabListItemOnClickListenerProvider getTabListItemOnClickListenerProvider() {\
+        return new TabListItemOnClickListenerProvider() {\
+            @Override\
+            public @Nullable TabActionListener onTabGroupClicked(Tab tab) {\
+                return mMediator.onTabGroupClicked(tab);\
+            }\
+\
+            @Override\
+            public @Nullable TabActionListener onTabGroupClicked(String syncId) {\
+                return mMediator.onTabGroupClicked(syncId);\
+            }\
+\
+            @Override\
+            public @Nullable Boolean isTabGroupSelected(Tab tab, PropertyModel model) {\
+                return mMediator.isTabGroupSelected(tab, model);\
+            }\
+\
+            @Override\
+            public @Nullable TabActionButtonData getTabGroupActionButtonData(\
+                    Tab tab,\
+                    PropertyModel model,\
+                    Supplier<TabActionListener> defaultOverflowListenerSupplier) {\
+                return mMediator.getTabGroupActionButtonData(\
+                        tab, model, defaultOverflowListenerSupplier);\
+            }\
+\
+            @Override\
+            public void onTabSelecting(int tabId) {\
+                TabListRecyclerView recyclerView = mTabListCoordinator.getContainerView();\
+                if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+                    int position = mTabListCoordinator.getIndexFromTabId(tabId);\
+                    if (position != TabModel.INVALID_TAB_INDEX) {\
+                        AliceTabStackHelper.animateNeighborAvoidance(\
+                                recyclerView, position);\
+                        mMediator.onTabSelecting(tabId);\
+                        return;\
+                    }\
+                }\
+                mMediator.onTabSelecting(tabId);\
+            }\
+        };\
+    }\
+    // Alice patch end 0036\
+' "$path13"
+
+# 横向样式的预览图使用未裁剪的完整变换矩形，避免右侧卡片只取到屏幕内残片。
+sed -i '/^import android.graphics.Rect;$/i\
+// Alice patch start 0036\
+import android.graphics.Matrix;\
+import android.graphics.RectF;\
+// Alice patch end 0036\
+' "$path14"
+
+sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/i\
+    // Alice patch start 0036\
+    Rect getAliceStackTabThumbnailRect(int tabIndex) {\
+        SimpleRecyclerViewAdapter.ViewHolder holder =\
+                (SimpleRecyclerViewAdapter.ViewHolder)\
+                        findViewHolderForAdapterPosition(tabIndex);\
+        Rect rect = new Rect();\
+        if (holder == null || tabIndex == TabModel.INVALID_TAB_INDEX) return rect;\
+        ViewLookupCachingFrameLayout root =\
+                (ViewLookupCachingFrameLayout) holder.itemView;\
+        View thumbnail = root.fastFindViewById(R.id.tab_thumbnail);\
+        if (thumbnail == null) return rect;\
+        Matrix matrix = new Matrix();\
+        thumbnail.transformMatrixToGlobal(matrix);\
+        RectF transformedBounds =\
+                new RectF(\
+                        0f,\
+                        0f,\
+                        thumbnail.getWidth(),\
+                        thumbnail.getHeight());\
+        matrix.mapRect(transformedBounds);\
+        transformedBounds.round(rect);\
+        return rect;\
+    }\
+    // Alice patch end 0036\
+' "$path14"
+
+sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/a\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.isStackLayout(this)) {\
+            return getAliceStackTabThumbnailRect(tabIndex);\
+        }\
+        // Alice patch end 0036\
+' "$path14"
+
+# 预览动画期间提供点击卡片右侧的卡片 View，用于在预览层挖空。
+sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/i\
+    // Alice patch start 0036\
+    public java.util.@Nullable List<View> getAliceRightCardViews(int anchorPosition) {\
+        if (!AliceTabStackHelper.isStackLayout(this)\
+                || anchorPosition == TabModel.INVALID_TAB_INDEX) {\
+            return null;\
+        }\
+        ArrayList<View> cards = new ArrayList<>();\
+        int itemCount = getAdapter() == null ? 0 : getAdapter().getItemCount();\
+        for (int position = anchorPosition + 1; position < itemCount; position++) {\
+            RecyclerView.ViewHolder holder = findViewHolderForAdapterPosition(position);\
+            if (holder != null && holder.itemView.getVisibility() == View.VISIBLE) {\
+                View card = holder.itemView.findViewById(R.id.card_view);\
+                cards.add(card != null ? card : holder.itemView);\
+            }\
+        }\
+        return cards;\
+    }\
+    // Alice patch end 0036\
+\
+' "$path14"
+
 # ---------- 9) TabContentManager：仅横向样式捕获时提高倍率 ----------
 sed -i '/^    private static final int WAIT_FOR_NATIVE_MAX_BACKOFF_ATTEMPTS = 2;$/a\
     // Alice patch start 0036\
     private static final String PREF_ALICE_TAB_SWITCHER_STYLE = "alice_tab_switcher_style";\
     private static final int ALICE_TAB_SWITCHER_STYLE_HORIZONTAL = 2;\
+    private static final int ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER = 3;\
     // Alice patch end 0036\
 ' "$path5"
 
@@ -956,6 +1756,7 @@ sed -i '/^    \/\*\* Called after native library is loaded\. \*\/$/i\
                 ContextUtils.getAppSharedPreferences()\
                         .getInt(PREF_ALICE_TAB_SWITCHER_STYLE, 0);\
         return style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL\
+                        || style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER\
                 ? mAliceHorizontalThumbnailScale\
                 : mThumbnailScale;\
     }\
@@ -999,9 +1800,39 @@ sed -i '/^    private @Nullable GridLayoutManager mGridLayoutManager;$/a\
         mAliceStackStyle = enabled;\
     }\
 \
+    /** 把真实 TabModel 中的激活标签移动到末尾。 */\
+    private void moveAliceSelectedTabToLast(Tab tab) {\
+        if (!mAliceStackStyle\
+                || !AliceTabStackHelper.shouldReorderTabs()\
+                || tab.getIsPinned()) {\
+            return;\
+        }\
+        TabModel tabModel = getCurrentTabModelChecked();\
+        int tabId = tab.getId();\
+        int currentIndex = TabModelUtils.getTabIndexById(tabModel, tabId);\
+        int lastIndex = tabModel.getCount() - 1;\
+        if (currentIndex < 0 || currentIndex == lastIndex) return;\
+        org.chromium.chrome.browser.hub.HubAnimationConstants\
+                .setAlicePendingTabReorder(\
+                        () -> {\
+                            int pendingIndex =\
+                                    TabModelUtils.getTabIndexById(tabModel, tabId);\
+                            int pendingLastIndex = tabModel.getCount() - 1;\
+                            if (pendingIndex >= 0\
+                                    \&\& pendingIndex != pendingLastIndex) {\
+                                tabModel.moveTab(tabId, pendingLastIndex);\
+                            }\
+                        });\
+    }\
+\
     /** 横向牌堆把当前标签放到最后一张，旧标签在左侧收拢。 */\
     private @Nullable List<Tab> maybeMoveAliceCurrentTabToLast(@Nullable List<Tab> tabs) {\
-        if (!mAliceStackStyle || tabs == null || tabs.size() < 2) return tabs;\
+        if (!mAliceStackStyle\
+                || !AliceTabStackHelper.shouldReorderTabs()\
+                || tabs == null\
+                || tabs.size() < 2) {\
+            return tabs;\
+        }\
         @Nullable Tab currentTab = getCurrentTabModelChecked().getCurrentTabSupplier().get();\
         if (currentTab == null) return tabs;\
         int currentIndex = -1;\
@@ -1016,7 +1847,14 @@ sed -i '/^    private @Nullable GridLayoutManager mGridLayoutManager;$/a\
         reordered.add(reordered.remove(currentIndex));\
         return reordered;\
     }\
+\
     // Alice patch end 0036\
+' "$path8"
+
+sed -i '/^                        mTabListLayoutDelegate.didSelectTab(tab, type, lastId);$/a\
+                        // Alice patch start 0036\
+                        moveAliceSelectedTabToLast(tab);\
+                        // Alice patch end 0036\
 ' "$path8"
 
 sed -i '/^    public void resetWithListOfTabs($/,/^    }$/ s|^        TabModel tabModel = mCurrentTabModelSupplier.get();$|&\n        // Alice patch start 0036\n        tabs = maybeMoveAliceCurrentTabToLast(tabs);\n        // Alice patch end 0036|' "$path8"
@@ -1038,19 +1876,267 @@ sed -i '/^    void updateLayout() {$/a\
 ' "$path8"
 
 # ---------- 12) TabListCoordinator：尺寸还没算出来时不要用 null 通知/取缩略图尺寸 ----------
-sed -i '/^    public void addTabListItemSizeChangedObserver(TabListItemSizeChangedObserver observer) {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0036\n        // 横向样式的卡片尺寸要等第一次布局之后才算得出来，这里先跳过。\n        if (size == null) return;\n        // Alice patch end 0036|' "$path1"
+sed -i '/^    public void addTabListItemSizeChangedObserver(TabListItemSizeChangedObserver observer) {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0036\n        // 只有横向样式允许尺寸尚未布局完成。\n        if (AliceTabStackHelper.isStackLayout(mRecyclerView) \&\& size == null) return;\n        // Alice patch end 0036|' "$path1"
 
-sed -i '/^    Size getThumbnailSize() {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0036\n        if (size == null) {\n            updateAliceStackCardLayout(mRecyclerView.getWidth());\n            size = mMediator.getDefaultGridCardSize();\n            if (size == null) return new Size(1, 1);\n        }\n        // Alice patch end 0036|' "$path1"
+sed -i '/^    Size getThumbnailSize() {$/i\
+    // Alice patch start 0036\
+    java.util.@Nullable List<View> getAliceRightCardViews(int anchorPosition) {\
+        return mRecyclerView.getAliceRightCardViews(anchorPosition);\
+    }\
+    // Alice patch end 0036\
+\
+' "$path1"
+
+sed -i '/^    Size getThumbnailSize() {$/,/^    }$/ s|^        Size size = mMediator.getDefaultGridCardSize();$|&\n        // Alice patch start 0036\n        if (AliceTabStackHelper.isStackLayout(mRecyclerView) \&\& size == null) {\n            updateAliceStackCardLayout(mRecyclerView.getWidth());\n            size = mMediator.getDefaultGridCardSize();\n            if (size == null) return new Size(1, 1);\n        }\n        // Alice patch end 0036|' "$path1"
 
 # ---------- 13) SingleChildViewManager：布局过程中改子视图一律延后（修 HubContainerView null child 崩溃） ----------
 sed -i '/^    private void onViewChanged(@Nullable View view) {$/,/^    }$/{
-    s|^    private void onViewChanged(@Nullable View view) {$|&\n        // Alice patch start 0036\n        // 布局过程中直接增删子视图，会让父容器（HubContainerView）的 children 出现 null 而崩溃；\n        // 这里统一延后一帧，并打一条带调用栈的日志便于定位。\n        if (mContainerView.isInLayout()) {\n            final @Nullable View pendingView = view;\n            android.util.Log.w("AliceHub", "defer onViewChanged in layout: " + view, new Throwable());\n            mContainerView.post(() -> onViewChanged(pendingView));\n            return;\n        }\n        // Alice patch end 0036|
+    s|^    private void onViewChanged(@Nullable View view) {$|&\n        // Alice patch start 0036\n        // 仅横向样式的 Hub 层级需要避开布局过程中增删子视图。\n        if (HubAnimationConstants.isAliceHorizontalStyle() \&\& mContainerView.isInLayout()) {\n            final @Nullable View pendingView = view;\n            mContainerView.post(() -> onViewChanged(pendingView));\n            return;\n        }\n        // Alice patch end 0036|
 }' "$path9"
 
 # ---------- 14) HubManagerImpl：合成器布局流程中删 HubContainerView 子视图会崩，延后一帧 ----------
-sed -i 's|^    public void onHubLayoutDoneHiding() {$|&\n        // Alice patch start 0036\n        // 本方法在合成器布局流程（即 View 布局过程中）被调用，直接 removeAllViews() 会让\n        // HubContainerView 的 children 出现 null 而崩溃（点卡片关闭 Hub 时必现）；延后一帧。\n        if (mHubContainerView.isInLayout()) {\n            android.util.Log.w("AliceHub", "defer onHubLayoutDoneHiding", new Throwable());\n            mHubContainerView.post(this::onHubLayoutDoneHiding);\n            return;\n        }\n        // Alice patch end 0036|' "$path10"
+sed -i 's|^    public void onHubLayoutDoneHiding() {$|&\n        // Alice patch start 0036\n        // 仅横向样式需要在布局流程中延后删除 HubContainerView 的子视图。\n        if (HubAnimationConstants.isAliceHorizontalStyle()\n                \&\& mHubContainerView.isInLayout()) {\n            mHubContainerView.post(this::onHubLayoutDoneHiding);\n            return;\n        }\n        HubAnimationConstants.runAlicePendingTabReorder();\n        // Alice patch end 0036|' "$path10"
 
-# ---------- 15) ShrinkExpandHubLayoutAnimatorProvider：动画清理也延后 ----------
+# ---------- 15) TabSwitcherPaneBase：仅横向样式调整预览图动画时长 ----------
+sed -i '/^                                    bottomMargin));$/a\
+        // Alice patch start 0036\
+        {\
+            @Nullable ShrinkExpandAnimationData aliceLayerAnimationData =\
+                    animationDataSupplier.get();\
+            if (aliceLayerAnimationData != null\
+                    \&\& AliceTabStackHelper.getEffectiveStyle()\
+                            == AliceTabStackHelper.STYLE_HORIZONTAL) {\
+                aliceLayerAnimationData.setAliceRightCardViewsSupplier(\
+                        () -> coordinator.getAliceRightCardViews(tabId));\
+            }\
+        }\
+        // Alice patch end 0036\
+' "$path4"
+
+sed -i 's|^                HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS,$|                AliceTabStackHelper.getHubAnimationDurationMs(),|' "$path4"
+
+# ---------- 15.0) ShrinkExpandAnimationData：右侧卡片挖空区域 ----------
+sed -i '/^    private final int mBottomMargin;$/a\
+    // Alice patch start 0036\
+    private java.util.function.@Nullable Supplier<\
+                    java.util.@Nullable List<android.view.View>>\
+            mAliceRightCardViewsSupplier;\
+    // Alice patch end 0036\
+' "$path15"
+
+sed -i '$i\
+    // Alice patch start 0036\
+    public void setAliceRightCardViewsSupplier(\
+            java.util.function.@Nullable Supplier<\
+                            java.util.@Nullable List<android.view.View>>\
+                    supplier) {\
+        mAliceRightCardViewsSupplier = supplier;\
+    }\
+\
+    public java.util.function.@Nullable Supplier<\
+                    java.util.@Nullable List<android.view.View>>\
+            getAliceRightCardViewsSupplier() {\
+        return mAliceRightCardViewsSupplier;\
+    }\
+    // Alice patch end 0036\
+' "$path15"
+
+# ---------- 15.1) HubAnimationConstants：转发点击动画同步启动信号 ----------
+sed -i '/^public class HubAnimationConstants {$/a\
+    // Alice patch start 0036\
+    public static final android.view.animation.Interpolator ALICE_STACK_INTERPOLATOR =\
+            androidx.core.view.animation.PathInterpolatorCompat.create(\
+                    0.22f, 0.72f, 0.38f, 1.0f);\
+\
+    private static Runnable sAliceHubTapAnimationStarter = () -> {};\
+    private static Runnable sAliceHubEnterAnimationStarter = () -> {};\
+    private static @Nullable Runnable sAlicePendingTabReorder;\
+\
+    public static void setAliceHubTapAnimationStarter(Runnable starter) {\
+        sAliceHubTapAnimationStarter = starter;\
+    }\
+\
+    public static void setAliceHubEnterAnimationStarter(Runnable starter) {\
+        sAliceHubEnterAnimationStarter = starter;\
+    }\
+\
+    public static void setAlicePendingTabReorder(@Nullable Runnable reorder) {\
+        sAlicePendingTabReorder = reorder;\
+    }\
+\
+    public static void runAlicePendingTabReorder() {\
+        @Nullable Runnable reorder = sAlicePendingTabReorder;\
+        sAlicePendingTabReorder = null;\
+        if (reorder != null) reorder.run();\
+    }\
+\
+    public static boolean isAliceHorizontalStyle() {\
+        int style =\
+                org.chromium.base.ContextUtils.getAppSharedPreferences()\
+                        .getInt("alice_tab_switcher_style", 0);\
+        return style == 2 || style == 3;\
+    }\
+\
+    public static void notifyAliceHubTapAnimationStart() {\
+        if (isAliceHorizontalStyle()) sAliceHubTapAnimationStarter.run();\
+    }\
+\
+    public static void notifyAliceHubEnterAnimationStart() {\
+        if (isAliceHorizontalStyle()) sAliceHubEnterAnimationStarter.run();\
+    }\
+    // Alice patch end 0036\
+' "$path16"
+
+# ---------- 15.2) ShrinkExpandImageView：右侧卡片区域挖空 ----------
+sed -i '/^import android\.graphics\.Matrix;$/a\
+// Alice patch start 0036\
+import android.graphics.Canvas;\
+import android.graphics.RectF;\
+import android.view.View;\
+import java.util.List;\
+import java.util.function.Supplier;\
+// Alice patch end 0036\
+' "$path17"
+
+sed -i '/^    private final RunOnNextLayoutDelegate mRunOnNextLayoutDelegate;$/a\
+    // Alice patch start 0036\
+    private @Nullable Supplier<@Nullable List<View>> mAliceRightCardViewsSupplier;\
+    // Alice patch end 0036\
+' "$path17"
+
+sed -i '/^    public void reset(@Nullable Rect layoutRect) {$/i\
+    // Alice patch start 0036\
+    public void setAliceRightCardViewsSupplier(\
+            @Nullable Supplier<@Nullable List<View>> supplier) {\
+        mAliceRightCardViewsSupplier = supplier;\
+        invalidate();\
+    }\
+\
+    @Override\
+    protected void onDraw(Canvas canvas) {\
+        @Nullable Supplier<@Nullable List<View>> supplier = mAliceRightCardViewsSupplier;\
+        @Nullable List<View> cards = supplier == null ? null : supplier.get();\
+        if (cards == null || cards.isEmpty()) {\
+            super.onDraw(canvas);\
+            return;\
+        }\
+\
+        Matrix previewToGlobal = new Matrix();\
+        transformMatrixToGlobal(previewToGlobal);\
+        Matrix globalToPreview = new Matrix();\
+        if (!previewToGlobal.invert(globalToPreview)) {\
+            super.onDraw(canvas);\
+            return;\
+        }\
+\
+        int saveCount = canvas.save();\
+        for (View card : cards) {\
+            if (card.getWidth() <= 0 || card.getHeight() <= 0) continue;\
+            Matrix cardToGlobal = new Matrix();\
+            card.transformMatrixToGlobal(cardToGlobal);\
+            RectF cardBounds = new RectF(0f, 0f, card.getWidth(), card.getHeight());\
+            cardToGlobal.mapRect(cardBounds);\
+            globalToPreview.mapRect(cardBounds);\
+            canvas.clipOutRect(cardBounds);\
+        }\
+        super.onDraw(canvas);\
+        canvas.restoreToCount(saveCount);\
+    }\
+    // Alice patch end 0036\
+\
+' "$path17"
+
+# ---------- 15.3) ShrinkExpandHubLayoutAnimatorProvider：动画清理也延后 ----------
+sed -i '/^import android\.view\.View;$/a\
+// Alice patch start 0036\
+import android.view.ViewGroup;\
+// Alice patch end 0036\
+' "$path11"
+
+sed -i '/^    private boolean mLayoutSatisfied;$/a\
+    // Alice patch start 0036\
+    private static final float ALICE_PREVIEW_BRING_TO_FRONT_FRACTION = 0.75f;\
+    // Alice patch end 0036\
+' "$path11"
+
+sed -i '/^                        mShrinkExpandImageView.setVisibility(View.VISIBLE);$/a\
+                        // Alice patch start 0036\
+                        if (isShrink) {\
+                            org.chromium.chrome.browser.hub.HubAnimationConstants\
+                                    .notifyAliceHubEnterAnimationStart();\
+                        } else {\
+                            org.chromium.chrome.browser.hub.HubAnimationConstants\
+                                    .notifyAliceHubTapAnimationStart();\
+                        }\
+                        // Alice patch end 0036\
+' "$path11"
+
+sed -i 's|^        return Interpolators\.EMPHASIZED;$|        // Alice patch start 0036\n        if (HubAnimationConstants.isAliceHorizontalStyle()) {\n            return HubAnimationConstants.ALICE_STACK_INTERPOLATOR;\n        }\n        return Interpolators.EMPHASIZED;\n        // Alice patch end 0036|' "$path11"
+
+sed -i '/^        shrinkExpandAnimator\.setInterpolator(interpolator);$/a\
+        // Alice patch start 0036\
+        if (HubAnimationConstants.isAliceHorizontalStyle()) {\
+            shrinkExpandAnimator.addUpdateListener(\
+                    animation ->\
+                            updateAlicePreviewZOrder(animation.getAnimatedFraction()));\
+        }\
+        // Alice patch end 0036\
+' "$path11"
+
+sed -i '/^        ShrinkExpandAnimationData animationData = mAnimationDataSupplier.get();$/a\
+        // Alice patch start 0036\
+        if (HubAnimationConstants.isAliceHorizontalStyle()) {\
+            prepareAlicePreviewLayer(animationData);\
+        }\
+        // Alice patch end 0036\
+' "$path11"
+
+sed -i '/^    private void resetState() {$/i\
+    // Alice patch start 0036\
+    private void prepareAlicePreviewLayer(ShrinkExpandAnimationData animationData) {\
+        if ((mAnimationType != HubLayoutAnimationType.EXPAND_TAB\
+                        \&\& mAnimationType != HubLayoutAnimationType.SHRINK_TAB)\
+                || !HubAnimationConstants.isAliceHorizontalStyle()\
+                || mShrinkExpandImageView == null) {\
+            return;\
+        }\
+        mShrinkExpandImageView.setAliceRightCardViewsSupplier(\
+                animationData.getAliceRightCardViewsSupplier());\
+    }\
+\
+    private void updateAlicePreviewZOrder(float fraction) {\
+        if (mAnimationType != HubLayoutAnimationType.SHRINK_TAB\
+                \&\& fraction >= ALICE_PREVIEW_BRING_TO_FRONT_FRACTION) {\
+            clearAliceRightCardClip();\
+        }\
+    }\
+\
+    private void clearAliceRightCardClip() {\
+        if (mShrinkExpandImageView != null) {\
+            mShrinkExpandImageView.setAliceRightCardViewsSupplier(null);\
+        }\
+    }\
+\
+    private void restoreAlicePreviewLayer() {\
+        clearAliceRightCardClip();\
+    }\
+\
+    private void removeAlicePreviewView(@Nullable View view) {\
+        if (view == null) return;\
+        if (view.getParent() instanceof ViewGroup parent) {\
+            parent.removeView(view);\
+        }\
+    }\
+    // Alice patch end 0036\
+\
+' "$path11"
+
+sed -i '/^    private void resetState() {$/a\
+        // Alice patch start 0036\
+        restoreAlicePreviewLayer();\
+        // Alice patch end 0036\
+' "$path11"
+
 sed -i '/^    private void resetState() {$/,/^    }$/{
-    s|^        mHubContainerView.removeView(mShrinkExpandImageView);$|        // Alice patch start 0036\n        // 布局过程中不要直接移除 HubContainerView 的子视图（会崩）；把删除延后一帧，状态照常清理。\n        if (mHubContainerView.isInLayout()) {\n            final View aliceShrinkView = assumeNonNull(mShrinkExpandImageView);\n            final @Nullable View aliceFakeView = mFakeBottomControlsView;\n            android.util.Log.w("AliceHub", "defer resetState removals", new Throwable());\n            mHubContainerView.post(\n                    () -> {\n                        mHubContainerView.removeView(aliceShrinkView);\n                        if (aliceFakeView != null) {\n                            mHubContainerView.removeView(aliceFakeView);\n                        }\n                    });\n            mShrinkExpandImageView.setImageBitmap(null);\n            mShrinkExpandImageView = null;\n            mFakeBottomControlsView = null;\n            return;\n        }\n        // Alice patch end 0036\n        mHubContainerView.removeView(mShrinkExpandImageView);|
+    s|^        mHubContainerView.removeView(mShrinkExpandImageView);$|        // Alice patch start 0036\n        // 仅横向样式在布局流程中延后删除预览层。\n        if (HubAnimationConstants.isAliceHorizontalStyle()\n                \&\& mHubContainerView.isInLayout()) {\n            final View aliceShrinkView = assumeNonNull(mShrinkExpandImageView);\n            final @Nullable View aliceFakeView = mFakeBottomControlsView;\n            mHubContainerView.post(\n                    () -> {\n                        removeAlicePreviewView(aliceShrinkView);\n                        removeAlicePreviewView(aliceFakeView);\n                    });\n            mShrinkExpandImageView.setImageBitmap(null);\n            mShrinkExpandImageView = null;\n            mFakeBottomControlsView = null;\n            return;\n        }\n        if (HubAnimationConstants.isAliceHorizontalStyle()) {\n            removeAlicePreviewView(mShrinkExpandImageView);\n        } else {\n            mHubContainerView.removeView(mShrinkExpandImageView);\n        }\n        // Alice patch end 0036|
 }' "$path11"

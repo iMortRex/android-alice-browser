@@ -34,15 +34,14 @@ sed -i 's#^    private final Callback<Integer> mOverviewColorObserver = ignored 
 # 记录状态栏动画状态和 Hub 背景色。
 sed -i '/^    private boolean mAllowToolbarColorOnTablets;$/a\
     // Alice patch start 0074\
-    private static final long ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS = 80L;\
-    private static final long ALICE_STATUS_BAR_FRAME_OVERRIDE_MS = 50L;\
-    private @Nullable ValueAnimator mAliceHubStatusBarAnimator;\
+    private int mAliceHubStatusBarToken;\
     private boolean mAliceHubStatusBarTransitionActive;\
     private boolean mAliceHubAwaitingOverviewClear;\
     private boolean mAliceHubShowing;\
-    private float mAliceHubTransitionFraction;\
-    private @ColorInt int mAliceHubBackgroundColor = Color.TRANSPARENT;\
     private @ColorInt int mAliceLastBrowsingStatusBarColor = Color.TRANSPARENT;\
+    private final AliceStatusBarColorTransitionController.Observer mAliceHubColorObserver =\
+            ignored -> updateStatusBarColor();\
+    private final AliceStatusBarColorTransitionController mAliceHubColorController;\
     private final AliceStatusBarColorTransitionController.Observer mAliceThemeColorObserver =\
             this::onAliceThemeColorChanged;\
     private final AliceStatusBarColorTransitionController mAliceThemeColorController;\
@@ -51,6 +50,8 @@ sed -i '/^    private boolean mAllowToolbarColorOnTablets;$/a\
 # 创建 Activity 级共享主题色控制器并订阅颜色变化。
 sed -i '/^        mActivity = activity;$/a\
         // Alice patch start 0074\
+        mAliceHubColorController = new AliceStatusBarColorTransitionController();\
+        mAliceHubColorController.addObserver(mAliceHubColorObserver);\
         mAliceThemeColorController = AliceStatusBarColorTransitionController.forActivity(activity);\
         mAliceThemeColorController.addObserver(mAliceThemeColorObserver);\
         // Alice patch end 0074' "$path1"
@@ -90,13 +91,6 @@ sed -i '/^                public void onFinishedHiding(@LayoutType int layoutTyp
 # 启动与预览缩略图缩放一致的 325ms 状态栏动画。
 sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTablet) {$/i\
     // Alice patch start 0074\
-    private void animateAliceHubStatusBarColorForFrame(@ColorInt int color) {\
-        int token = mAliceThemeColorController.animateTo(color, 0L);\
-        mActivity.getWindow().getDecorView().postDelayed(\
-                () -> mAliceThemeColorController.clearOverride(token),\
-                ALICE_STATUS_BAR_FRAME_OVERRIDE_MS);\
-    }\
-\
     private void onAliceHubOverviewColorChanged() {\
         if (mAliceHubAwaitingOverviewClear\
                 \&\& Color.alpha(mOverviewColorSupplier.get()) == 0) {\
@@ -121,66 +115,37 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
                                 HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 0.55f)\
                         : Math.round(\
                                 HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f);\
+        if (mAliceHubStatusBarTransitionActive\
+                \&\& mAliceHubShowing == showingHub\
+                \&\& mAliceHubColorController.isOverriding()) {\
+            return;\
+        }\
         mAliceHubAwaitingOverviewClear = false;\
         @ColorInt int startColor =\
-                mAliceThemeColorController.hasColor()\
-                        ? mAliceThemeColorController.getCurrentColor()\
-                        : getAlicePageThemeColorForStatusBar();\
-        mAliceThemeColorController.animateTo(startColor, targetColor, durationMs);\
+                showingHub\
+                        ? getAlicePageThemeColorForStatusBar()\
+                        : getAliceHubBackgroundColorForStatusBar();\
         if (showingHub\
                 \&\& (!mAliceHubStatusBarTransitionActive || !mAliceHubShowing)\
                 \&\& Color.alpha(mStatusBarColorWithoutStatusIndicator) != 0) {\
             mAliceLastBrowsingStatusBarColor =\
                     ColorUtils.getOpaqueColor(mStatusBarColorWithoutStatusIndicator);\
         }\
-        if (mAliceHubStatusBarTransitionActive\
-                \&\& mAliceHubShowing == showingHub\
-                \&\& mAliceHubStatusBarAnimator != null\
-                \&\& mAliceHubStatusBarAnimator.isRunning()) {\
-            return;\
-        }\
-        if (mAliceHubStatusBarAnimator != null) {\
-            mAliceHubStatusBarAnimator.cancel();\
-        }\
         mAliceHubStatusBarTransitionActive = true;\
         mAliceHubShowing = showingHub;\
-        mAliceHubTransitionFraction = 0f;\
-        int aliceOverviewColor = mOverviewColorSupplier.get();\
-        if (Color.alpha(aliceOverviewColor) != 0) {\
-            mAliceHubBackgroundColor = ColorUtils.getOpaqueColor(aliceOverviewColor);\
-        }\
-        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);\
-        animator.setDuration(\
-            showingHub\
-                ? Math.round(\
-                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 0.55f)\
-                : Math.round(\
-                        HubAnimationConstants.HUB_LAYOUT_SHRINK_EXPAND_DURATION_MS * 2.4f));\
-        animator.setStartDelay(\
-                showingHub ? 0L : ALICE_HUB_STATUS_ANIMATION_START_DELAY_MS);\
-        animator.setInterpolator(Interpolators.EMPHASIZED);\
-        animator.addUpdateListener(\
-                animation -> setAliceHubTransitionProgress(\
-                        showingHub, animation.getAnimatedFraction()));\
-        mAliceHubStatusBarAnimator = animator;\
+        int aliceToken =\
+                mAliceHubColorController.animateTo(startColor, targetColor, durationMs);\
+        mAliceHubStatusBarToken = aliceToken;\
         updateStatusBarColor();\
-        animator.start();\
-    }\
-\
-    private void setAliceHubTransitionProgress(boolean showingHub, float fraction) {\
-        float aliceFraction = Math.max(0f, Math.min(1f, fraction));\
-        if (!mAliceHubStatusBarTransitionActive || mAliceHubShowing != showingHub) {\
-            mAliceHubTransitionFraction = 0f;\
-        } else if (aliceFraction + 0.001f >= mAliceHubTransitionFraction) {\
-            mAliceHubTransitionFraction = aliceFraction;\
-        }\
-        mAliceHubStatusBarTransitionActive = true;\
-        mAliceHubShowing = showingHub;\
-        int aliceOverviewColor = mOverviewColorSupplier.get();\
-        if (Color.alpha(aliceOverviewColor) != 0) {\
-            mAliceHubBackgroundColor = ColorUtils.getOpaqueColor(aliceOverviewColor);\
-        }\
-        updateStatusBarColor();\
+        mActivity.getWindow().getDecorView().postDelayed(\
+                () -> {\
+                    if (mAliceHubStatusBarToken != aliceToken) return;\
+                    mAliceHubStatusBarToken = 0;\
+                    mAliceHubStatusBarTransitionActive = false;\
+                    mAliceHubColorController.clearOverride(aliceToken);\
+                    updateStatusBarColor();\
+                },\
+                durationMs + 16L);\
     }\
 \
     private @ColorInt int getAliceBrowserThemeColorForStatusBar() {\
@@ -190,34 +155,24 @@ sed -i '/^    public void setTabStripHiddenOnTablet(boolean tabStripHiddenOnTabl
     }\
 \
     private @ColorInt int getAlicePageThemeColorForStatusBar() {\
+        @Nullable Tab alicePageTab =\
+                mTabModelSelector != null ? mTabModelSelector.getCurrentTab() : null;\
+        if (alicePageTab == null) alicePageTab = mCurrentTab;\
+        if (alicePageTab != null) {\
+            return mTopUiThemeColor.getToolbarBackgroundColor(alicePageTab);\
+        }\
         if (mAliceHubShowing \&\& mAliceLastBrowsingStatusBarColor != Color.TRANSPARENT) {\
             return mAliceLastBrowsingStatusBarColor;\
         }\
-        if (mCurrentTab == null) return getAliceBrowserThemeColorForStatusBar();\
-        return mTopUiThemeColor.getToolbarBackgroundColor(mCurrentTab);\
+        return getAliceBrowserThemeColorForStatusBar();\
     }\
 \
     private @ColorInt int getAliceHubBackgroundColorForStatusBar() {\
         int aliceOverviewColor = mOverviewColorSupplier.get();\
         if (Color.alpha(aliceOverviewColor) != 0) {\
-            mAliceHubBackgroundColor = ColorUtils.getOpaqueColor(aliceOverviewColor);\
+            return ColorUtils.getOpaqueColor(aliceOverviewColor);\
         }\
-        return mAliceHubBackgroundColor != Color.TRANSPARENT\
-                ? mAliceHubBackgroundColor\
-                : getAliceBrowserThemeColorForStatusBar();\
-    }\
-\
-    private @ColorInt int applyAliceHubStatusBarTransition(@ColorInt int fallbackColor) {\
-        if (mIsOmniboxFocused || !mAliceHubStatusBarTransitionActive) return fallbackColor;\
-        float aliceHubFraction =\
-                mAliceHubShowing\
-                        ? mAliceHubTransitionFraction\
-                        : 1f - mAliceHubTransitionFraction;\
-        return ColorUtils.getOpaqueColor(\
-                ColorUtils.blendColorsOklab(\
-                        getAlicePageThemeColorForStatusBar(),\
-                        getAliceHubBackgroundColorForStatusBar(),\
-                        aliceHubFraction));\
+        return ChromeColors.getDefaultBgColor(mActivity, mIsIncognitoBranded);\
     }\
 \
     // Alice patch end 0074
@@ -231,36 +186,29 @@ sed -i '/^        @ColorInt int statusBarColor = calculateFinalStatusBarColor();
         }\
         // Alice patch end 0074' "$path1"
 
-# toolbar 真正开始更新时退出 Hub override，恢复横滑状态栏渐变的入口。
-sed -i '/^        mToolbarColor = color;$/a\
-        // Alice patch start 0074\
-        if (mAliceHubStatusBarTransitionActive || mAliceHubShowing) {\
-            animateAliceHubStatusBarColorForFrame(color);\
-            mAliceHubAwaitingOverviewClear = false;\
-            mAliceHubStatusBarTransitionActive = false;\
-            if (mAliceHubStatusBarAnimator != null) {\
-                mAliceHubStatusBarAnimator.cancel();\
-                mAliceHubStatusBarAnimator = null;\
-            }\
-            if (mAliceThemeColorController.hasColor()) return;\
-        }\
-        // Alice patch end 0074' "$path1"
-
 # 在 overview/scrim 最终合成后应用渐变，避免 Hub 背景色覆盖逐帧混合结果。
 sed -i 's|^        return statusBarColor;$|        // Alice patch start 0074\
-        int aliceFinalColor = applyAliceHubStatusBarTransition(statusBarColor);\
+        if (mAliceHubStatusBarTransitionActive\
+                \&\& !mIsOmniboxFocused\
+                \&\& mAliceHubColorController.hasColor()) {\
+            return mAliceHubColorController.getCurrentColor();\
+        }\
+        if (mAliceHubShowing \&\& !mAliceHubStatusBarTransitionActive \&\& !mIsOmniboxFocused) {\
+            return ColorUtils.getOpaqueColor(getAliceHubBackgroundColorForStatusBar());\
+        }\
         return mAliceThemeColorController.isOverriding()\
                 ? mAliceThemeColorController.getCurrentColor()\
-                : aliceFinalColor;\
+                : statusBarColor;\
         // Alice patch end 0074|' "$path1"
 
 # 销毁时停止动画。
 sed -i '/^    public void onDestroy() {$/a\
         // Alice patch start 0074\
+        mAliceHubColorController.removeObserver(mAliceHubColorObserver);\
+        mAliceHubColorController.destroy();\
         mAliceThemeColorController.removeObserver(mAliceThemeColorObserver);\
         AliceStatusBarColorTransitionController.releaseForActivity(mActivity);\
-        if (mAliceHubStatusBarAnimator != null) {\
-            mAliceHubStatusBarAnimator.cancel();\
-            mAliceHubStatusBarAnimator = null;\
-        }\
+        mAliceHubStatusBarToken = 0;\
+        mAliceHubStatusBarTransitionActive = false;\
+        mAliceHubShowing = false;\
         // Alice patch end 0074' "$path1"

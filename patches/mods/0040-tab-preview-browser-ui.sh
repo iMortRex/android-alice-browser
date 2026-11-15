@@ -222,6 +222,12 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$
         }\
     }\
 \
+    private boolean isAliceHorizontalTabSwitcher() {\
+        return ContextUtils.getAppSharedPreferences()\
+                        .getInt("alice_tab_switcher_style", 0)\
+                == 2;\
+    }\
+\
     private boolean shouldCaptureAliceToolbar() {\
         return mBrowserControlsStateProvider != null\
                 \&\& mBrowserControlsStateProvider.getControlsPosition()\
@@ -412,8 +418,9 @@ sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^         
             final boolean aliceCaptureToolbarForTab =\
                     shouldCaptureAliceToolbar()\
                             \&\& !tab.isLoading()\
-                            \&\& !tab.isHidden()\
-                            \&\& tab.isUserInteractable();\
+                            \&\& (!tab.isHidden()\
+                                    ? tab.isUserInteractable()\
+                                    : isAliceHorizontalTabSwitcher());\
             @Nullable View toolbarView =\
                     aliceCaptureToolbarForTab ? getAliceToolbarView(tab) : null;\
             @Nullable Bitmap toolbarBitmap =\
