@@ -18,9 +18,9 @@
 
 这个浏览器暂时只是为了我个人使用而制作，因此不接受 issue 和 pull request 请求。抱歉！:(
 
-| 扩展 | 开发者工具 | 菜单 |
-|---|---|---|
-| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) |
+| 扩展 | 开发者工具 | 菜单 | 标签管理页 |
+|---|---|---|---|
+| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg) |
 
 ---
 

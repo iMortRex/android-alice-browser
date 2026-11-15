@@ -18,9 +18,9 @@ Thanks to [Tianium Browser](https://github.com/jqssun/android-titanium-browser) 
 
 I built this browser for my own use for the time being, so I’m not accepting issues or pull requests. Sorry! :(
 
-| Extensions | DevTools | Menu |
-|---|---|---|
-| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) |
+| Extensions | DevTools | Menu | Tab Manager |
+|---|---|---|---|
+| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg) |
 
 ---
 

@@ -13,6 +13,7 @@ path6="chrome/android/java/src/org/chromium/chrome/browser/tab/TabViewAndroidDel
 path7="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
 path8="chrome/android/java/res_app/layout/main.xml"
 path9="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubCoordinator.java"
+path10="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0034' "$path1"; then
@@ -86,7 +87,7 @@ sed -i '/^    void adjustViewPosition() {$/i\
         return 0;\
     }\
 \
-    private @Nullable View findAliceToolbarControlContainer(View view) {\
+    private static @Nullable View findAliceToolbarControlContainer(View view) {\
         if (view.getClass().getName().endsWith(".ToolbarControlContainer")) {\
             return view;\
         }\
@@ -128,6 +129,85 @@ sed -i '/^    void adjustViewPosition() {$/i\
                 Boolean.TRUE.equals(mRootContentView.getTag());\
         mContainerView.setVisibility(\
                 aliceSearchPage ? View.INVISIBLE : View.VISIBLE);\
+    }\
+\
+    public static void captureAliceNormalLayoutForHub(View rootView) {\
+        View rootContent = rootView.getRootView().findViewById(android.R.id.content);\
+        if (rootContent == null) rootContent = rootView;\
+        android.content.res.Resources resources = rootContent.getResources();\
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootContent);\
+        int navigationBarHeight = 0;\
+        if (insets != null) {\
+            navigationBarHeight =\
+                    Math.max(\
+                            insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom,\
+                            Math.max(\
+                                    insets.getInsets(\
+                                                    WindowInsetsCompat.Type\
+                                                            .mandatorySystemGestures())\
+                                            .bottom,\
+                                    insets.getInsets(\
+                                                    WindowInsetsCompat.Type.tappableElement())\
+                                            .bottom));\
+        }\
+        int toolbarHeight = 0;\
+        View toolbarControlContainer = findAliceToolbarControlContainer(rootContent);\
+        if (toolbarControlContainer != null\
+                \&\& toolbarControlContainer.getVisibility() == View.VISIBLE\
+                \&\& toolbarControlContainer.getHeight() > 0) {\
+            toolbarHeight = toolbarControlContainer.getHeight();\
+        }\
+        String[] packages = {\
+            rootContent.getContext().getPackageName(), "org.chromium.chrome"\
+        };\
+        if (toolbarHeight == 0) {\
+            for (String packageName : packages) {\
+                int toolbarHeightId =\
+                        resources.getIdentifier(\
+                                "toolbar_height_no_shadow", "dimen", packageName);\
+                if (toolbarHeightId != 0) {\
+                    toolbarHeight = resources.getDimensionPixelSize(toolbarHeightId);\
+                    break;\
+                }\
+            }\
+        }\
+        int hairlineHeight = 0;\
+        for (String packageName : packages) {\
+            int hairlineId =\
+                    resources.getIdentifier(\
+                            "toolbar_hairline_height", "dimen", packageName);\
+            if (hairlineId != 0) {\
+                hairlineHeight = resources.getDimensionPixelSize(hairlineId);\
+                break;\
+            }\
+        }\
+        int spacing = Math.round(15f * resources.getDisplayMetrics().density);\
+        sAliceNormalScreenBottomOffsetPx =\
+                toolbarHeight + hairlineHeight + navigationBarHeight + spacing;\
+    }\
+\
+    private int getAliceNormalScreenBottomOffsetPx() {\
+        if (sAliceNormalScreenBottomOffsetPx >= 0) {\
+            return sAliceNormalScreenBottomOffsetPx;\
+        }\
+        int hairlineHeight = 0;\
+        android.content.res.Resources resources = mRootContentView.getResources();\
+        int hairlineId =\
+                resources.getIdentifier(\
+                        "toolbar_hairline_height", "dimen", mRootContentView.getContext().getPackageName());\
+        if (hairlineId != 0) {\
+            hairlineHeight = resources.getDimensionPixelSize(hairlineId);\
+        }\
+        int spacing = Math.round(15f * resources.getDisplayMetrics().density);\
+        return getAliceBottomToolbarHeight()\
+                + hairlineHeight\
+                + getAliceNavigationBarHeight()\
+                + spacing;\
+    }\
+\
+    private boolean isAliceInHubContext() {\
+        return "alice_hub_overlay_snackbar".equals(mParent.getTag())\
+                || mRootContentView.findViewWithTag("alice_hub_overlay_snackbar") != null;\
     }\
 \
     private int getAliceParentBottomInset() {\
@@ -365,6 +445,7 @@ sed -i '/^    private boolean mIsAnimating;$/a\
     private final int[] mAliceParentPosition = new int[2];\
     private @Nullable View mAliceToolbarControlContainer;\
     private int mAliceBottomToolbarHeight = -1;\
+    private static int sAliceNormalScreenBottomOffsetPx = -1;\
     private final InsetObserver.WindowInsetsAnimationListener mAliceImeAnimationListener =\
             new InsetObserver.WindowInsetsAnimationListener() {\
                 @Override\
@@ -805,12 +886,29 @@ sed -i '/^        int aliceBottomMargin =$/,/^                        : aliceRes
             mContainerView.setElevation(2000f);\
             mContainerView.setTranslationZ(2000f);\
         }\
-        int aliceBottomMargin =\
-                aliceHubOverlay \&\& !aliceImeShowing\
-                        ? aliceNavigationBarHeight + aliceNormalSpacingAdjustment\
-                        : Math.max(\
-                                0,\
-                                aliceScreenBottomTarget - getAliceParentBottomInset());' "$path1"
+        int aliceBottomMargin;\
+        int parentBottomInset = getAliceParentBottomInset();\
+        boolean aliceInHub = isAliceInHubContext();\
+        if ((aliceInHub || aliceHubOverlay) \&\& !aliceImeShowing) {\
+            int parentBottomOffset = parentBottomInset;\
+            if (aliceHubOverlay) {\
+                parentBottomOffset += mParent.getPaddingBottom();\
+            }\
+            aliceBottomMargin =\
+                    Math.max(\
+                            0,\
+                            getAliceNormalScreenBottomOffsetPx()\
+                                    - parentBottomOffset);\
+        } else {\
+            aliceBottomMargin =\
+                    Math.max(\
+                            0,\
+                            aliceScreenBottomTarget - parentBottomInset);\
+            if (!aliceHubOverlay \&\& !aliceImeShowing) {\
+                sAliceNormalScreenBottomOffsetPx =\
+                        aliceBottomMargin + parentBottomInset;\
+            }\
+        }' "$path1"
 
 # 12) ChromeTabbedActivity 已经使用 SOFT_INPUT_ADJUST_RESIZE。Edge-to-Edge
 #     不能再把 keyboard height 加到 content padding，否则会产生二次位移。
@@ -912,7 +1010,19 @@ sed -i '/^    public void destroy() {$/a\
         }\
         // Alice patch end 0034' "$path9"
 
-# 16) Hub 的 Snackbar 容器挂到 Activity 根层，避免进入 Hub 时被隐藏层覆盖或瞬隐。
+# 16) Hub 显示前记录正常网页布局基准。
+sed -i '/^import org\.chromium\.chrome\.browser\.ui\.messages\.snackbar\.SnackbarManager;$/a\
+// Alice patch start 0034\
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarView;\
+// Alice patch end 0034' "$path10"
+
+sed -i '/^    public void onHubLayoutShow() {$/a\
+        // Alice patch start 0034\
+        SnackbarView.captureAliceNormalLayoutForHub(\
+                mActivity.getWindow().getDecorView());\
+        // Alice patch end 0034' "$path10"
+
+# 16.1) Hub 的 Snackbar 容器挂到 Activity 根层，避免进入 Hub 时被隐藏层覆盖或瞬隐。
 sed -i '/^        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);$/a\
         // Alice patch start 0034\
         // Host the Hub snackbar above the Hub layer so it stays visible during layout changes.\
@@ -1010,11 +1120,13 @@ sed -i '/^    private void addToParent() {$/,/^    }$/c\
         updateAliceSearchPageVisibility();\
         // Alice patch end 0034\
         mParent.addOnLayoutChangeListener(mLayoutListener);\
+    }' "$path1"
+
+sed -i '/^    private void updateBottomMargin(int additionalBottomMarginPx) {$/a\
         // Alice patch start 0034\
-        // Window insets can settle after the Hub overlay is first attached. Recalculate\
-        // once on the next frame so the initial and returned positions share the same base.\
-        if ("alice_hub_overlay_snackbar".equals(mParent.getTag())) {\
-            mParent.postOnAnimation(this::adjustViewPosition);\
+        if (isAliceInHubContext()) {\
+            adjustViewPosition();\
+            return;\
         }\
         // Alice patch end 0034\
-    }' "$path1"
+' "$path1"

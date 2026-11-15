@@ -4,6 +4,9 @@
 #   2) 将「删除浏览数据」从一级菜单移动到「更多工具」子菜单。
 #   3) 将「密码和自动填充」从一级菜单移动到「更多工具」子菜单。
 #   4) 将「保存并分享」从一级菜单移动到「更多工具」子菜单。
+#   5) 将「下载内容」从一级菜单移动到「更多工具」子菜单。
+#   6) 将「扩展程序」从一级菜单移动到「更多工具」子菜单。
+#   7) 将「网页缩放」从一级菜单移动到「更多工具」子菜单。
 #
 # 「更多工具」子菜单的条目是惰性构建的（Supplier），所以「保存并分享」用到的
 # url / isNativePage / isFileScheme / isContentScheme 要一并传进 buildMoreToolsItem()。
@@ -36,8 +39,20 @@ sed -i '/^        \/\/ Passwords and autofill/{N;N;N;d}' "$path1"
 # 从一级菜单移除「保存并分享」。
 sed -i '/^        \/\/ Save and share/,/^        }/d' "$path1"
 
+# 从启用子菜单的一级菜单中移除「下载内容」「扩展程序」和「网页缩放」。
+# 未启用子菜单的布局没有「更多工具」，因此保留这些条目的原位。
+sed -i \
+    -e '/^        \/\/ History and autofill parent$/,/^        \/\/ Glic$/ {' \
+    -e '/^        \/\/ Downloads$/,+2d' \
+    -e '/^        \/\/ Extensions$/,+3d' \
+    -e '/^        \/\/ Page Zoom$/,+5d' \
+    -e '}' "$path1"
+
 # 从「更多工具」子菜单移除「开发者工具」。
 sed -i '/^                    if (mMoreToolsItemBuilder\.shouldShowDevToolsItem(currentTab)) {/,/^                    }/d' "$path1"
+
+# 在「更多工具」子菜单顶部加入「下载内容」「扩展程序」和「网页缩放」。
+sed -i 's|^                    ReadAloudController readAloudController = mReadAloudControllerSupplier.get();|                    // Alice patch start 0030\n                    // 下载内容、扩展程序和网页缩放：从一级菜单移入「更多工具」\n                    submenuItems.add(buildDownloadsItem());\n                    if (shouldShowExtensionsItem()) {\n                        submenuItems.add(buildExtensionsParentItem());\n                    }\n                    if (shouldShowPageZoomItem(currentTab)\n                            \&\& !isReaderModeShowing(currentTab)) {\n                        submenuItems.add(buildPageZoomItem(currentTab));\n                    }\n                    AppMenuItemUtils.maybeAddDividerLine(\n                            submenuItems, R.id.divider_line_id);\n                    // Alice patch end 0030\n\n&|' "$path1"
 
 # 把三个条目的构建顺序移动到「更多工具」子菜单。
 sed -i 's|^                    if (!submenuItems\.isEmpty()|                    // Alice patch start 0030\n                    AppMenuItemUtils.maybeAddDividerLine(submenuItems, R.id.divider_line_id);\n                    // 「删除浏览数据」：原来在一级菜单\n                    if (shouldShowQuickDeleteItem()) {\n                        submenuItems.add(buildQuickDeleteItem());\n                    }\n                    // 「密码和自动填充」：原来在一级菜单\n                    if (shouldShowPasswordsAndAutofillParentItem()) {\n                        submenuItems.add(buildPasswordsAndAutofillParentItem());\n                    }\n                    // 「保存并分享」：原来在一级菜单\n                    if (shouldShowSaveAndShareItem(\n                            currentTab, isNativePage, isFileScheme, isContentScheme, url)) {\n                        submenuItems.add(\n                                buildSaveAndShareItem(\n                                        currentTab,\n                                        isNativePage,\n                                        isFileScheme,\n                                        isContentScheme,\n                                        url));\n                    }\n                    // Alice patch end 0030\n                    if (!submenuItems.isEmpty()|' "$path1"
