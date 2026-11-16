@@ -10,7 +10,6 @@ path4="ui/edge_to_edge/android/java/src/org/chromium/ui/edge_to_edge/EdgeToEdgeS
 path5="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarControlContainer.java"
 path6="chrome/android/java/src/org/chromium/chrome/browser/ChromeBaseAppCompatActivity.java"
 path7="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
-path8="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/BottomAttachedUiObserver.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0055' "$path1"; then
@@ -35,35 +34,7 @@ sed -i '/^    private final BottomAttachedUiObserver mBottomAttachedUiObserver;$
     // Alice patch start 0055\
     private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;\
     private @Nullable Supplier<Integer> mToolbarColorSupplier;\
-    private @Nullable @ColorInt Integer mAliceToolbarColorOverride;\
     // Alice patch end 0055' "$path1"
-
-# 底置工具栏颜色可能在 BottomAttachedUiObserver 计算 mUseBottomControlsColor
-# 之前到达；此时仍应优先使用工具栏颜色，避免导航栏先读取页面背景色。
-sed -i '/^        if (mUseBottomControlsColor) {$/,/^        }$/c\
-        // Alice patch start 0055\
-        if (mUseBottomControlsColor\
-                || (mBottomControlsColor != null\
-                        \&\& mBrowserControlsStateProvider.getControlsPosition()\
-                                == ControlsPosition.BOTTOM)) {\
-            return mBottomControlsColor;\
-        }\
-        // Alice patch end 0055' "$path8"
-
-sed -i '/^    private @Nullable @ColorInt Integer calculateBottomAttachedColor() {$/i\
-    // Alice patch start 0055\
-    boolean isBottomToolbarAttached() {\
-        return mBrowserControlsStateProvider.getControlsPosition()\
-                        == ControlsPosition.BOTTOM\
-                \&\& !mOmniboxSuggestionsVisible\
-                \&\& !mKeyboardAccessoryVisible\
-                \&\& !mAccessorySheetVisible\
-                \&\& !mOverlayPanelVisible\
-                \&\& !mBottomSheetVisible;\
-    }\
-    // Alice patch end 0055\
-' "$path8"
-
 sed -i '/^[[:space:]]*insetObserver));$/a\
         // Alice patch start 0055\
         mBrowserControlsStateProvider = browserControlsStateProvider;\
@@ -74,23 +45,7 @@ sed -i '/^    \/\*\* Destroy this {@link TabbedNavigationBarColorController} ins
     // Alice patch start 0055\
     void setToolbarColorSupplier(Supplier<Integer> toolbarColorSupplier) {\
         mToolbarColorSupplier = toolbarColorSupplier;\
-        int toolbarColor = mToolbarColorSupplier.get();\
-        if (toolbarColor != 0) {\
-            mAliceToolbarColorOverride = toolbarColor;\
-        }\
         updateNavigationBarColor();\
-    }\
-\
-    void onToolbarColorChanged(int color) {\
-        if (mAliceToolbarColorOverride != null && mAliceToolbarColorOverride == color) {\
-            return;\
-        }\
-        mAliceToolbarColorOverride = color;\
-        if (isBottomToolbar() \&\& isDrawingToEdge()) {\
-            updateNavigationBarColor(\
-                    /* forceShowDivider= */ false,\
-                    /* disableAnimation= */ true);\
-        }\
     }\
     // Alice patch end 0055\
 ' "$path1"
@@ -109,9 +64,6 @@ a\
     // Alice patch start 0055\
     @Override\
     public void onControlsPositionChanged(@ControlsPosition int controlsPosition) {\
-        if (controlsPosition != ControlsPosition.BOTTOM) {\
-            mAliceToolbarColorOverride = null;\
-        }\
         updateNavigationBarColor();\
     }\
     // Alice patch end 0055
@@ -132,13 +84,6 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
                 && mBrowserControlsStateProvider.getControlsPosition() == ControlsPosition.BOTTOM;\
     }\
 \
-    private boolean shouldUseAliceToolbarColorForBottomChin() {\
-        return isDrawingToEdge()\
-                \&\& isBottomToolbar()\
-                \&\& mAliceToolbarColorOverride != null\
-                \&\& mBottomAttachedUiObserver.isBottomToolbarAttached();\
-    }\
-\
     private @ColorInt int getNavigationBarIconColor() {\
         if (mOverviewMode) {\
             Integer overviewColor = mOverviewColorSupplier.get();\
@@ -157,26 +102,6 @@ sed -i '/^    private @ColorInt int getNavigationBarColor(boolean forceDarkNavig
     // Alice patch end 0055\
 ' "$path1"
 
-# 底置工具栏时，底部 chin 使用工具栏最终渲染色，而不是页面背景色。
-sed -i 's|^        } else if (useBottomAttachedUiColor()) {$|        } else if (useBottomAttachedUiColor()\
-                \&\& !shouldUseAliceToolbarColorForBottomChin()) {|' "$path1"
-sed -i 's|^        } else if (!forceShowDivider && useBottomAttachedUiColor()) {$|        } else if (!forceShowDivider\
-                \&\& useBottomAttachedUiColor()\
-                \&\& !shouldUseAliceToolbarColorForBottomChin()) {|' "$path1"
-sed -i 's|^        } else if (useActiveTabColor()) {$|        } else if (isDrawingToEdge()\
-                \&\& isBottomToolbar()\
-                \&\& mAliceToolbarColorOverride != null\
-                \&\& mBottomAttachedUiObserver.isBottomToolbarAttached()) {\
-            return mAliceToolbarColorOverride;\
-        } else if (useActiveTabColor()) {|' "$path1"
-sed -i 's|^        } else if (!forceShowDivider && useActiveTabColor()) {$|        } else if (!forceShowDivider\
-                \&\& isDrawingToEdge()\
-                \&\& isBottomToolbar()\
-                \&\& mAliceToolbarColorOverride != null\
-                \&\& mBottomAttachedUiObserver.isBottomToolbarAttached()) {\
-            return mAliceToolbarColorOverride;\
-        } else if (!forceShowDivider \&\& useActiveTabColor()) {|' "$path1"
-
 # 系统栏协调器接收工具栏颜色来源并设置图标颜色。
 sed -i '/^import org\.chromium\.ui\.insets\.InsetObserver;$/a\
 // Alice patch start 0055\
@@ -187,7 +112,7 @@ sed -i '/^                        edgeToEdgeSystemBarColorHelper);$/a\
         // Alice patch start 0055\
         mNavigationBarColorController.setToolbarColorSupplier(toolbarColorSupplier);\
         // Alice patch end 0055' "$path2"
-sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0055\n                        toolbarManager::getToolbarBackgroundColorForNavigationBar,\n                        // Alice patch end 0055\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());\n        // Alice patch start 0055\n        TabbedNavigationBarColorController aliceNavigationBarColorController =\n                assumeNonNull(mSystemUiCoordinator).getNavigationBarColorController();\n        if (aliceNavigationBarColorController != null) {\n            mStatusBarColorController.setAliceToolbarColorCallback(\n                    aliceNavigationBarColorController::onToolbarColorChanged);\n        }\n        // Alice patch end 0055|' "$path3"
+sed -i 's|^                        mEdgeToEdgeManager\.getEdgeToEdgeSystemBarColorHelper());$|                        // Alice patch start 0055\n                        toolbarManager::getToolbarBackgroundColorForNavigationBar,\n                        // Alice patch end 0055\n                        mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());|' "$path3"
 
 # 系统栏 helper 支持自定义导航栏图标颜色。
 sed -i '/^import android\.view\.WindowManager;$/a\
@@ -264,29 +189,6 @@ sed -i '/^    public void onDestroy() {$/a\
         mAliceChinView = null;\
         mAliceChinColorListener = null;\
         // Alice patch end 0055' "$path3"
-
-# 状态栏已经接收工具栏最终颜色；同一回调栈直接把该颜色送到导航栏控制器。
-sed -i '/^    private @ColorInt int mToolbarColor;$/a\
-    // Alice patch start 0055\
-    private @Nullable Callback<Integer> mAliceToolbarColorCallback;\
-    // Alice patch end 0055' "$path7"
-sed -i '/^    \/\/ TopToolbarCoordinator\.ToolbarColorObserver implementation\.$/i\
-    // Alice patch start 0055\
-    public void setAliceToolbarColorCallback(@Nullable Callback<Integer> callback) {\
-        mAliceToolbarColorCallback = callback;\
-    }\
-    // Alice patch end 0055\
-' "$path7"
-sed -i '/^    public void onToolbarColorChanged(@ColorInt int color) {$/a\
-        // Alice patch start 0055\
-        if (mAliceToolbarColorCallback != null) {\
-            mAliceToolbarColorCallback.onResult(color);\
-        }\
-        // Alice patch end 0055' "$path7"
-sed -i '/^        mStatusBarColorTabObserver\.destroy();$/a\
-        // Alice patch start 0055\
-        mAliceToolbarColorCallback = null;\
-        // Alice patch end 0055' "$path7"
 
 # TaskDescription 显式携带透明导航栏色。
 sed -i '/^    protected void setDefaultTaskDescription() {$/,/^    }$/c\

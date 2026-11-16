@@ -645,12 +645,15 @@ sed -i '/^    public void setProgressVisible(boolean visible) {$/,/^    }$/c\
 # grid layout settles; capturing inline occasionally reads a not-yet-final card
 # position, which offsets the animated preview.
 sed -i '/^        Runnable provideAnimationData =$/{
-n
-/^                () -> {$/a\
-// Alice patch start 0041\
+i\
+        // Alice patch start 0041\
         // Alice: rapid tab switching can leave several deferred captures in flight;\
         // only the newest one may publish its rects.\
         final int aliceCaptureGeneration = ++mAliceCaptureGeneration;\
+        // Alice patch end 0041
+n
+a\
+// Alice patch start 0041\
         if (aliceCaptureGeneration != mAliceCaptureGeneration) return;\
 // Alice patch end 0041
 }' "$path11"

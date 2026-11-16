@@ -244,7 +244,8 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                 previewSupplier == null ? null : previewSupplier.get();\
         if (preview != null \&\& preview.isOpened()) return false;\
         Activity activity = window.getActivity().get();\
-        if (activity == null || !window.isTopResumedActivity()) return false;\
+        if (activity == null) return false;\
+        if (!window.isTopResumedActivity() \&\& !activity.hasWindowFocus()) return false;\
         int adjustMode =\
                 activity.getWindow().getAttributes().softInputMode\
                         \& WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST;\

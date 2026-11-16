@@ -14,46 +14,11 @@ path6="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/om
 path7="chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/OmniboxSuggestionsDropdownEmbedderImpl.java"
 path8="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 path9="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
-path10="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarLayout.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0033' "$path1"; then
     exit 100
 fi
-
-# ToolbarLayout 增加模拟导航栏专用颜色回调，直接使用工具栏最终渲染色。
-sed -i '/^import java\.util\.function\.Supplier;$/i\
-// Alice patch start 0033\
-import java.util.function.IntConsumer;\
-// Alice patch end 0033' "$path10"
-
-sed -i '/^    private @Nullable ToolbarColorObserver mToolbarColorObserver;$/a\
-    // Alice patch start 0033\
-    private @Nullable IntConsumer mAliceToolbarColorObserver;\
-    // Alice patch end 0033' "$path10"
-
-sed -i '/^        mDestroyChecker\.destroy();$/a\
-        // Alice patch start 0033\
-        mAliceToolbarColorObserver = null;\
-        // Alice patch end 0033' "$path10"
-
-sed -i '/^    public void setToolbarColorObserver(ToolbarColorObserver toolbarColorObserver) {$/,/^    }$/c\
-    public void setToolbarColorObserver(ToolbarColorObserver toolbarColorObserver) {\
-        mToolbarColorObserver = toolbarColorObserver;\
-    }\
-\
-    // Alice patch start 0033\
-    public void setAliceToolbarColorObserver(@Nullable IntConsumer observer) {\
-        mAliceToolbarColorObserver = observer;\
-    }\
-    // Alice patch end 0033' "$path10"
-
-sed -i '/^    protected void notifyToolbarColorChanged(@ColorInt int color) {$/a\
-        // Alice patch start 0033\
-        if (mAliceToolbarColorObserver != null) {\
-            mAliceToolbarColorObserver.accept(color);\
-        }\
-        // Alice patch end 0033' "$path10"
 
 # 1) 从根 InsetObserver 接收 IME 动画帧。
 sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/i\
@@ -197,23 +162,8 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
         mNavigationBarBackgroundColor = color;\
         if (mNavigationBarBackground != null) {\
             mNavigationBarBackground.setBackgroundColor(color);\
-        }\
-        if (mNavigationBarBackground == null\
-                || mNavigationBarBackground.getVisibility() != View.VISIBLE) {\
+        } else {\
             updateNavigationBarBackground();\
-        }\
-    }\
-\
-    private void onAliceToolbarColorChanged(int color) {\
-        mNavigationBarBackgroundColor = color;\
-        View aliceBackground = mNavigationBarBackground;\
-        if (aliceBackground != null) {\
-            aliceBackground.setBackgroundColor(color);\
-            if (!mAliceInitialPageReady\
-                    \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                    \&\& !mIsOmniboxFocusedSupplier.get()) {\
-                aliceBackground.setVisibility(View.VISIBLE);\
-            }\
         }\
     }\
 \
@@ -274,32 +224,6 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     }\
     // Alice patch end 0033\
 ' "$path1"
-
-# 底置工具栏向 BottomControlsStacker 提供实际背景色，让底部 chin 使用与工具栏
-# 相同的颜色来源，而不是等待下一次层更新。
-sed -i '0,/^                    public void onBrowserControlsOffsetUpdate(int layerYOffset) {$/s//\
-                    \/\/ Alice patch start 0033\
-                    public Integer getBackgroundColor() {\
-                        return mControlContainer.getToolbarBackgroundColor();\
-                    }\
-                    \/\/ Alice patch end 0033\
-                    @Override\
-&/' "$path1"
-
-# 首次同步时若位置已经是底置工具栏，updateCurrentPosition() 会提前返回，
-# 导致工具栏层和导航栏颜色要等后续布局才提交。首次同步直接补齐。
-sed -i '/^        if (newControlsPosition == mCurrentPosition.get()) return;$/c\
-        // Alice patch start 0033\
-        if (newControlsPosition == mCurrentPosition.get()) {\
-            if (mIsFirstPositionChange) {\
-                mIsFirstPositionChange = false;\
-                if (updateLayerVisibility()) {\
-                    mBottomControlsStacker.requestLayerUpdate(false);\
-                }\
-            }\
-            return;\
-        }\
-        // Alice patch end 0033' "$path1"
 
 sed -i '/^        mIsOmniboxFocusedObserver = (focused) -> updateCurrentPosition();$/c\
         // Alice patch start 0033\
@@ -389,6 +313,9 @@ sed -i 's|^        mToolbar\.setToolbarColorObserver(statusBarColorController);$
                     public void onToolbarColorChanged(int color) {\
                         mAliceLastToolbarBackgroundColor = color;\
                         statusBarColorController.onToolbarColorChanged(color);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setNavigationBarBackgroundColor(color);\
+                        }\
                     }\
 \
                     @Override\
@@ -420,11 +347,6 @@ sed -i '/^        mSharedPreferences\.registerOnSharedPreferenceChangeListener(t
         mControlContainer.addTouchEventObserver(mToolbarTouchObserver);\
         // Alice patch end 0033' "$path1"
 
-sed -i '/^        mBottomControlsStacker = bottomControlsStacker;$/a\
-        // Alice patch start 0033\
-        mToolbarLayout.setAliceToolbarColorObserver(this::onAliceToolbarColorChanged);\
-        // Alice patch end 0033' "$path1"
-
 sed -i '/^        mHandler = handler;$/a\
         // Alice patch start 0033\
         mControlContainer\
@@ -436,7 +358,6 @@ sed -i '/^        mHandler = handler;$/a\
 sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgressBarCallback);$/a\
         // Alice patch start 0033\
         mControlContainer.removeTouchEventObserver(mToolbarTouchObserver);\
-        mToolbarLayout.setAliceToolbarColorObserver(null);\
         InsetObserver imeInsetObserver = mWindowAndroid.getInsetObserver();\
         if (imeInsetObserver != null) {\
             imeInsetObserver.removeWindowInsetsAnimationListener(mImeAnimationListener);\

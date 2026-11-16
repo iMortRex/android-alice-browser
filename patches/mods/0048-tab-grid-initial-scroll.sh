@@ -132,8 +132,29 @@ sed -i 's|^        mRecyclerView\.runOnNextLayout(this::checkAwaitingLayout);$| 
 sed -i '/^    private void checkAwaitingLayout() {$/,/^        if (mAwaitingLayoutRunnable != null) {$/ s#^        if (mAwaitingLayoutRunnable != null) {$#        if (mAwaitingLayoutRunnable != null) {\
             // Alice patch start 0048\
             if (!mRecyclerView.isLaidOut()) {\
-                mRecyclerView.runOnNextLayout(\
-                        () -> mRecyclerView.post(this::checkAwaitingLayout));\
+                if (mAliceAwaitingLayoutReadyListener == null) {\
+                    mAliceAwaitingLayoutReadyListener =\
+                            (v,\
+                                    left,\
+                                    top,\
+                                    right,\
+                                    bottom,\
+                                    oldLeft,\
+                                    oldTop,\
+                                    oldRight,\
+                                    oldBottom) -> {\
+                                if (mRecyclerView.getWidth() <= 0\
+                                        || mRecyclerView.getHeight() <= 0) {\
+                                    return;\
+                                }\
+                                mRecyclerView.removeOnLayoutChangeListener(\
+                                        mAliceAwaitingLayoutReadyListener);\
+                                mAliceAwaitingLayoutReadyListener = null;\
+                                mRecyclerView.post(this::checkAwaitingLayout);\
+                            };\
+                    mRecyclerView.addOnLayoutChangeListener(mAliceAwaitingLayoutReadyListener);\
+                    mRecyclerView.requestLayout();\
+                }\
                 return;\
             }\
             if (mRecyclerView.isLayoutRequested()) {\
@@ -168,7 +189,16 @@ sed -i '/^    private @Nullable PropertyModel mAwaitingModel;$/a\
     // Alice patch start 0048\
     private final Rect mAliceAwaitingGeometryRect = new Rect();\
     private int mAliceAwaitingGeometryStableFrames;\
+    private @Nullable OnLayoutChangeListener mAliceAwaitingLayoutReadyListener;\
     // Alice patch end 0048' "$path1"
+
+sed -i '/^        mTabListFaviconProvider\.destroy\(\);$/i\
+        // Alice patch start 0048\
+        if (mAliceAwaitingLayoutReadyListener != null) {\
+            mRecyclerView.removeOnLayoutChangeListener(mAliceAwaitingLayoutReadyListener);\
+            mAliceAwaitingLayoutReadyListener = null;\
+        }\
+        // Alice patch end 0048' "$path1"
 
 # 切换等待中的 Tab 时重置几何稳定帧状态。
 sed -i '/^        mAwaitingModel = mModelList.get(index)\.model;$/a\

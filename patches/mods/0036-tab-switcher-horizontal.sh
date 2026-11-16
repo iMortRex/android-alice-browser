@@ -57,6 +57,8 @@ import android.view.View;
 import android.view.ViewParent;
 import android.view.animation.DecelerateInterpolator;
 
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -261,31 +263,71 @@ public final class AliceTabStackHelper {
         final int horizontalInsetsPx = 2 * (cardMarginPx + thumbnailMarginPx);
         final int contentHeightPx = Math.max(1, cardHeightPx - verticalInsetsPx);
         final int contentWidthPx =
-                Math.round(contentHeightPx * getPageAspectRatio(activity, browserControls));
+                (int) Math.ceil(contentHeightPx * getPageAspectRatio(activity, browserControls));
         return Math.max(1, contentWidthPx + horizontalInsetsPx);
     }
 
     /** @return 网页内容区的宽高比（不含顶部工具栏和底部控制栏）。 */
     public static float getPageAspectRatio(
             Activity activity, BrowserControlsStateProvider browserControls) {
-        final Rect frame = new Rect();
-        activity.getWindow().getDecorView().getWindowVisibleDisplayFrame(frame);
-        final int pageHeight =
-                frame.height() - getVisibleBrowserControlsHeight(browserControls);
-        if (frame.width() <= 0 || pageHeight <= 0) return 0.5f;
-        return (float) frame.width() / pageHeight;
+        final View decorView = activity.getWindow().getDecorView();
+        final int windowWidth =
+                decorView.getWidth() > 0
+                        ? decorView.getWidth()
+                        : activity.getResources().getDisplayMetrics().widthPixels;
+        final int fullWindowHeight =
+                decorView.getHeight() > 0
+                        ? decorView.getHeight()
+                        : activity.getResources().getDisplayMetrics().heightPixels;
+        final int pageHeight = fullWindowHeight - getWindowChromeHeightPx(activity);
+        if (windowWidth <= 0 || pageHeight <= 0) return 0.5f;
+        return (float) windowWidth / pageHeight;
     }
 
-    /** @return 当前实际占用网页高度的顶部和底部浏览器控制栏。 */
+    /** @return 状态栏、工具栏、hairline 和系统导航栏占用的总高度。 */
+    private static int getWindowChromeHeightPx(Activity activity) {
+        final View rootView = activity.getWindow().getDecorView();
+        android.content.res.Resources resources = activity.getResources();
+        int toolbarHeight =
+                resources.getDimensionPixelSize(
+                        org.chromium.chrome.R.dimen.toolbar_height_no_shadow);
+        int hairlineHeight =
+                resources.getDimensionPixelSize(
+                        org.chromium.chrome.R.dimen.toolbar_hairline_height);
+        int navigationBarHeight = 0;
+        @Nullable View navigationBar =
+                rootView.findViewById(org.chromium.chrome.R.id.edge_to_edge_bottom_chin);
+        if (navigationBar != null) {
+            navigationBarHeight = navigationBar.getHeight();
+        }
+        int statusBarHeight = 0;
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootView);
+        if (insets != null) {
+            statusBarHeight =
+                    insets.getInsets(
+                                    WindowInsetsCompat.Type.statusBars()
+                                            | WindowInsetsCompat.Type.displayCutout())
+                            .top;
+            navigationBarHeight =
+                    Math.max(
+                            navigationBarHeight,
+                            insets.getInsets(
+                                            WindowInsetsCompat.Type.navigationBars()
+                                                    | WindowInsetsCompat.Type
+                                                            .mandatorySystemGestures()
+                                                    | WindowInsetsCompat.Type.tappableElement())
+                                    .bottom);
+        }
+        return statusBarHeight + toolbarHeight + hairlineHeight + navigationBarHeight;
+    }
+
+    /** @return 顶部和底部浏览器控制栏的总高度；缩略图比例不随 Hub 中的隐藏 offset 变化。 */
     private static int getVisibleBrowserControlsHeight(
             BrowserControlsStateProvider browserControls) {
         final int topControlsHeight =
-                Math.max(0, Math.round(browserControls.getTopVisibleContentOffset()));
+                Math.max(0, browserControls.getTopControlsHeight());
         final int bottomControlsHeight =
-                Math.max(
-                        0,
-                        browserControls.getBottomControlsHeight()
-                                - browserControls.getBottomControlOffset());
+                Math.max(0, browserControls.getBottomControlsHeight());
         return topControlsHeight + bottomControlsHeight;
     }
 
