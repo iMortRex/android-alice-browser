@@ -1793,7 +1793,6 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
 ' "$path2"
 
 sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder) {$/i\
-    @Override\
     public long getAnimationDuration(\
             RecyclerView recyclerView,\
             int animationType,\
@@ -2051,7 +2050,6 @@ sed -i '/^    public void setInitialScrollIndexOffset() {$/,/^    }$/c\
 # 横向样式的预览图使用未裁剪的完整变换矩形，避免右侧卡片只取到屏幕内残片。
 sed -i '/^    public boolean dispatchTouchEvent(MotionEvent e) {$/,/^    }$/c\
     // Alice patch start 0036\
-    @Override\
     public boolean dispatchTouchEvent(MotionEvent e) {\
         if (mBlockTouchInput) return true;\
         AliceTabStackHelper.onStackPreTouch(this, e);\
@@ -2146,7 +2144,7 @@ sed -i '/^        mThumbnailScale = thumbnailScale;$/a\
         mAliceHorizontalThumbnailScale =\
                 !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)\
                                 && deviceDensity > 1.5f\
-                        ? Math.max(thumbnailScale, 3.0f / deviceDensity)\
+                        ? Math.max(thumbnailScale, 2.5f / deviceDensity)\
                         : thumbnailScale;\
         // Alice patch end 0036\
 ' "$path5"
