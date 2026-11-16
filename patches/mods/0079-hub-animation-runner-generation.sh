@@ -82,7 +82,7 @@ sed -i '/^                mLayoutStateProviderSupplier\.set(mLayoutManager);$/a\
                 // Alice patch start 0079\
                 mLayoutManager.addObserver(mAliceHubButtonLayoutObserver);\
                 // Alice patch end 0079' "$path4"
-sed -i '/^        boolean isBottomBarEnabledOnGts =$/i\
+sed -i '/^        boolean isBottomBarEnabledOnGts =$/,/^        }$/c\
         // Alice patch start 0079\
         boolean aliceHubTransitionRunning =\
                 mLayoutManager != null\
@@ -112,7 +112,9 @@ sed -i '/^        boolean isBottomBarEnabledOnGts =$/i\
         }\
         // Alice patch end 0079\
 \
-' "$path4"
+        boolean isBottomBarEnabledOnGts =\
+                BottomBarConfigUtils.shouldShowOnGts()\
+                        \&\& BottomBarConfigUtils.isBottomBarEnabled(this);' "$path4"
 sed -i '/^        ChromeAccessibilityUtil\.get()\.removeObserver(mLayoutManager);$/a\
         // Alice patch start 0079\
         mLayoutManager.removeObserver(mAliceHubButtonLayoutObserver);\

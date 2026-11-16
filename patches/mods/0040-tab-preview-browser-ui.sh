@@ -80,7 +80,7 @@ sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new 
     // Alice patch end 0040' "$path1"
 
 # 注入工具栏查找、捕获、合成和异步回读辅助方法。
-sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(final Tab tab) {$/i\
+sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(/i\
     // Alice patch start 0040\
     private static class AlicePendingThumbnailRequest {\
         final Size mThumbnailSize;\
