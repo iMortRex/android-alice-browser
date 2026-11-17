@@ -532,6 +532,15 @@ public final class AliceTabStackHelper {
                 && stackLayoutManager.isDiagonalUpSwipeCandidate();
     }
 
+    /** @return 本手势是否已经先横向滚动，因此不能再进入上滑关闭。 */
+    public static boolean shouldBlockUpSwipeAfterHorizontalDrag(
+            @Nullable RecyclerView recyclerView) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        return layoutManager instanceof AliceStackLayoutManager stackLayoutManager
+                && stackLayoutManager.shouldBlockUpSwipeAfterHorizontalDrag();
+    }
+
     /** 只放行一次横向方向位，让 ItemTouchHelper 进入 swipe；随后仍按仅上滑处理。 */
     public static boolean consumeDiagonalUpSwipeDirectionBypass(
             @Nullable RecyclerView recyclerView) {
@@ -590,6 +599,18 @@ public final class AliceTabStackHelper {
         if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
             stackLayoutManager.clearSwipePushUnlessCommitted();
         }
+    }
+
+    /** 撤销关闭后，把牌堆恢复到真实插入位置。 */
+    public static boolean restoreSwipeUndoPosition(
+            @Nullable RecyclerView recyclerView, int position) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (!(layoutManager instanceof AliceStackLayoutManager stackLayoutManager)) {
+            return false;
+        }
+        stackLayoutManager.restoreSwipeUndoPosition(position);
+        return true;
     }
 
     /** 点击卡片时立即启动中心卡缩放和左右邻卡避让。 */
@@ -718,9 +739,11 @@ public final class AliceTabStackHelper {
         private float mLastMoveY;
         private boolean mDiagonalSwipeCandidate;
         private boolean mDiagonalDirectionBypassPending;
+        private boolean mHorizontalDragStarted;
         private @Nullable VelocityTracker mTouchVelocityTracker;
         private int mPredictedSnapTarget = RecyclerView.NO_POSITION;
         private boolean mPredictiveSnapRequested;
+        private boolean mSnapPending;
         private int mSwipePushAnchor = RecyclerView.NO_POSITION;
         private float mSwipePushProgress;
         private boolean mSwipePushActive;
@@ -733,6 +756,14 @@ public final class AliceTabStackHelper {
         private float mSwipeReplacementStartSwipeProgress;
         private float mSwipeReplacementStartPushProgress;
         private int mSwipeReplacementLastLoggedTenth = -1;
+        private boolean mSwipeUndoOffsetValid;
+        private float mSwipeUndoRelativeOffset;
+        private int mSwipeUndoRestoredPosition = RecyclerView.NO_POSITION;
+        private float mSwipeUndoAvoidanceProgress;
+        private boolean mSwipeUndoAvoidRight;
+        private float mSwipeUndoDropProgress;
+        private @Nullable View mSwipeUndoRestoredView;
+        private @Nullable ValueAnimator mSwipeUndoAnimator;
         private int mTapFocusPosition = RecyclerView.NO_POSITION;
         private @Nullable ValueAnimator mTapAnimator;
         private int mEnterFocusPosition = RecyclerView.NO_POSITION;
@@ -801,6 +832,7 @@ public final class AliceTabStackHelper {
                 int dx, RecyclerView.Recycler recycler, RecyclerView.State state) {
             final int itemCount = state.getItemCount();
             if (itemCount == 0 || dx == 0) return 0;
+            mHorizontalDragStarted = true;
 
             final int cardWidthPx = getLayoutCardWidthPx();
             final int cardHeightPx = getLayoutCardHeightPx();
@@ -828,10 +860,12 @@ public final class AliceTabStackHelper {
                 mDismissingPosition = anchorPosition;
                 mSwipeReplacementActive = true;
                 mSwipeReplacementStartProgress = mProgress;
+                final int nearestProgress = Math.round(mProgress);
                 mSwipeReplacementTargetProgress =
                         clampProgress(
-                                mProgress
-                                        - (anchorPosition <= Math.round(mProgress) ? 1f : 0f),
+                                anchorPosition <= nearestProgress
+                                        ? mProgress - 1f
+                                        : nearestProgress,
                                 itemCount);
                 mSwipeReplacementStartSwipeProgress = clampedSwipeProgress;
                 mSwipeReplacementStartPushProgress = mSwipePushProgress;
@@ -899,6 +933,9 @@ public final class AliceTabStackHelper {
             mSwipePushActive = false;
             mSwipePushAnchor = RecyclerView.NO_POSITION;
             mSwipeCommitted = true;
+            mSwipeUndoRelativeOffset =
+                    anchorPosition - Math.round(mSwipeReplacementStartProgress);
+            mSwipeUndoOffsetValid = true;
             if (onComplete != null) {
                 runWithoutItemAnimations(onComplete);
             }
@@ -913,7 +950,10 @@ public final class AliceTabStackHelper {
             mSwipeReplacementActive = false;
             mSwipeReplacementFraction = 0f;
             mSwipeCommitted = false;
+            mDiagonalSwipeCandidate = false;
+            mDiagonalDirectionBypassPending = false;
             mRecyclerView.requestLayout();
+            mRecyclerView.post(this::snapToNearestCard);
         }
 
         private void runWithoutItemAnimations(Runnable action) {
@@ -941,9 +981,30 @@ public final class AliceTabStackHelper {
                     });
         }
 
+        private void cancelSwipeUndoAnimation() {
+            ValueAnimator animator = mSwipeUndoAnimator;
+            final boolean hadUndoAnimation =
+                    animator != null
+                            || mSwipeUndoRestoredPosition
+                                    != RecyclerView.NO_POSITION;
+            mSwipeUndoAnimator = null;
+            if (animator != null) animator.cancel();
+            mSwipeUndoRestoredPosition = RecyclerView.NO_POSITION;
+            mSwipeUndoAvoidanceProgress = 0f;
+            mSwipeUndoAvoidRight = false;
+            mSwipeUndoDropProgress = 0f;
+            if (mSwipeUndoRestoredView != null) {
+                mSwipeUndoRestoredView.setTranslationY(0f);
+                mSwipeUndoRestoredView = null;
+            }
+            if (hadUndoAnimation) mRecyclerView.requestLayout();
+        }
+
         void onDragStarted() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+            mSnapPending = false;
+            cancelSwipeUndoAnimation();
             mSwipeCommitted = false;
             mDismissingPosition = RecyclerView.NO_POSITION;
             mSwipeReplacementActive = false;
@@ -957,6 +1018,7 @@ public final class AliceTabStackHelper {
             mRecyclerView.removeCallbacks(mSwipeClearRunnable);
             releaseTouchVelocityTracker();
             removeEnterAnimationPreDrawListener();
+            cancelSwipeUndoAnimation();
 
             ValueAnimator tapAnimator = mTapAnimator;
             mTapAnimator = null;
@@ -992,6 +1054,8 @@ public final class AliceTabStackHelper {
             mPredictedSnapTarget = RecyclerView.NO_POSITION;
             mPredictiveSnapRequested = false;
             mRecyclerView.removeCallbacks(mSnapRunnable);
+            mSnapPending = false;
+            cancelSwipeUndoAnimation();
             if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
                 mRecyclerView.stopScroll();
             }
@@ -1010,6 +1074,7 @@ public final class AliceTabStackHelper {
                 mTouchVelocityTracker.addMovement(event);
                 mDiagonalSwipeCandidate = false;
                 mDiagonalDirectionBypassPending = false;
+                mHorizontalDragStarted = false;
                 return false;
             }
             if (action == android.view.MotionEvent.ACTION_UP
@@ -1020,17 +1085,20 @@ public final class AliceTabStackHelper {
                     mTouchVelocityTracker.addMovement(event);
                 }
                 if (action == android.view.MotionEvent.ACTION_UP
-                        && !mDiagonalSwipeCandidate
-                        && Math.abs(event.getX() - mTouchDownX) > mTouchSlop
-                        && Math.abs(event.getX() - mTouchDownX)
-                                > Math.abs(event.getY() - mTouchDownY)) {
-                    float velocityX = 0f;
-                    if (mTouchVelocityTracker != null) {
-                        mTouchVelocityTracker.computeCurrentVelocity(1000);
-                        velocityX = mTouchVelocityTracker.getXVelocity() / 1000f;
+                        && !mDiagonalSwipeCandidate) {
+                    final float dx = Math.abs(event.getX() - mTouchDownX);
+                    final float dy = Math.abs(event.getY() - mTouchDownY);
+                    final boolean moved = dx > mTouchSlop || dy > mTouchSlop;
+                    if (moved && dx > dy) {
+                        float velocityX = 0f;
+                        if (mTouchVelocityTracker != null) {
+                            mTouchVelocityTracker.computeCurrentVelocity(1000);
+                            velocityX = mTouchVelocityTracker.getXVelocity() / 1000f;
+                        }
+                        requestPredictiveSnap(velocityX);
                     }
                     releaseTouchVelocityTracker();
-                    return requestPredictiveSnap(velocityX);
+                    return moved;
                 }
                 releaseTouchVelocityTracker();
                 return false;
@@ -1043,7 +1111,8 @@ public final class AliceTabStackHelper {
             }
             final float dx = Math.abs(event.getX() - mTouchDownX);
             final float dy = event.getY() - mTouchDownY;
-            if (!mDiagonalSwipeCandidate
+            if (!mHorizontalDragStarted
+                    && !mDiagonalSwipeCandidate
                     && dy < 0f
                     && -dy > mTouchSlop
                     && -dy >= dx * 0.75f) {
@@ -1062,6 +1131,10 @@ public final class AliceTabStackHelper {
 
         boolean isDiagonalUpSwipeCandidate() {
             return mDiagonalSwipeCandidate;
+        }
+
+        boolean shouldBlockUpSwipeAfterHorizontalDrag() {
+            return mHorizontalDragStarted;
         }
 
         boolean consumeDiagonalUpSwipeDirectionBypass() {
@@ -1083,9 +1156,7 @@ public final class AliceTabStackHelper {
 
         void onUserInteractionEnded() {
             mUserInteractionActive = false;
-            if (!mSwipePushActive && !mSwipeCommitted) {
-                snapToNearestCard();
-            }
+            snapToNearestCard();
         }
 
         void cancelEnterAnimation() {
@@ -1129,6 +1200,9 @@ public final class AliceTabStackHelper {
             mRecyclerView.removeCallbacks(mSwipeClearRunnable);
             if (!mSwipeCommitted) {
                 setSwipePush(RecyclerView.NO_POSITION, 0f, false);
+                mDiagonalSwipeCandidate = false;
+                mDiagonalDirectionBypassPending = false;
+                snapToNearestCard();
             }
         }
 
@@ -1382,6 +1456,15 @@ public final class AliceTabStackHelper {
                     && position < mSwipePushAnchor) {
                 distance += mSwipePushProgress * SWIPE_PUSH_FRACTION;
             }
+            if (mSwipeUndoRestoredPosition != RecyclerView.NO_POSITION) {
+                if (!mSwipeUndoAvoidRight
+                        && position < mSwipeUndoRestoredPosition) {
+                    distance += mSwipeUndoAvoidanceProgress;
+                } else if (mSwipeUndoAvoidRight
+                        && position > mSwipeUndoRestoredPosition) {
+                    distance -= mSwipeUndoAvoidanceProgress;
+                }
+            }
             return distance;
         }
 
@@ -1422,7 +1505,13 @@ public final class AliceTabStackHelper {
 
         void snapToNearestCard() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
-            if (mUserInteractionActive || mSwipeCommitted) return;
+            mSnapPending = true;
+            if (mUserInteractionActive
+                    || mSwipeCommitted
+                    || mSwipeReplacementActive
+                    || mSwipePushActive) {
+                return;
+            }
             mRecyclerView.post(mSnapRunnable);
         }
 
@@ -1437,8 +1526,18 @@ public final class AliceTabStackHelper {
         }
 
         private void performSnap() {
-            if (mUserInteractionActive || mSwipeCommitted) return;
-            if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) return;
+            if (!mSnapPending) return;
+            if (mUserInteractionActive
+                    || mSwipeCommitted
+                    || mSwipeReplacementActive
+                    || mSwipePushActive) {
+                return;
+            }
+            if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+                mRecyclerView.postOnAnimation(mSnapRunnable);
+                return;
+            }
+            mSnapPending = false;
             final int itemCount =
                     mRecyclerView.getAdapter() == null
                             ? 0
@@ -1477,6 +1576,69 @@ public final class AliceTabStackHelper {
         @Override
         public void scrollToPosition(int position) {
             scrollToPositionWithOffset(position, 0);
+        }
+
+        void restoreSwipeUndoPosition(int position) {
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount == 0) return;
+            final boolean hasRelativeOffset = mSwipeUndoOffsetValid;
+            final float relativeOffset = mSwipeUndoRelativeOffset;
+            cancelSwipeUndoAnimation();
+            final float restoreProgress =
+                    hasRelativeOffset ? position - relativeOffset : position;
+            final float targetProgress = clampProgress(restoreProgress, itemCount);
+            mProgress = targetProgress;
+            mPendingScroll = false;
+            mPendingPosition = RecyclerView.NO_POSITION;
+            mSwipeUndoOffsetValid = false;
+            Log.i(
+                    TAG,
+                    "swipe undo restore position=%d progress=%.3f count=%d",
+                    position,
+                    targetProgress,
+                    itemCount);
+            mSwipeUndoRestoredPosition =
+                    Math.max(0, Math.min(itemCount - 1, position));
+            mSwipeUndoAvoidanceProgress = 1f;
+            mSwipeUndoAvoidRight =
+                    position == 0
+                            || (hasRelativeOffset && relativeOffset > 0.5f);
+            mSwipeUndoDropProgress = 1f;
+            mSwipeUndoRestoredView = null;
+            ValueAnimator animator = ValueAnimator.ofFloat(1f, 0f);
+            mSwipeUndoAnimator = animator;
+            animator.setDuration(HUB_PREVIEW_DURATION_MS);
+            animator.setInterpolator(
+                    org.chromium.chrome.browser.hub.HubAnimationConstants
+                            .ALICE_SWIPE_RETURN_INTERPOLATOR);
+            animator.addUpdateListener(
+                    animation -> {
+                        final float progress = (float) animation.getAnimatedValue();
+                        mSwipeUndoAvoidanceProgress = progress;
+                        mSwipeUndoDropProgress = progress;
+                        mRecyclerView.requestLayout();
+                    });
+            animator.addListener(
+                    new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            if (mSwipeUndoAnimator != animator) return;
+                            mSwipeUndoAvoidanceProgress = 0f;
+                            mSwipeUndoAvoidRight = false;
+                            mSwipeUndoDropProgress = 0f;
+                            mSwipeUndoRestoredPosition = RecyclerView.NO_POSITION;
+                            if (mSwipeUndoRestoredView != null) {
+                                mSwipeUndoRestoredView.setTranslationY(0f);
+                                mSwipeUndoRestoredView = null;
+                            }
+                            mSwipeUndoAnimator = null;
+                            mRecyclerView.requestLayout();
+                        }
+                    });
+            animator.start();
         }
 
         void resetToLastCard() {
@@ -1683,6 +1845,7 @@ public final class AliceTabStackHelper {
                 if (!isTapAnimating(child)) {
                     applyChildTransform(child, getEffectiveDistance(position));
                 }
+                applySwipeUndoDropTranslation(child, position);
             }
             if (mSwipeReplacementActive) {
                 StringBuilder cards = new StringBuilder();
@@ -1714,6 +1877,16 @@ public final class AliceTabStackHelper {
                     getWidth(),
                     cardWidthPx,
                     getCardInsetPx());
+        }
+
+        private void applySwipeUndoDropTranslation(View child, int position) {
+            if (mSwipeUndoRestoredPosition == RecyclerView.NO_POSITION
+                    || position != mSwipeUndoRestoredPosition) {
+                return;
+            }
+            mSwipeUndoRestoredView = child;
+            final float startOffset = -(child.getTop() + child.getHeight());
+            child.setTranslationY(startOffset * mSwipeUndoDropProgress);
         }
 
         private float clampProgress(float progress, int itemCount) {
@@ -1754,6 +1927,15 @@ sed -i 's|^  "java/src/org/chromium/chrome/browser/ChromeApplicationImplHooks.ja
 # ---------- 1) TabListCoordinator：GRID 分支记下网格布局管理器并应用当前样式 ----------
 # 上游的网格分支照常创建（这样切回「默认」样式时可以直接还原这个 LayoutManager），
 # 建完再按设置看要不要换成横向堆叠布局。
+sed -i '/^            mMediator.setRecyclerViewItemAnimationToggle(mRecyclerView::setDisableItemAnimations);$/a\
+            // Alice patch start 0036\
+            mMediator.setAliceSwipeUndoHandler(\
+                    position ->\
+                            AliceTabStackHelper.restoreSwipeUndoPosition(\
+                                    mRecyclerView, position));\
+            // Alice patch end 0036\
+' "$path1"
+
 sed -i '/^                updateGridCardLayout(frame.width());$/a\
                 // Alice patch start 0036\
                 // 记住上游的网格布局管理器：切回「默认」样式时用它还原。\
@@ -1929,8 +2111,13 @@ sed -i '/^    public int getMovementFlags(RecyclerView recyclerView, RecyclerVie
         // Alice patch start 0036\
         // 横向堆叠样式：卡片不参与拖拽排序，只支持上滑关闭。\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
-            int swipeFlags = ItemTouchHelper.UP;\
-            if (AliceTabStackHelper.consumeDiagonalUpSwipeDirectionBypass(recyclerView)) {\
+            final boolean blockUpSwipe =\
+                    AliceTabStackHelper.shouldBlockUpSwipeAfterHorizontalDrag(\
+                            recyclerView);\
+            int swipeFlags = blockUpSwipe ? 0 : ItemTouchHelper.UP;\
+            if (!blockUpSwipe\
+                    \&\& AliceTabStackHelper.consumeDiagonalUpSwipeDirectionBypass(\
+                            recyclerView)) {\
                 swipeFlags |= ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT;\
             }\
             return makeMovementFlags(0, isSwipeable(viewHolder) ? swipeFlags : 0);\
@@ -2397,6 +2584,19 @@ sed -i 's|^        GridLayoutManager tabGridListLayoutManager =$|        // Alic
 sed -i '/^                (GridLayoutManager) tabGridListRecyclerView.getLayoutManager();$/d' "$path7"
 
 # ---------- 11) TabListMediator：当前标签置后，并跳过横向样式的网格逻辑 ----------
+sed -i '/^    interface RecyclerViewItemAnimationToggle {$/,/^    }$/c\
+    interface RecyclerViewItemAnimationToggle {\
+        void setDisableItemAnimations(boolean state);\
+    }\
+\
+    // Alice patch start 0036\
+    /** Receives the restored card index after a swipe-close undo. */\
+    interface AliceSwipeUndoHandler {\
+        void restoreSwipeUndoPosition(int position);\
+    }\
+    // Alice patch end 0036\
+' "$path8"
+
 sed -i '/^    private @Nullable GridLayoutManager mGridLayoutManager;$/a\
     // Alice patch start 0036\
     /** 横向堆叠样式下没有可用的网格布局，跳过所有网格相关逻辑。 */\
@@ -2457,9 +2657,64 @@ sed -i '/^    private @Nullable GridLayoutManager mGridLayoutManager;$/a\
     // Alice patch end 0036\
 ' "$path8"
 
+sed -i '/^    private RecyclerViewItemAnimationToggle mRecyclerViewItemAnimationToggle;$/a\
+    // Alice patch start 0036\
+    private @Nullable AliceSwipeUndoHandler mAliceSwipeUndoHandler;\
+    // Alice patch end 0036\
+' "$path8"
+
+sed -i '/^    void setRecyclerViewItemAnimationToggle(/,/^    }$/c\
+    void setRecyclerViewItemAnimationToggle(\
+            RecyclerViewItemAnimationToggle recyclerViewItemAnimationToggle) {\
+        mRecyclerViewItemAnimationToggle = recyclerViewItemAnimationToggle;\
+    }\
+\
+    // Alice patch start 0036\
+    @Initializer\
+    void setAliceSwipeUndoHandler(AliceSwipeUndoHandler handler) {\
+        mAliceSwipeUndoHandler = handler;\
+    }\
+    // Alice patch end 0036\
+' "$path8"
+
 sed -i '/^                        mTabListLayoutDelegate.didSelectTab(tab, type, lastId);$/a\
                         // Alice patch start 0036\
                         moveAliceSelectedTabToLast(tab);\
+                        // Alice patch end 0036\
+' "$path8"
+
+sed -i '/^                        mTabListLayoutDelegate.tabClosureUndone(tab);$/i\
+                        // Alice patch start 0036\
+                        final boolean aliceSwipeUndo =\
+                                mAliceStackStyle\
+                                        \&\& mAliceSwipeUndoHandler != null\
+                                        \&\& mTabGridItemTouchHelperCallback\
+                                                        .getRecentlySwipedTabIdSupplier()\
+                                                        .get()\
+                                                == tab.getId();\
+                        if (aliceSwipeUndo) {\
+                            mRecyclerViewItemAnimationToggle.setDisableItemAnimations(\
+                                    true);\
+                        }\
+                        // Alice patch end 0036\
+' "$path8"
+
+sed -i '/^                        mTabListLayoutDelegate.tabClosureUndone(tab);$/a\
+                        // Alice patch start 0036\
+                        if (aliceSwipeUndo) {\
+                            final int restoredPosition =\
+                                    getIndexFromTabId(tab.getId());\
+                            if (restoredPosition != TabModel.INVALID_TAB_INDEX) {\
+                                mAliceSwipeUndoHandler.restoreSwipeUndoPosition(\
+                                        restoredPosition);\
+                            }\
+                            new Handler()\
+                                    .post(\
+                                            () ->\
+                                                    mRecyclerViewItemAnimationToggle\
+                                                            .setDisableItemAnimations(\
+                                                                    false));\
+                        }\
                         // Alice patch end 0036\
 ' "$path8"
 
