@@ -63,6 +63,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -82,6 +83,8 @@ import java.util.WeakHashMap;
  */
 @NullMarked
 public final class AliceTabStackHelper {
+    private static final String TAG = "AliceStack";
+
     /** SharedPreferences key（与设置页保持一致）。 */
     public static final String PREF_TAB_SWITCHER_STYLE = "alice_tab_switcher_style";
 
@@ -729,6 +732,7 @@ public final class AliceTabStackHelper {
         private float mSwipeReplacementTargetProgress;
         private float mSwipeReplacementStartSwipeProgress;
         private float mSwipeReplacementStartPushProgress;
+        private int mSwipeReplacementLastLoggedTenth = -1;
         private int mTapFocusPosition = RecyclerView.NO_POSITION;
         private @Nullable ValueAnimator mTapAnimator;
         private int mEnterFocusPosition = RecyclerView.NO_POSITION;
@@ -831,6 +835,15 @@ public final class AliceTabStackHelper {
                                 itemCount);
                 mSwipeReplacementStartSwipeProgress = clampedSwipeProgress;
                 mSwipeReplacementStartPushProgress = mSwipePushProgress;
+                mSwipeReplacementLastLoggedTenth = -1;
+                Log.i(
+                        TAG,
+                        "replacement init anchor=%d start=%.3f target=%.3f swipe=%.3f count=%d",
+                        anchorPosition,
+                        mSwipeReplacementStartProgress,
+                        mSwipeReplacementTargetProgress,
+                        clampedSwipeProgress,
+                        itemCount);
             }
 
             final float remainingSwipeProgress =
@@ -854,11 +867,31 @@ public final class AliceTabStackHelper {
             mSwipePushProgress =
                     mSwipeReplacementStartPushProgress * (1f - fraction);
             mSwipePushActive = mSwipePushProgress > 0.001f;
+            final int loggedTenth = Math.round(fraction * 10f);
+            if (loggedTenth != mSwipeReplacementLastLoggedTenth) {
+                mSwipeReplacementLastLoggedTenth = loggedTenth;
+                Log.i(
+                        TAG,
+                        "replacement update fraction=%.3f progress=%.3f count=%d",
+                        fraction,
+                        mProgress,
+                        mRecyclerView.getAdapter() == null
+                                ? 0
+                                : mRecyclerView.getAdapter().getItemCount());
+            }
             mRecyclerView.requestLayout();
         }
 
         void finishSwipeReplacementAndThen(
                 int anchorPosition, @Nullable Runnable onComplete) {
+            Log.i(
+                    TAG,
+                    "replacement finish-before anchor=%d progress=%.3f count=%d",
+                    anchorPosition,
+                    mProgress,
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount());
             updateSwipeReplacement(anchorPosition, 1f);
             mProgress = mSwipeReplacementTargetProgress;
             mSwipeReplacementFraction = 1f;
@@ -869,6 +902,13 @@ public final class AliceTabStackHelper {
             if (onComplete != null) {
                 runWithoutItemAnimations(onComplete);
             }
+            Log.i(
+                    TAG,
+                    "replacement finish-after progress=%.3f count=%d",
+                    mProgress,
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount());
             mDismissingPosition = RecyclerView.NO_POSITION;
             mSwipeReplacementActive = false;
             mSwipeReplacementFraction = 0f;
@@ -1644,6 +1684,28 @@ public final class AliceTabStackHelper {
                     applyChildTransform(child, getEffectiveDistance(position));
                 }
             }
+            if (mSwipeReplacementActive) {
+                StringBuilder cards = new StringBuilder();
+                for (int i = 0; i < getChildCount(); i++) {
+                    View child = getChildAt(i);
+                    if (child == null) continue;
+                    if (cards.length() > 0) cards.append(',');
+                    cards.append(getPosition(child))
+                            .append(':')
+                            .append(child.getLeft())
+                            .append('-')
+                            .append(child.getRight());
+                }
+                Log.i(
+                        TAG,
+                        "replacement layout count=%d progress=%.3f fraction=%.3f"
+                                + " dismissing=%d cards=%s",
+                        itemCount,
+                        mProgress,
+                        mSwipeReplacementFraction,
+                        mDismissingPosition,
+                        cards);
+            }
         }
 
         private int getCardLeftPx(int position, int cardWidthPx, int itemCount) {
@@ -1839,6 +1901,18 @@ import android.view.animation.Interpolator;\
 // Alice patch end 0036\
 ' "$path2"
 
+sed -i '/^import org.chromium.base.ResettersForTesting;$/i\
+// Alice patch start 0036\
+import org.chromium.base.Log;\
+// Alice patch end 0036\
+' "$path2"
+
+sed -i '/^public class TabGridItemTouchHelperCallback extends TabListItemTouchHelperCallback {$/a\
+    // Alice patch start 0036\
+    private static final String TAG = "TabGridSwipe";\
+    // Alice patch end 0036\
+' "$path2"
+
 sed -i '/^    private float mSwipeToDismissThreshold;$/a\
     // Alice patch start 0036\
     private static final float ALICE_STACK_SWIPE_THRESHOLD_DP = 300f;\
@@ -1849,7 +1923,7 @@ sed -i '/^    private float mSwipeToDismissThreshold;$/a\
     // Alice patch end 0036\
 ' "$path2"
 
-sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n        }\n        // Alice patch end 0036|' "$path2"
+sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n            Log.i(\n                    TAG,\n                    "swipe select anchor=%d action=%d count=%d",\n                    mAliceSwipePosition,\n                    actionState,\n                    recyclerView != null \&\& recyclerView.getAdapter() != null\n                            ? recyclerView.getAdapter().getItemCount()\n                            : 0);\n        }\n        // Alice patch end 0036|' "$path2"
 
 sed -i '/^    public int getMovementFlags(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {$/a\
         // Alice patch start 0036\
@@ -1893,6 +1967,16 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
         // Alice patch start 0036\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
             mAliceRecoverAnimationType = animationType;\
+            Log.i(\
+                    TAG,\
+                    "swipe animation type=%d dx=%.1f dy=%.1f anchor=%d count=%d",\
+                    animationType,\
+                    animateDx,\
+                    animateDy,\
+                    mAliceSwipePosition,\
+                    recyclerView.getAdapter() == null\
+                            ? 0\
+                            : recyclerView.getAdapter().getItemCount());\
             final float distance =\
                     (float) Math.hypot(animateDx, animateDy);\
             final float speedPxPerMs =\
@@ -2000,6 +2084,16 @@ sed -i '/^            mTabClosedListener.run($/,/^                    \/\* trigg
                     mAliceSwipePosition != RecyclerView.NO_POSITION\
                             ? mAliceSwipePosition\
                             : viewHolder.getBindingAdapterPosition();\
+            Log.i(\
+                    TAG,\
+                    "onSwiped anchor=%d current=%d count=%d type=%d",\
+                    aliceClosePosition,\
+                    viewHolder.getBindingAdapterPosition(),\
+                    aliceSwipeRecyclerView == null\
+                            || aliceSwipeRecyclerView.getAdapter() == null\
+                            ? 0\
+                            : aliceSwipeRecyclerView.getAdapter().getItemCount(),\
+                    mAliceRecoverAnimationType);\
             Runnable aliceCloseTab =\
                     () ->\
                             mTabClosedListener.run(\
@@ -2013,6 +2107,7 @@ sed -i '/^            mTabClosedListener.run($/,/^                    \/\* trigg
                             aliceCloseTab)) {\
                 aliceCloseTab.run();\
             }\
+            mAliceSwipePosition = RecyclerView.NO_POSITION;\
             // Alice patch end 0036\
 ' "$path2"
 
