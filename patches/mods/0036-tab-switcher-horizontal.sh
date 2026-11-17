@@ -1207,6 +1207,7 @@ public final class AliceTabStackHelper {
         }
 
         void animateNeighborAvoidance(int focusedPosition) {
+            if (mTapFocusPosition == focusedPosition) return;
             onUserInteractionStarted();
             final int itemCount =
                     mRecyclerView.getAdapter() == null
@@ -2370,6 +2371,21 @@ sed -i '/^    public static void onViewRecycled(PropertyModel model, View view) 
 ' "$path18"
 
 # ---------- 8.2) TabSwitcherPaneCoordinator：点击后跟随 Hub 动画进度 ----------
+sed -i '/^    private void onVisibilityChanged(boolean visible) {$/i\
+    // Alice patch start 0036\
+    /** 从当前标签卡片启动离开 Hub 时的邻卡避让动画。 */\
+    void triggerAliceNeighborAvoidance(@Nullable Tab tab) {\
+        if (tab == null) return;\
+        TabListRecyclerView recyclerView = mTabListCoordinator.getContainerView();\
+        if (!AliceTabStackHelper.isStackLayout(recyclerView)) return;\
+        int position = mTabListCoordinator.getIndexFromTabId(tab.getId());\
+        if (position == TabModel.INVALID_TAB_INDEX) return;\
+        AliceTabStackHelper.animateNeighborAvoidance(recyclerView, position);\
+    }\
+    // Alice patch end 0036\
+\
+' "$path13"
+
 sed -i '/^    public Rect getTabThumbnailRect(int tabId) {$/i\
     // Alice patch start 0036\
     public java.util.@Nullable List<View> getAliceRightCardViews(int tabId) {\
@@ -2759,6 +2775,8 @@ sed -i '/^    private void onViewChanged(@Nullable View view) {$/,/^    }$/{
 sed -i 's|^    public void onHubLayoutDoneHiding() {$|&\n        // Alice patch start 0036\n        // 仅横向样式需要在布局流程中延后删除 HubContainerView 的子视图。\n        if (HubAnimationConstants.isAliceHorizontalStyle()\n                \&\& mHubContainerView.isInLayout()) {\n            mHubContainerView.post(this::onHubLayoutDoneHiding);\n            return;\n        }\n        HubAnimationConstants.runAlicePendingTabReorder();\n        // Alice patch end 0036|' "$path10"
 
 # ---------- 15) TabSwitcherPaneBase：仅横向样式调整预览图动画时长 ----------
+sed -i '/^    public HubLayoutAnimatorProvider createHideHubLayoutAnimatorProvider(/,/^    }$/ s|^        @ColorInt int backgroundColor = getAnimationBackgroundColor();$|        // Alice patch start 0036\n        @Nullable TabSwitcherPaneCoordinator aliceCoordinator =\n                getTabSwitcherPaneCoordinator();\n        if (aliceCoordinator != null) {\n            aliceCoordinator.triggerAliceNeighborAvoidance(tab);\n        }\n        // Alice patch end 0036\n\n        @ColorInt int backgroundColor = getAnimationBackgroundColor();|' "$path4"
+
 sed -i '/^                                    bottomMargin));$/a\
         // Alice patch start 0036\
         {\
