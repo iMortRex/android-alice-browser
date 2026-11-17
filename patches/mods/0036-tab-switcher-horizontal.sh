@@ -57,8 +57,7 @@ import android.os.Looper;
 import android.view.View;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver;
-import android.view.animation.DecelerateInterpolator;
-
+import android.view.VelocityTracker;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -101,7 +100,7 @@ public final class AliceTabStackHelper {
     /** 卡片高度 = 去掉浏览器顶部/底部控制栏后的可用高度 × 这个比例。 */
     public static final float CARD_HEIGHT_FRACTION = 0.85f;
 
-    /** 滚动一张卡片所需的位移，按卡片宽度比例计算。 */
+    /** 拖动一张卡片所需的位移。 */
     private static final float SCROLL_STEP_FRACTION = 0.6f;
 
     /** 中心卡左侧卡片的紧凑间距。 */
@@ -140,8 +139,8 @@ public final class AliceTabStackHelper {
     /** 快速斜上滑关闭所需的最小平均速度（px/ms）。 */
     private static final float FAST_SWIPE_MIN_VELOCITY_PX_PER_MS = 1.6f;
 
-    /** 上滑关闭后左侧卡片补位动画时长。 */
-    private static final long SWIPE_REPLACE_DURATION_MS = 230;
+    /** 松手速度换算惯性距离的时间窗口。 */
+    private static final float SNAP_PROJECTION_TIME_MS = 280f;
 
     /** 点击卡片时左右邻卡的放大增量。 */
     private static final float TAP_NEIGHBOR_SCALE_GAIN = 0.2f;
@@ -150,7 +149,7 @@ public final class AliceTabStackHelper {
     private static final long TAP_CARD_EXIT_DURATION_MS = 230L;
 
     /** 横向 Hub 预览图缩放动画时长。 */
-    private static final long HUB_PREVIEW_DURATION_MS = 260L;
+    private static final long HUB_PREVIEW_DURATION_MS = 240L;
 
     /** 主线程 Handler：把可能触发布局的动作挪出当前布局流程。 */
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
@@ -503,12 +502,22 @@ public final class AliceTabStackHelper {
     }
 
     /** 在 RecyclerView 处理触摸前记录斜上滑意图。 */
-    public static void onStackPreTouch(
+    public static boolean onStackPreTouch(
             @Nullable RecyclerView recyclerView, android.view.MotionEvent event) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            return stackLayoutManager.onPreTouchEvent(event);
+        }
+        return false;
+    }
+
+    /** 在真实 ACTION_UP 处理完成后立即接管为吸附动画。 */
+    public static void startPredictiveSnap(@Nullable RecyclerView recyclerView) {
         if (recyclerView == null) return;
         RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
         if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
-            stackLayoutManager.onPreTouchEvent(event);
+            stackLayoutManager.beginPredictiveSnap();
         }
     }
 
@@ -543,15 +552,29 @@ public final class AliceTabStackHelper {
                 * recyclerView.getResources().getDisplayMetrics().density;
     }
 
-    /** 上滑关闭时先完成左侧补位动画，再真正从列表移除卡片。 */
-    public static boolean animateSwipeReplacementAndThen(
+    /** 松手飞出时继续推进上滑挤压进度。 */
+    public static boolean updateSwipeReplacement(
+            @Nullable RecyclerView recyclerView,
+            int anchorPosition,
+            float swipeProgress) {
+        if (recyclerView == null) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.updateSwipeReplacement(anchorPosition, swipeProgress);
+            return true;
+        }
+        return false;
+    }
+
+    /** 飞出结束后从列表移除标签，并结束同一条挤压动画状态。 */
+    public static boolean finishSwipeReplacementAndThen(
             @Nullable RecyclerView recyclerView,
             int anchorPosition,
             @Nullable Runnable onComplete) {
         if (recyclerView == null) return false;
         RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
         if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
-            stackLayoutManager.animateSwipeReplacementAndThen(anchorPosition, onComplete);
+            stackLayoutManager.finishSwipeReplacementAndThen(anchorPosition, onComplete);
             return true;
         }
         return false;
@@ -692,14 +715,20 @@ public final class AliceTabStackHelper {
         private float mLastMoveY;
         private boolean mDiagonalSwipeCandidate;
         private boolean mDiagonalDirectionBypassPending;
-        private @Nullable ValueAnimator mSnapAnimator;
+        private @Nullable VelocityTracker mTouchVelocityTracker;
+        private int mPredictedSnapTarget = RecyclerView.NO_POSITION;
+        private boolean mPredictiveSnapRequested;
         private int mSwipePushAnchor = RecyclerView.NO_POSITION;
         private float mSwipePushProgress;
         private boolean mSwipePushActive;
         private boolean mSwipeCommitted;
-        private @Nullable ValueAnimator mSwipeReplaceAnimator;
         private int mDismissingPosition = RecyclerView.NO_POSITION;
+        private boolean mSwipeReplacementActive;
+        private float mSwipeReplacementFraction;
         private float mSwipeReplacementStartProgress;
+        private float mSwipeReplacementTargetProgress;
+        private float mSwipeReplacementStartSwipeProgress;
+        private float mSwipeReplacementStartPushProgress;
         private int mTapFocusPosition = RecyclerView.NO_POSITION;
         private @Nullable ValueAnimator mTapAnimator;
         private int mEnterFocusPosition = RecyclerView.NO_POSITION;
@@ -781,62 +810,70 @@ public final class AliceTabStackHelper {
             return dx;
         }
 
-        void animateSwipeReplacementAndThen(
-                int anchorPosition, @Nullable Runnable onComplete) {
-            final int itemCount =
-                    mRecyclerView.getAdapter() == null
-                            ? 0
-                            : mRecyclerView.getAdapter().getItemCount();
-            if (itemCount == 0) {
-                if (onComplete != null) onComplete.run();
-                return;
+        void updateSwipeReplacement(int anchorPosition, float swipeProgress) {
+            if (mSwipeCommitted) return;
+            final float clampedSwipeProgress = Math.max(0f, Math.min(1f, swipeProgress));
+            if (!mSwipeReplacementActive) {
+                final int itemCount =
+                        mRecyclerView.getAdapter() == null
+                                ? 0
+                                : mRecyclerView.getAdapter().getItemCount();
+                if (itemCount == 0) return;
+                mRecyclerView.removeCallbacks(mSnapRunnable);
+                mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+                mDismissingPosition = anchorPosition;
+                mSwipeReplacementActive = true;
+                mSwipeReplacementStartProgress = mProgress;
+                mSwipeReplacementTargetProgress =
+                        clampProgress(
+                                mProgress
+                                        - (anchorPosition <= Math.round(mProgress) ? 1f : 0f),
+                                itemCount);
+                mSwipeReplacementStartSwipeProgress = clampedSwipeProgress;
+                mSwipeReplacementStartPushProgress = mSwipePushProgress;
             }
 
-            mRecyclerView.removeCallbacks(mSwipeClearRunnable);
-            final int targetProgress =
-                    Math.max(0, Math.min(itemCount - 1, anchorPosition - 1));
-            final float startProgress = mProgress;
-            final float startPushProgress = mSwipePushProgress;
+            final float remainingSwipeProgress =
+                    1f - mSwipeReplacementStartSwipeProgress;
+            final float fraction =
+                    remainingSwipeProgress <= 0.001f
+                            ? 1f
+                            : Math.max(
+                                    0f,
+                                    Math.min(
+                                            1f,
+                                            (clampedSwipeProgress
+                                                            - mSwipeReplacementStartSwipeProgress)
+                                                    / remainingSwipeProgress));
+            mProgress =
+                    mSwipeReplacementStartProgress
+                            + (mSwipeReplacementTargetProgress
+                                            - mSwipeReplacementStartProgress)
+                                    * fraction;
+            mSwipeReplacementFraction = fraction;
+            mSwipePushProgress =
+                    mSwipeReplacementStartPushProgress * (1f - fraction);
+            mSwipePushActive = mSwipePushProgress > 0.001f;
+            mRecyclerView.requestLayout();
+        }
+
+        void finishSwipeReplacementAndThen(
+                int anchorPosition, @Nullable Runnable onComplete) {
+            updateSwipeReplacement(anchorPosition, 1f);
+            mProgress = mSwipeReplacementTargetProgress;
+            mSwipeReplacementFraction = 1f;
+            mSwipePushProgress = 0f;
+            mSwipePushActive = false;
+            mSwipePushAnchor = RecyclerView.NO_POSITION;
             mSwipeCommitted = true;
-            mDismissingPosition = anchorPosition;
-            mSwipeReplacementStartProgress = startProgress;
-            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
-            mSwipeReplaceAnimator = animator;
-            animator.setDuration(SWIPE_REPLACE_DURATION_MS);
-            animator.setInterpolator(
-                    org.chromium.chrome.browser.hub.HubAnimationConstants
-                            .ALICE_STACK_INTERPOLATOR);
-            animator.addUpdateListener(
-                    animation -> {
-                        final float fraction = (float) animation.getAnimatedValue();
-                        mProgress =
-                                startProgress
-                                        + (targetProgress - startProgress) * fraction;
-                        mSwipePushProgress =
-                                startPushProgress * (1f - fraction);
-                        mSwipePushActive = mSwipePushProgress > 0.001f;
-                        mRecyclerView.requestLayout();
-                    });
-            animator.addListener(
-                    new android.animation.AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(android.animation.Animator animation) {
-                            if (mSwipeReplaceAnimator != animator) return;
-                            mProgress = targetProgress;
-                            mSwipePushProgress = 0f;
-                            mSwipePushActive = false;
-                            mSwipePushAnchor = RecyclerView.NO_POSITION;
-                            mSwipeCommitted = false;
-                            mSwipeReplaceAnimator = null;
-                            if (onComplete != null) {
-                                runWithoutItemAnimations(onComplete);
-                            }
-                            mDismissingPosition = RecyclerView.NO_POSITION;
-                            mSwipeReplacementStartProgress = 0f;
-                            mRecyclerView.requestLayout();
-                        }
-                    });
-            animator.start();
+            if (onComplete != null) {
+                runWithoutItemAnimations(onComplete);
+            }
+            mDismissingPosition = RecyclerView.NO_POSITION;
+            mSwipeReplacementActive = false;
+            mSwipeReplacementFraction = 0f;
+            mSwipeCommitted = false;
+            mRecyclerView.requestLayout();
         }
 
         private void runWithoutItemAnimations(Runnable action) {
@@ -867,15 +904,10 @@ public final class AliceTabStackHelper {
         void onDragStarted() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             mRecyclerView.removeCallbacks(mSwipeClearRunnable);
-            ValueAnimator animator = mSnapAnimator;
-            mSnapAnimator = null;
-            if (animator != null) animator.cancel();
-            ValueAnimator swipeReplaceAnimator = mSwipeReplaceAnimator;
-            mSwipeReplaceAnimator = null;
-            if (swipeReplaceAnimator != null) swipeReplaceAnimator.cancel();
             mSwipeCommitted = false;
             mDismissingPosition = RecyclerView.NO_POSITION;
-            mSwipeReplacementStartProgress = 0f;
+            mSwipeReplacementActive = false;
+            mSwipeReplacementFraction = 0f;
             cancelHubTapAnimation();
         }
 
@@ -883,11 +915,8 @@ public final class AliceTabStackHelper {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             mRecyclerView.removeCallbacks(mTapResetRunnable);
             mRecyclerView.removeCallbacks(mSwipeClearRunnable);
+            releaseTouchVelocityTracker();
             removeEnterAnimationPreDrawListener();
-
-            ValueAnimator snapAnimator = mSnapAnimator;
-            mSnapAnimator = null;
-            if (snapAnimator != null) snapAnimator.cancel();
 
             ValueAnimator tapAnimator = mTapAnimator;
             mTapAnimator = null;
@@ -899,10 +928,6 @@ public final class AliceTabStackHelper {
             mEnterAnimator = null;
             if (enterAnimator != null) enterAnimator.cancel();
 
-            ValueAnimator swipeReplaceAnimator = mSwipeReplaceAnimator;
-            mSwipeReplaceAnimator = null;
-            if (swipeReplaceAnimator != null) swipeReplaceAnimator.cancel();
-
             mTapAnimatingViews.clear();
             mTapFocusPosition = RecyclerView.NO_POSITION;
             mEnterFocusPosition = RecyclerView.NO_POSITION;
@@ -911,7 +936,8 @@ public final class AliceTabStackHelper {
             mSwipePushActive = false;
             mSwipeCommitted = false;
             mDismissingPosition = RecyclerView.NO_POSITION;
-            mSwipeReplacementStartProgress = 0f;
+            mSwipeReplacementActive = false;
+            mSwipeReplacementFraction = 0f;
             mUserInteractionActive = false;
 
             if (mSavedItemAnimator != null) {
@@ -923,16 +949,15 @@ public final class AliceTabStackHelper {
 
         void onUserInteractionStarted() {
             mUserInteractionActive = true;
+            mPredictedSnapTarget = RecyclerView.NO_POSITION;
+            mPredictiveSnapRequested = false;
             mRecyclerView.removeCallbacks(mSnapRunnable);
-            ValueAnimator animator = mSnapAnimator;
-            mSnapAnimator = null;
-            if (animator != null) animator.cancel();
             if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
                 mRecyclerView.stopScroll();
             }
         }
 
-        void onPreTouchEvent(android.view.MotionEvent event) {
+        boolean onPreTouchEvent(android.view.MotionEvent event) {
             final int action = event.getActionMasked();
             if (action == android.view.MotionEvent.ACTION_DOWN) {
                 mTouchDownX = event.getX();
@@ -940,27 +965,58 @@ public final class AliceTabStackHelper {
                 mTouchDownTime = event.getEventTime();
                 mLastMoveTime = mTouchDownTime;
                 mLastMoveY = mTouchDownY;
+                releaseTouchVelocityTracker();
+                mTouchVelocityTracker = VelocityTracker.obtain();
+                mTouchVelocityTracker.addMovement(event);
                 mDiagonalSwipeCandidate = false;
                 mDiagonalDirectionBypassPending = false;
-                return;
+                return false;
             }
             if (action == android.view.MotionEvent.ACTION_UP
                     || action == android.view.MotionEvent.ACTION_CANCEL) {
                 mLastMoveTime = event.getEventTime();
                 mLastMoveY = event.getY();
-                return;
+                if (mTouchVelocityTracker != null) {
+                    mTouchVelocityTracker.addMovement(event);
+                }
+                if (action == android.view.MotionEvent.ACTION_UP
+                        && !mDiagonalSwipeCandidate
+                        && Math.abs(event.getX() - mTouchDownX) > mTouchSlop
+                        && Math.abs(event.getX() - mTouchDownX)
+                                > Math.abs(event.getY() - mTouchDownY)) {
+                    float velocityX = 0f;
+                    if (mTouchVelocityTracker != null) {
+                        mTouchVelocityTracker.computeCurrentVelocity(1000);
+                        velocityX = mTouchVelocityTracker.getXVelocity() / 1000f;
+                    }
+                    releaseTouchVelocityTracker();
+                    return requestPredictiveSnap(velocityX);
+                }
+                releaseTouchVelocityTracker();
+                return false;
             }
-            if (action != android.view.MotionEvent.ACTION_MOVE) return;
+            if (action != android.view.MotionEvent.ACTION_MOVE) return false;
             mLastMoveTime = event.getEventTime();
             mLastMoveY = event.getY();
+            if (mTouchVelocityTracker != null) {
+                mTouchVelocityTracker.addMovement(event);
+            }
             final float dx = Math.abs(event.getX() - mTouchDownX);
             final float dy = event.getY() - mTouchDownY;
             if (!mDiagonalSwipeCandidate
                     && dy < 0f
                     && -dy > mTouchSlop
-                    && -dy >= dx * 0.5f) {
+                    && -dy >= dx * 0.75f) {
                 mDiagonalSwipeCandidate = true;
                 mDiagonalDirectionBypassPending = true;
+            }
+            return false;
+        }
+
+        private void releaseTouchVelocityTracker() {
+            if (mTouchVelocityTracker != null) {
+                mTouchVelocityTracker.recycle();
+                mTouchVelocityTracker = null;
             }
         }
 
@@ -1010,14 +1066,22 @@ public final class AliceTabStackHelper {
 
         void setSwipePush(int anchorPosition, float pushProgress, boolean active) {
             if (mSwipeCommitted) return;
-            if (mSwipePushAnchor == anchorPosition
-                    && Math.abs(mSwipePushProgress - pushProgress) < 0.001f
-                    && mSwipePushActive == active) {
+            final boolean allowPush =
+                    active
+                            && anchorPosition != RecyclerView.NO_POSITION
+                            && anchorPosition <= Math.round(mProgress);
+            final int pushAnchor =
+                    allowPush ? anchorPosition : RecyclerView.NO_POSITION;
+            final float pushAmount =
+                    allowPush ? Math.max(0f, Math.min(1f, pushProgress)) : 0f;
+            if (mSwipePushAnchor == pushAnchor
+                    && Math.abs(mSwipePushProgress - pushAmount) < 0.001f
+                    && mSwipePushActive == allowPush) {
                 return;
             }
-            mSwipePushAnchor = anchorPosition;
-            mSwipePushProgress = Math.max(0f, Math.min(1f, pushProgress));
-            mSwipePushActive = active;
+            mSwipePushAnchor = pushAnchor;
+            mSwipePushProgress = pushAmount;
+            mSwipePushActive = allowPush;
             mRecyclerView.requestLayout();
         }
 
@@ -1263,10 +1327,15 @@ public final class AliceTabStackHelper {
         }
 
         float getEffectiveDistance(int position) {
+            if (mSwipeReplacementActive && position == mDismissingPosition) {
+                return position - mSwipeReplacementStartProgress;
+            }
             float distance =
                     mDismissingPosition != RecyclerView.NO_POSITION
                                     && position > mDismissingPosition
-                            ? position - mSwipeReplacementStartProgress
+                            ? position
+                                    - mProgress
+                                    - mSwipeReplacementFraction
                             : position - mProgress;
             if (mSwipePushActive
                     && mSwipePushAnchor != RecyclerView.NO_POSITION
@@ -1289,56 +1358,73 @@ public final class AliceTabStackHelper {
                     : Math.max(0f, getWidth() - scaledLeft);
         }
 
+        private boolean requestPredictiveSnap(float velocityX) {
+            final float speedPxPerMs = Math.abs(velocityX);
+            if (speedPxPerMs < 0.01f || mPredictiveSnapRequested) return false;
+            final int itemCount =
+                    mRecyclerView.getAdapter() == null
+                            ? 0
+                            : mRecyclerView.getAdapter().getItemCount();
+            if (itemCount <= 1) return false;
+            final int direction = velocityX > 0f ? -1 : 1;
+            final float stepPx =
+                    getLayoutCardWidthPx() * SCROLL_STEP_FRACTION;
+            final float projectedSteps =
+                    speedPxPerMs * SNAP_PROJECTION_TIME_MS / stepPx;
+            final float projectedProgress =
+                    mProgress + direction * projectedSteps;
+            final int target = Math.round(projectedProgress);
+            mPredictedSnapTarget =
+                    Math.max(0, Math.min(itemCount - 1, target));
+            mPredictiveSnapRequested = true;
+            return true;
+        }
+
         void snapToNearestCard() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             if (mUserInteractionActive || mSwipeCommitted) return;
             mRecyclerView.post(mSnapRunnable);
         }
 
+        private void beginPredictiveSnap() {
+            mRecyclerView.removeCallbacks(mSnapRunnable);
+            mPredictiveSnapRequested = false;
+            if (mUserInteractionActive || mSwipeCommitted) return;
+            if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+                mRecyclerView.stopScroll();
+            }
+            performSnap();
+        }
+
         private void performSnap() {
             if (mUserInteractionActive || mSwipeCommitted) return;
             if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) return;
-            if (mSnapAnimator != null && mSnapAnimator.isRunning()) return;
             final int itemCount =
                     mRecyclerView.getAdapter() == null
                             ? 0
                             : mRecyclerView.getAdapter().getItemCount();
             if (itemCount <= 1) return;
 
-            final int targetProgress = Math.round(mProgress);
+            final int targetProgress;
+            if (mPredictedSnapTarget != RecyclerView.NO_POSITION) {
+                targetProgress = mPredictedSnapTarget;
+                mPredictedSnapTarget = RecyclerView.NO_POSITION;
+            } else {
+                targetProgress = Math.round(mProgress);
+            }
             if (Math.abs(targetProgress - mProgress) < 0.001f) return;
 
-            final float startProgress = mProgress;
-            final ValueAnimator animator =
-                    ValueAnimator.ofFloat(startProgress, targetProgress);
-            mSnapAnimator = animator;
-            animator.setDuration(220);
-            animator.setInterpolator(new DecelerateInterpolator());
-            animator.addUpdateListener(
-                    animation -> {
-                        final float nextProgress = (float) animation.getAnimatedValue();
-                        final float stepPx =
-                                getLayoutCardWidthPx() * SCROLL_STEP_FRACTION;
-                        final int dx =
-                                Math.round((nextProgress - mProgress) * stepPx);
-                        if (dx != 0) mRecyclerView.scrollBy(dx, 0);
-                    });
-            animator.addListener(
-                    new android.animation.AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(android.animation.Animator animation) {
-                            if (mSnapAnimator != animator) return;
-                            final float stepPx =
-                                    getLayoutCardWidthPx() * SCROLL_STEP_FRACTION;
-                            final int remainingDx =
-                                    Math.round((targetProgress - mProgress) * stepPx);
-                            if (remainingDx != 0) {
-                                mRecyclerView.scrollBy(remainingDx, 0);
-                            }
-                            mSnapAnimator = null;
-                        }
-                    });
-            animator.start();
+            final float stepPx =
+                    getLayoutCardWidthPx() * SCROLL_STEP_FRACTION;
+            final int snapDx =
+                    Math.round((targetProgress - mProgress) * stepPx);
+            if (snapDx != 0) {
+                mRecyclerView.smoothScrollBy(
+                        snapDx,
+                        0,
+                        org.chromium.chrome.browser.hub.HubAnimationConstants
+                                .ALICE_SCROLL_INTERPOLATOR);
+            }
         }
 
         @Override
@@ -1460,7 +1546,9 @@ public final class AliceTabStackHelper {
         @Override
         public int computeHorizontalScrollOffset(RecyclerView.State state) {
             return Math.round(
-                    mProgress * getLayoutCardWidthPx() * SCROLL_STEP_FRACTION);
+                    mProgress
+                            * getLayoutCardWidthPx()
+                            * SCROLL_STEP_FRACTION);
         }
 
         @Override
@@ -1473,7 +1561,10 @@ public final class AliceTabStackHelper {
             final int itemCount = state.getItemCount();
             if (itemCount == 0) return 0;
             final int cardWidthPx = getLayoutCardWidthPx();
-            return Math.round((itemCount - 1) * cardWidthPx * SCROLL_STEP_FRACTION)
+            return Math.round(
+                            (itemCount - 1)
+                                    * cardWidthPx
+                                    * SCROLL_STEP_FRACTION)
                     + computeHorizontalScrollExtent(state);
         }
 
@@ -1503,7 +1594,7 @@ public final class AliceTabStackHelper {
                 if (child == null) continue;
                 final int position = getPosition(child);
                 if (position == RecyclerView.NO_POSITION) continue;
-                if (position == mDismissingPosition) {
+                if (position == mDismissingPosition && mSwipeCommitted) {
                     sStackCards.remove(child);
                     removeAndRecycleViewAt(i, recycler);
                     continue;
@@ -1526,7 +1617,7 @@ public final class AliceTabStackHelper {
                                                             * VERTICAL_BIAS_FRACTION));
 
             for (int position = 0; position < itemCount; position++) {
-                if (position == mDismissingPosition) continue;
+                if (position == mDismissingPosition && mSwipeCommitted) continue;
                 final int left = getCardLeftPx(position, cardWidthPx, itemCount);
                 if (left + cardWidthPx < visibleStart || left > visibleEnd) continue;
 
@@ -1752,8 +1843,9 @@ sed -i '/^    private float mSwipeToDismissThreshold;$/a\
     // Alice patch start 0036\
     private static final float ALICE_STACK_SWIPE_THRESHOLD_DP = 300f;\
     private static final float ALICE_STACK_SWIPE_EXIT_SPEED_PX_PER_MS = 8f;\
-    private static final float ALICE_STACK_SWIPE_CANCEL_SPEED_PX_PER_MS = 2f;\
+    private static final float ALICE_STACK_SWIPE_CANCEL_SPEED_PX_PER_MS = 2.4f;\
     private int mAliceSwipePosition = RecyclerView.NO_POSITION;\
+    private int mAliceRecoverAnimationType = ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL;\
     // Alice patch end 0036\
 ' "$path2"
 
@@ -1800,17 +1892,22 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
             float animateDy) {\
         // Alice patch start 0036\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+            mAliceRecoverAnimationType = animationType;\
             final float distance =\
                     (float) Math.hypot(animateDx, animateDy);\
             final float speedPxPerMs =\
                     animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_SUCCESS\
                             ? ALICE_STACK_SWIPE_EXIT_SPEED_PX_PER_MS\
                             : ALICE_STACK_SWIPE_CANCEL_SPEED_PX_PER_MS;\
-            return Math.max(\
-                    1L,\
-                    Math.round(\
-                            distance\
-                                    / speedPxPerMs));\
+            final long duration =\
+                    Math.max(\
+                            1L,\
+                            Math.round(\
+                                    distance\
+                                            / speedPxPerMs));\
+            return animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL\
+                    ? Math.max(180L, duration)\
+                    : duration;\
         }\
         // Alice patch end 0036\
         return super.getAnimationDuration(\
@@ -1822,8 +1919,12 @@ sed -i '/^    public long getAnimationDuration($/i\
     public @Nullable Interpolator getAnimationInterpolator(int animationType) {\
         // Alice patch start 0036\
         if (AliceTabStackHelper.isStackLayout(mRecyclerViewSupplier.get())\
-                \&\& (animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_SUCCESS\
-                        \|\| animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL)) {\
+                \&\& animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL) {\
+            return org.chromium.chrome.browser.hub.HubAnimationConstants\
+                    .ALICE_SWIPE_RETURN_INTERPOLATOR;\
+        }\
+        if (AliceTabStackHelper.isStackLayout(mRecyclerViewSupplier.get())\
+                \&\& animationType == ItemTouchHelper.ANIMATION_TYPE_SWIPE_SUCCESS) {\
             return org.chromium.chrome.browser.hub.HubAnimationConstants\
                     .ALICE_STACK_INTERPOLATOR;\
         }\
@@ -1876,11 +1977,18 @@ sed -i '/^        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionS
                     org.chromium.chrome.browser.hub.HubAnimationConstants\
                             .ALICE_STACK_INTERPOLATOR\
                             .getInterpolation(Math.min(1f, aliceCloseProgress));\
-            AliceTabStackHelper.updateSwipePush(\
-                    recyclerView,\
-                    aliceAnchorPosition,\
-                    alicePushProgress,\
-                    alicePushProgress > 0f);\
+            if (!isCurrentlyActive\
+                    \&\& mAliceRecoverAnimationType\
+                            == ItemTouchHelper.ANIMATION_TYPE_SWIPE_SUCCESS) {\
+                AliceTabStackHelper.updateSwipeReplacement(\
+                        recyclerView, aliceAnchorPosition, alicePushProgress);\
+            } else {\
+                AliceTabStackHelper.updateSwipePush(\
+                        recyclerView,\
+                        aliceAnchorPosition,\
+                        alicePushProgress,\
+                        alicePushProgress > 0f);\
+            }\
         }\
         // Alice patch end 0036\
 ' "$path2"
@@ -1899,7 +2007,7 @@ sed -i '/^            mTabClosedListener.run($/,/^                    \/\* trigg
                                     model.get(TabProperties.TAB_ID),\
                                     /* triggeringMotion= */ null);\
             if (!AliceTabStackHelper.isStackLayout(aliceSwipeRecyclerView)\
-                    || !AliceTabStackHelper.animateSwipeReplacementAndThen(\
+                    || !AliceTabStackHelper.finishSwipeReplacementAndThen(\
                             aliceSwipeRecyclerView,\
                             aliceClosePosition,\
                             aliceCloseTab)) {\
@@ -2052,8 +2160,10 @@ sed -i '/^    public boolean dispatchTouchEvent(MotionEvent e) {$/,/^    }$/c\
     // Alice patch start 0036\
     public boolean dispatchTouchEvent(MotionEvent e) {\
         if (mBlockTouchInput) return true;\
-        AliceTabStackHelper.onStackPreTouch(this, e);\
-        return super.dispatchTouchEvent(e);\
+        boolean predictiveSnap = AliceTabStackHelper.onStackPreTouch(this, e);\
+        boolean handled = super.dispatchTouchEvent(e);\
+        if (predictiveSnap) AliceTabStackHelper.startPredictiveSnap(this);\
+        return handled || predictiveSnap;\
     }\
     // Alice patch end 0036\
 ' "$path14"
@@ -2144,7 +2254,7 @@ sed -i '/^        mThumbnailScale = thumbnailScale;$/a\
         mAliceHorizontalThumbnailScale =\
                 !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)\
                                 && deviceDensity > 1.5f\
-                        ? Math.max(thumbnailScale, 2.5f / deviceDensity)\
+                        ? Math.max(thumbnailScale, 3.0f / deviceDensity)\
                         : thumbnailScale;\
         // Alice patch end 0036\
 ' "$path5"
@@ -2347,7 +2457,19 @@ sed -i '/^public class HubAnimationConstants {$/a\
     // Alice patch start 0036\
     public static final android.view.animation.Interpolator ALICE_STACK_INTERPOLATOR =\
             androidx.core.view.animation.PathInterpolatorCompat.create(\
-                    0.22f, 0.72f, 0.38f, 1.0f);\
+                    0.14f, 0.36f, 0.88f, 1.0f);\
+\
+    public static final android.view.animation.Interpolator ALICE_HUB_PREVIEW_INTERPOLATOR =\
+            androidx.core.view.animation.PathInterpolatorCompat.create(\
+                    0.22f, 0.38f, 0.24f, 1.0f);\
+\
+    public static final android.view.animation.Interpolator ALICE_SCROLL_INTERPOLATOR =\
+            androidx.core.view.animation.PathInterpolatorCompat.create(\
+                    0.18f, 0.56f, 0.34f, 1.0f);\
+\
+    public static final android.view.animation.Interpolator ALICE_SWIPE_RETURN_INTERPOLATOR =\
+            androidx.core.view.animation.PathInterpolatorCompat.create(\
+                    0.30f, 0.10f, 0.24f, 1.0f);\
 \
     private static Runnable sAliceHubTapAnimationStarter = () -> {};\
     private static Runnable sAliceHubEnterAnimationStarter = () -> {};\
@@ -2472,7 +2594,7 @@ sed -i '/^                        mShrinkExpandImageView.setVisibility(View.VISI
                         // Alice patch end 0036\
 ' "$path11"
 
-sed -i 's|^        return Interpolators\.EMPHASIZED;$|        // Alice patch start 0036\n        if (HubAnimationConstants.isAliceHorizontalStyle()) {\n            return HubAnimationConstants.ALICE_STACK_INTERPOLATOR;\n        }\n        return Interpolators.EMPHASIZED;\n        // Alice patch end 0036|' "$path11"
+sed -i 's|^        return Interpolators\.EMPHASIZED;$|        // Alice patch start 0036\n        if (HubAnimationConstants.isAliceHorizontalStyle()) {\n            return HubAnimationConstants.ALICE_HUB_PREVIEW_INTERPOLATOR;\n        }\n        return Interpolators.EMPHASIZED;\n        // Alice patch end 0036|' "$path11"
 
 sed -i '/^        shrinkExpandAnimator\.setInterpolator(interpolator);$/a\
         // Alice patch start 0036\

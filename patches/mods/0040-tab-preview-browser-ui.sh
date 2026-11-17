@@ -61,6 +61,12 @@ import java.util.Map;\
 import java.util.Set;\
 // Alice patch end 0040' "$path1"
 
+# 导入有界缓存，用于按标签页保存最近合成结果。
+sed -i '/^import android\.util\.Size;$/i\
+// Alice patch start 0040\
+import android.util.LruCache;\
+// Alice patch end 0040' "$path1"
+
 # 声明工具栏预览的垂直拉伸常量。
 sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new ArrayList<>();$/i\
     // Alice patch start 0040\
@@ -74,8 +80,18 @@ sed -i '/^    private final ArrayList<ThumbnailChangeListener> mListeners = new 
     private final Set<Integer> mAliceCompositingTabIds = new HashSet<>();\
     private final Map<Integer, List<AlicePendingThumbnailRequest>>\
             mAlicePendingThumbnailRequests = new HashMap<>();\
-    private int mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-    private @Nullable Bitmap mAliceRecentCompositedThumbnail;\
+    private static final int ALICE_COMPOSITED_THUMBNAIL_CACHE_SIZE = 8;\
+    private final LruCache<Integer, Bitmap> mAliceCompositedThumbnails =\
+            new LruCache<>(ALICE_COMPOSITED_THUMBNAIL_CACHE_SIZE) {\
+                @Override\
+                protected void entryRemoved(\
+                        boolean evicted,\
+                        Integer key,\
+                        Bitmap oldValue,\
+                        @Nullable Bitmap newValue) {\
+                    if (!oldValue.isRecycled()) oldValue.recycle();\
+                }\
+            };\
     private @Nullable Bitmap mAliceLastToolbarBitmap;\
     // Alice patch end 0040' "$path1"
 
@@ -101,14 +117,6 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(/i\
         }\
     }\
 \
-    private void recycleAliceRecentCompositedThumbnail() {\
-        @Nullable Bitmap bitmap = mAliceRecentCompositedThumbnail;\
-        mAliceRecentCompositedThumbnail = null;\
-        if (bitmap != null \&\& !bitmap.isRecycled()) {\
-            bitmap.recycle();\
-        }\
-    }\
-\
     private void rememberAliceToolbarBitmap(Bitmap bitmap) {\
         @Nullable Bitmap copy = copyAliceCompositedThumbnail(bitmap);\
         if (copy == null) return;\
@@ -127,9 +135,7 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(/i\
             immediateBitmap = copyAliceCompositedThumbnail(bitmap);\
         }\
         if (immediateBitmap != null) {\
-            recycleAliceRecentCompositedThumbnail();\
-            mAliceRecentCompositedTabId = tabId;\
-            mAliceRecentCompositedThumbnail = immediateBitmap;\
+            mAliceCompositedThumbnails.put(tabId, immediateBitmap);\
         }\
         if (requests == null || requests.isEmpty()) return;\
         for (AlicePendingThumbnailRequest request : requests) {\
@@ -357,6 +363,45 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(/i\
 \
 ' "$path1"
 
+# 底置工具栏动画优先使用带工具栏的合成缩略图，避免退回旧的 ETC1。
+sed -i '/^    public void getEtc1TabThumbnailWithCallback(int tabId, Callback<@Nullable Bitmap> callback) {$/,/^    }$/c\
+    public void getEtc1TabThumbnailWithCallback(int tabId, Callback<@Nullable Bitmap> callback) {\
+        if (!mSnapshotsEnabled || mNativeTabContentManager == 0) {\
+            callback.onResult(null);\
+            return;\
+        }\
+\
+        // Alice patch start 0040\
+        @Nullable Bitmap compositedThumbnail = mAliceCompositedThumbnails.get(tabId);\
+        if (compositedThumbnail != null \&\& !compositedThumbnail.isRecycled()) {\
+            @Nullable Bitmap immediateBitmap = copyAliceCompositedThumbnail(compositedThumbnail);\
+            if (immediateBitmap != null) {\
+                callback.onResult(immediateBitmap);\
+                return;\
+            }\
+        }\
+        if (shouldCaptureAliceToolbar()) {\
+            getTabThumbnailWithCallback(\
+                    tabId,\
+                    new Size(0, 0),\
+                    (bitmap) -> {\
+                        if (bitmap != null) {\
+                            callback.onResult(bitmap);\
+                            return;\
+                        }\
+                        TabContentManagerJni.get()\
+                                .getEtc1TabThumbnail(\
+                                        mNativeTabContentManager, tabId, callback);\
+                    });\
+            return;\
+        }\
+        // Alice patch end 0040\
+\
+        // Do not capture a JPEG here because we likely already created one when capturing. We just\
+        // want to fetch the ETC1 off of disk for a higher resolution image to use for animations.\
+        TabContentManagerJni.get().getEtc1TabThumbnail(mNativeTabContentManager, tabId, callback);\
+    }' "$path1"
+
 # 拦截缩略图读取：合成期间排队请求，优先返回最近合成结果。
 sed -i '/^        getTabThumbnailFromDisk(tabId, thumbnailSize, callback);$/c\
         // Alice patch start 0040\
@@ -370,12 +415,9 @@ sed -i '/^        getTabThumbnailFromDisk(tabId, thumbnailSize, callback);$/c\
             requests.add(new AlicePendingThumbnailRequest(thumbnailSize, callback));\
             return;\
         }\
-        @Nullable Bitmap recentCompositedThumbnail = mAliceRecentCompositedThumbnail;\
-        if (mAliceRecentCompositedTabId == tabId\
-                \&\& recentCompositedThumbnail != null\
-                \&\& !recentCompositedThumbnail.isRecycled()) {\
-            @Nullable Bitmap immediateBitmap =\
-                    copyAliceCompositedThumbnail(recentCompositedThumbnail);\
+        @Nullable Bitmap compositedThumbnail = mAliceCompositedThumbnails.get(tabId);\
+        if (compositedThumbnail != null \&\& !compositedThumbnail.isRecycled()) {\
+            @Nullable Bitmap immediateBitmap = copyAliceCompositedThumbnail(compositedThumbnail);\
             if (immediateBitmap != null) {\
                 callback.onResult(immediateBitmap);\
                 return;\
@@ -390,8 +432,7 @@ sed -i '/^    public void destroy() {$/,/^    }$/c\
     public void destroy() {\
         mAliceCompositingTabIds.clear();\
         mAlicePendingThumbnailRequests.clear();\
-        mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-        recycleAliceRecentCompositedThumbnail();\
+        mAliceCompositedThumbnails.evictAll();\
         if (mAliceLastToolbarBitmap != null) {\
             mAliceLastToolbarBitmap.recycle();\
             mAliceLastToolbarBitmap = null;\
@@ -407,10 +448,6 @@ sed -i '/^    public void destroy() {$/,/^    }$/c\
 # 网页内容回读完成后合成工具栏并刷新缩略图缓存。
 sed -i '/^            Callback<@Nullable Bitmap> wrappedCallback =$/,/^                            wrappedCallback);$/c\
             // Alice patch start 0040\
-            if (mAliceRecentCompositedTabId == tab.getId()) {\
-                mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-                recycleAliceRecentCompositedThumbnail();\
-            }\
             if (!shouldCaptureAliceToolbar() \&\& mAliceLastToolbarBitmap != null) {\
                 mAliceLastToolbarBitmap.recycle();\
                 mAliceLastToolbarBitmap = null;\
@@ -509,10 +546,7 @@ sed -i '/^        if (!forceRemoval \&\& !mTabWindowManager\.canTabThumbnailBeDe
         }\
         // Alice patch start 0040\
         mAliceCompositingTabIds.remove(tabId);\
-        if (mAliceRecentCompositedTabId == tabId) {\
-            mAliceRecentCompositedTabId = Tab.INVALID_TAB_ID;\
-            recycleAliceRecentCompositedThumbnail();\
-        }\
+        mAliceCompositedThumbnails.remove(tabId);\
         List<AlicePendingThumbnailRequest> pendingRequests =\
                 mAlicePendingThumbnailRequests.remove(tabId);\
         if (pendingRequests != null) {\
