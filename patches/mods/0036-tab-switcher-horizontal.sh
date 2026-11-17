@@ -1249,7 +1249,7 @@ public final class AliceTabStackHelper {
             animator.setDuration(TAP_CARD_EXIT_DURATION_MS);
             animator.setInterpolator(
                     org.chromium.chrome.browser.hub.HubAnimationConstants
-                            .ALICE_STACK_INTERPOLATOR);
+                            .ALICE_HUB_PREVIEW_INTERPOLATOR);
             animator.addUpdateListener(
                     animation -> {
                         final float progress = (float) animation.getAnimatedValue();
@@ -1343,7 +1343,7 @@ public final class AliceTabStackHelper {
             animator.setDuration(HUB_PREVIEW_DURATION_MS);
             animator.setInterpolator(
                     org.chromium.chrome.browser.hub.HubAnimationConstants
-                            .ALICE_STACK_INTERPOLATOR);
+                            .ALICE_HUB_PREVIEW_INTERPOLATOR);
             animator.addUpdateListener(
                     animation ->
                             applyEnterAnimationFrame(
