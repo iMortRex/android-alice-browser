@@ -8,6 +8,8 @@ path1="chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedApp
 path2="chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuHandlerImpl.java"
 path3="chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
 path4="chrome/browser/ui/android/appmenu/internal/java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java"
+path5="chrome/android/java/src/org/chromium/chrome/browser/customtabs/CustomTabAppMenuPropertiesDelegate.java"
+path6="chrome/android/java/src/org/chromium/chrome/browser/customtabs/CustomTabActivity.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0026' "$path1"; then
@@ -37,6 +39,82 @@ sed -i '/^            iconModels\.add(buildBookmarkActionModel(currentTab));$/a\
                             R.string.menu_extensions,\
                             R.drawable.ic_extension_24dp));\
             // Alice patch end 0026' "$path1"
+
+# 自定义标签页沿用正常标签页的底部按钮组合。
+sed -i '/^            if (ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled()) {$/,/^            iconModels\.add(buildReloadModel(currentTab));$/c\
+            iconModels.add(buildForwardActionModel(currentTab));\
+\
+            if (bookmarkItemVisible) {\
+                iconModels.add(buildBookmarkActionModel(currentTab));\
+            }\
+\
+            // Alice patch start 0026\
+            // 下载此网页 → 下载内容\
+            if (downloadItemVisible) {\
+                iconModels.add(\
+                        AppMenuItemUtils.buildModelForIcon(\
+                                mContext,\
+                                R.id.downloads_menu_id,\
+                                R.string.menu_downloads,\
+                                R.string.menu_downloads,\
+                                R.drawable.ic_file_download_white_24dp));\
+            }\
+            // 页面信息 → 扩展\
+            iconModels.add(\
+                    AppMenuItemUtils.buildModelForIcon(\
+                            mContext,\
+                            R.id.extensions_menu_menu_id,\
+                            R.string.menu_extensions_menu,\
+                            R.string.menu_extensions,\
+                            R.drawable.ic_extension_24dp));\
+            // Alice patch end 0026\
+\
+            iconModels.add(buildReloadModel(currentTab));' "$path5"
+
+# 自定义标签页补齐底部按钮所需的下拉和扩展页依赖。
+sed -i '/^import org\.chromium\.chrome\.browser\.document\.ChromeLauncherActivity;$/a\
+// Alice patch start 0026\
+import org.chromium.chrome.browser.download.DownloadOpenSource;\
+import org.chromium.chrome.browser.download.DownloadUtils;\
+// Alice patch end 0026' "$path6"
+
+# 自定义标签页点击“下载内容”时打开下载管理器。
+sed -i 's|^        } else if (id == R\.id\.open_in_browser_id) {$|        } else if (id == R.id.downloads_menu_id) {\
+            // Alice patch start 0026\
+            Tab tab = getCustomTabActivityTabProvider().getTab();\
+            DownloadUtils.showDownloadManager(\
+                    this,\
+                    tab,\
+                    tab == null ? null : tab.getProfile().getOtrProfileId(),\
+                    DownloadOpenSource.MENU);\
+            RecordUserAction.record("MobileMenuDownloadManager");\
+            // Alice patch end 0026\
+            return true;\
+        } else if (id == R.id.open_in_browser_id) {|' "$path6"
+
+# 自定义标签页点击“扩展”时复用 Web App Header 或工具栏的扩展菜单。
+sed -i '/^        } else if (id == R\.id\.extensions_menu_menu_id) {$/,/^        } else if (id == R\.id\.extensions_webstore_menu_id) {$/c\
+        } else if (id == R.id.extensions_menu_menu_id) {\
+            // Alice patch start 0026\
+            ExtensionsToolbarCoordinator coordinator = null;\
+            var intentDataProvider = assertNonNull(getIntentDataProvider());\
+            if (WebAppHeaderUtils.isWebAppHeaderEnabled(intentDataProvider)) {\
+                coordinator =\
+                        assumeNonNull(\
+                                        getBaseCustomTabRootUiCoordinator()\
+                                                .getWebAppHeaderLayoutCoordinator())\
+                                .getExtensionsToolbarCoordinator();\
+            }\
+            if (coordinator == null && getToolbarManager() != null) {\
+                coordinator = getToolbarManager().getExtensionsToolbarCoordinator();\
+            }\
+            if (coordinator != null) {\
+                coordinator.showExtensionsMenu();\
+                RecordUserAction.record("MobileMenuExtensionsMenu");\
+                return true;\
+            }\
+            // Alice patch end 0026\
+        } else if (id == R.id.extensions_webstore_menu_id) {' "$path6"
 
 # 补齐底部 footer 所需的 Android 和 PropertyModel import。
 sed -i '/^import android\.view\.View;$/i\
