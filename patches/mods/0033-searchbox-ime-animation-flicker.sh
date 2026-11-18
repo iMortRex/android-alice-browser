@@ -292,12 +292,17 @@ sed -i '/^        mKeyboardHeightSupplier\.addSyncObserverAndPostIfNonNull(mKeyb
                         if (mCurrentImeAnimationHeight >= 0) updateImeLayerOffsets();\
                         mCurrentAnimation = null;\
                         mIsImeAnimationRunning = false;\
-                        // Keep the final animation frame until the next IME animation.\
-                        // Root insets can include an extra system-bar inset at this point.\
+                        // Keep the final frame for the next draw so root insets can settle,\
+                        // then read the live IME inset again. Some keyboards resize their panel\
+                        // without starting a new inset animation (for example translation mode).\
                         mControlContainer\
                                 .getView()\
                                 .postOnAnimation(\
-                                        ToolbarPositionController.this::updateImeLayerOffsets);\
+                                        () -> {\
+                                            if (mIsImeAnimationRunning) return;\
+                                            mCurrentImeAnimationHeight = -1;\
+                                            updateImeLayerOffsets();\
+                                        });\
                     }\
                 };\
         InsetObserver imeInsetObserver = mWindowAndroid.getInsetObserver();\
@@ -384,8 +389,8 @@ sed -i '/^        mKeyboardHeightSupplier\.removeObserver(mKeyboardHeightProgres
         releaseSearchToolbarSnapshot();\
         // Alice patch end 0033' "$path1"
 
-# 3) 当前帧优先使用动画 inset；结束后继续使用动画最后一帧，直到下一次 IME
-#    动画开始才重新读取 root inset。
+# 3) 当前帧优先使用动画 inset；结束后只保留一帧，随后重新读取 root inset，
+#    以跟随没有启动动画的 IME 高度变化。
 sed -i '/^            int keyboardHeight = windowInsetsCompat\.getInsets(WindowInsetsCompat\.Type\.ime())\.bottom;$/c\
             // Alice patch start 0033\
             int keyboardHeight =\

@@ -27,19 +27,23 @@ fi
 
 sed -i '/^    void scrollFocusedEditableNodeIntoView();$/a\
     // Alice patch start 0065\
-    /** Sets the Blink visual viewport IME translation in device-independent pixels. */\
-    default void setImeViewportTranslation(float translationY) {}\
+    /** Sets the IME viewport translation and optional touch compensation. */\
+    default void setImeViewportTranslation(\
+            float translationY, boolean compensateTouch) {}\
     // Alice patch end 0065' "$path4"
 
 sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^    }$/a\
 \
     // Alice patch start 0065\
     @Override\
-    public void setImeViewportTranslation(float translationY) {\
+    public void setImeViewportTranslation(\
+            float translationY, boolean compensateTouch) {\
         checkNotDestroyed();\
         WebContentsImplJni.get()\
                 .setImeViewportTranslation(\
-                        mNativeWebContentsAndroid, translationY);\
+                        mNativeWebContentsAndroid,\
+                        translationY,\
+                        compensateTouch);\
     }\
     // Alice patch end 0065
 ;}' "$path1"
@@ -48,19 +52,24 @@ sed -i '/^        void scrollFocusedEditableNodeIntoView(long nativeWebContentsA
 \
         // Alice patch start 0065\
         void setImeViewportTranslation(\
-                long nativeWebContentsAndroid, float translationY);\
+                long nativeWebContentsAndroid,\
+                float translationY,\
+                boolean compensateTouch);\
         // Alice patch end 0065' "$path1"
 
 sed -i '/^  void ScrollFocusedEditableNodeIntoView(JNIEnv\* env);$/a\
   // Alice patch start 0065\
-  void SetImeViewportTranslation(JNIEnv* env, jfloat translation_y);\
+  void SetImeViewportTranslation(JNIEnv* env,\
+                                 jfloat translation_y,\
+                                 jboolean compensate_touch);\
   // Alice patch end 0065' "$path2"
 
 sed -i '/^void WebContentsAndroid::ScrollFocusedEditableNodeIntoView(JNIEnv\* env) {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
 void WebContentsAndroid::SetImeViewportTranslation(JNIEnv* env,\
-                                                   jfloat translation_y) {\
+                                                   jfloat translation_y,\
+                                                   jboolean compensate_touch) {\
   auto* input_handler = web_contents_->GetFocusedFrameWidgetInputHandler();\
   if (input_handler)\
     input_handler->SetImeViewportTranslation(translation_y);\
@@ -72,6 +81,11 @@ sed -i '/^#include "content\/browser\/renderer_host\/render_view_host_impl.h"$/a
 // Alice patch start 0065\
 #include "content/browser/renderer_host/render_widget_host_impl.h"\
 // Alice patch end 0065' "$path3"
+
+sed -i '/^#include "base\/functional\/bind.h"$/a\
+// Alice patch start 0065\
+#include "base/logging.h"\
+// Alice patch end 0065' "$path6"
 
 sed -i '/^  const gfx::Transform& DrawTransform() const;$/a\
   // Alice patch start 0065\
@@ -87,6 +101,10 @@ sed -i '/^const gfx::Transform& LayerTreeHostImpl::DrawTransform() const {$/,/^}
 // Alice patch start 0065\
 void LayerTreeHostImpl::SetImeViewportTranslation(float translation_y) {\
   ime_viewport_translation_ = translation_y;\
+  LOG(INFO) << "AliceIme cc translation=" << translation_y\
+            << " pageScale="\
+            << active_tree()->current_page_scale_factor()\
+            << " totalY=" << viewport().TotalScrollOffset().y();\
   viewport().SetInnerViewportOffsetUnclamped(translation_y);\
   SetFullViewportDamage();\
   SetNeedsRedraw(/*animation_only=*/false,\
@@ -128,6 +146,7 @@ sed -i '/^  void SetNeedsBeginFrameForFlingProgress();$/a\
 sed -i '/^  float page_scale_;$/a\
   // Alice patch start 0065\
   float ime_viewport_translation_y_ = 0.f;\
+  bool ime_viewport_compensate_touch_ = false;\
   // Alice patch end 0065' "$path8"
 
 sed -i '/^    boolean focusedNodeEditable();$/a\
@@ -171,7 +190,7 @@ sed -i '/^void RenderWidgetHostViewAndroid::SetNeedsBeginFrameForFlingProgress()
 // Alice patch start 0065\
 void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
     float translation_y) {\
-  SetImeViewportTouchTranslation(translation_y);\
+  SetImeViewportTouchTranslation(translation_y, true);\
   if (!delegated_frame_host_)\
     return;\
   auto* layer = delegated_frame_host_->content_layer();\
@@ -185,41 +204,54 @@ void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
 
 sed -i '/^  void SetImeViewportTranslation(float translation_y);$/a\
   // Alice patch start 0065\
-  void SetImeViewportTouchTranslation(float translation_y);\
+  void SetImeViewportTouchTranslation(float translation_y,\
+                                      bool compensate_touch);\
   // Alice patch end 0065' "$path8"
 
 sed -i '/^void RenderWidgetHostViewAndroid::SetImeViewportTranslation($/,/^}$/{/^}$/a\
 \
 // Alice patch start 0065\
 void RenderWidgetHostViewAndroid::SetImeViewportTouchTranslation(\
-    float translation_y) {\
+    float translation_y, bool compensate_touch) {\
   const float scale = GetDeviceScaleFactor();\
   ime_viewport_translation_y_ =\
       scale > 0.f ? translation_y / scale : translation_y;\
+  ime_viewport_compensate_touch_ = compensate_touch;\
 }\
 // Alice patch end 0065
 ;}' "$path9"
 
 sed -i '/^void WebContentsAndroid::SetImeViewportTranslation(JNIEnv\* env,$/,/^}$/{/^  auto\* input_handler = web_contents_->GetFocusedFrameWidgetInputHandler();$/i\
   // Alice patch start 0065\
-  if (auto* rwhva = GetRenderWidgetHostViewAndroid())\
-    rwhva->SetImeViewportTouchTranslation(translation_y);\
+  auto* rwhva = GetRenderWidgetHostViewAndroid();\
+  LOG(INFO) << "AliceIme content translation=" << translation_y\
+            << " compensate=" << compensate_touch\
+            << " dsf=" << (rwhva ? rwhva->GetDeviceScaleFactor() : 0.f);\
+  if (rwhva)\
+    rwhva->SetImeViewportTouchTranslation(translation_y, compensate_touch);\
   // Alice patch end 0065
 ;}' "$path3"
 
-# 只在 OnTouchEvent 内保存原始事件，并让后续逻辑使用调整后的 event。
+# 普通焦点控件需要手动补偿；超大 contenteditable 由 CC 自行映射。
 sed -i '/^bool RenderWidgetHostViewAndroid::OnTouchEvent($/,/^    const ui::MotionEventAndroid\& event) {$/c\
 bool RenderWidgetHostViewAndroid::OnTouchEvent(\
     const ui::MotionEventAndroid\& original_event) {\
   // Alice patch start 0065\
   std::unique_ptr<ui::MotionEventAndroid> adjusted_event;\
-  if (ime_viewport_translation_y_ != 0.f) {\
+  if (ime_viewport_compensate_touch_\
+      \&\& ime_viewport_translation_y_ != 0.f) {\
     adjusted_event = original_event.CreateFor(\
         gfx::PointF(original_event.GetX(0),\
                     original_event.GetY(0) + ime_viewport_translation_y_));\
   }\
   const ui::MotionEventAndroid\& event =\
       adjusted_event ? *adjusted_event : original_event;\
+  if (event.GetAction() == ui::MotionEventAndroid::Action::DOWN) {\
+    LOG(INFO) << "AliceIme touch rawY=" << original_event.GetY(0)\
+              << " eventY=" << event.GetY(0)\
+              << " storedTranslation=" << ime_viewport_translation_y_\
+              << " compensate=" << ime_viewport_compensate_touch_;\
+  }\
   // Alice patch end 0065' "$path9"
 
 sed -i '/^#include "ui\/gfx\/geometry\/size_conversions.h"$/a\
