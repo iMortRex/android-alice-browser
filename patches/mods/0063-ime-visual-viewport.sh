@@ -37,12 +37,6 @@ sed -i '/^import android\.view\.autofill\.AutofillValue;$/a\
 import android.view.WindowManager;\
 // Alice patch end 0063' "$path1"
 
-# 临时诊断日志。
-sed -i '/^import android\.view\.WindowManager;$/a\
-// Alice patch start 0063\
-import android.util.Log;\
-// Alice patch end 0063' "$path1"
-
 # 补充 View import。
 sed -i '/^import android\.util\.SparseArray;$/a\
 // Alice patch start 0063\
@@ -88,7 +82,6 @@ import org.chromium.ui.insets.InsetObserver;\
 # 增加 IME 动画监听状态、焦点门控和辅助方法。
 sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updateVisualViewportBottomInset();$/a\
     // Alice patch start 0063\
-    private static final String TAG = "AliceIme";\
     private @Nullable InsetObserver mAliceImeInsetObserver;\
     private @Nullable WindowAndroid mAliceImeWindowAndroid;\
     private boolean mAliceImeAnimationActive;\
@@ -139,6 +132,12 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 List<WindowInsetsAnimationCompat> runningAnimations) {\
                             if (!mAliceImeAnimationActive) return;\
                             mAliceLastImeHeightPx = getAliceKeyboardHeight(insets);\
+                            int focusedNodeBottomPx = getAliceFocusedNodeBottomPx();\
+                            int imeTopPx =\
+                                    getAliceRootBottomPx() - mAliceLastImeHeightPx;\
+                            if (focusedNodeBottomPx > imeTopPx) {\
+                                mAliceLiftForFocusedInput = true;\
+                            }\
                             updateImeViewportTranslation(mAliceLastImeHeightPx);\
                         }\
 \
@@ -245,8 +244,7 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                 previewSupplier == null ? null : previewSupplier.get();\
         if (preview != null \&\& preview.isOpened()) return false;\
         Activity activity = window.getActivity().get();\
-        if (activity == null) return false;\
-        if (!window.isTopResumedActivity() \&\& !activity.hasWindowFocus()) return false;\
+        if (activity == null || !window.isTopResumedActivity()) return false;\
         int adjustMode =\
                 activity.getWindow().getAttributes().softInputMode\
                         \& WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST;\
@@ -279,7 +277,15 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                         \&\& mAliceWebContentsObserver.getWebContents() == webContents)) {\
             return;\
         }\
-        if (mAliceWebContentsObserver != null) mAliceWebContentsObserver.observe(null);\
+        if (mAliceWebContentsObserver != null) {\
+            @Nullable WebContents previous = mAliceWebContentsObserver.getWebContents();\
+            if (previous != null) previous.setImeViewportFocusCallback(null);\
+            mAliceWebContentsObserver.observe(null);\
+        }\
+        webContents.setImeViewportFocusCallback(\
+                () -> {\
+                    if (!isDestroyed()) updateVisualViewportBottomInset();\
+                });\
         mAliceWebContentsObserver =\
                 new WebContentsObserver(webContents) {\
                     @Override\
@@ -301,16 +307,6 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         if (mTab.getWebContents() == null) return 0;\
         @Nullable ImeAdapter imeAdapter = ImeAdapter.fromWebContents(mTab.getWebContents());\
         return imeAdapter == null ? 0 : imeAdapter.getFocusedNodeBottomPx();\
-    }\
-\
-    private boolean hasAliceFocusedEditableWebContents() {\
-        @Nullable WebContents webContents = mTab.getWebContents();\
-        View contentView = getContentView();\
-        return contentView.hasWindowFocus()\
-                \&\& contentView.hasFocus()\
-                \&\& webContents != null\
-                \&\& webContents.getFocusedFrame() != null\
-                \&\& webContents.isFocusedElementEditable();\
     }\
 \
     private int getAliceRootBottomPx() {\
@@ -349,45 +345,18 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
 \
     private void updateImeViewportTranslation(int imeHeightPx) {\
         if (isDestroyed()) return;\
+        if (!getContentView().isAttachedToWindow()) return;\
         int focusedNodeBottomPx = getAliceFocusedNodeBottomPx();\
-        int rootBottomPx = getAliceRootBottomPx();\
-        if (!hasAliceFocusedEditableWebContents()) {\
-            mAliceLiftForFocusedInput = false;\
-        } else if (imeHeightPx > 0) {\
-            int imeTopPx = rootBottomPx - imeHeightPx;\
-            if (focusedNodeBottomPx > imeTopPx) {\
-                mAliceLiftForFocusedInput = true;\
-            }\
-        }\
-        int maxLiftPx = Math.max(0, imeHeightPx);\
-        int bottomChromePx = getAliceBottomChromeHeightPx();\
+        int imeTopPx = getAliceRootBottomPx() - imeHeightPx;\
+        mAliceLiftForFocusedInput =\
+                imeHeightPx > 0 \&\& focusedNodeBottomPx > imeTopPx;\
         int viewportInsetPx =\
                 mAliceLiftForFocusedInput\
                         ? Math.max(\
-                                0, imeHeightPx - bottomChromePx)\
+                                0, imeHeightPx - getAliceBottomChromeHeightPx())\
                         : 0;\
-        viewportInsetPx = Math.min(viewportInsetPx, maxLiftPx);\
-        boolean compensateTouch =\
-                focusedNodeBottomPx <= 0 || focusedNodeBottomPx <= rootBottomPx;\
-        Log.i(\
-                TAG,\
-                "apply ime="\
-                        + imeHeightPx\
-                        + " nodeBottom="\
-                        + focusedNodeBottomPx\
-                        + " rootBottom="\
-                        + rootBottomPx\
-                        + " bottomChrome="\
-                        + bottomChromePx\
-                        + " lift="\
-                        + mAliceLiftForFocusedInput\
-                        + " compensateTouch="\
-                        + compensateTouch\
-                        + " translation="\
-                        + viewportInsetPx);\
         if (mTab.getWebContents() == null) return;\
-        mTab.getWebContents()\
-                .setImeViewportTranslation(viewportInsetPx, compensateTouch);\
+        mTab.getWebContents().setImeViewportTranslation(viewportInsetPx);\
     }\
 \
     private void resetAliceImeViewportTranslation() {\
@@ -395,7 +364,7 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         mAliceLiftForFocusedInput = false;\
         mAliceLastImeHeightPx = 0;\
         if (mTab.getWebContents() != null) {\
-            mTab.getWebContents().setImeViewportTranslation(0, false);\
+            mTab.getWebContents().setImeViewportTranslation(0);\
         }\
         setVisualViewportBottomInset(0);\
     }\
@@ -424,6 +393,8 @@ sed -i '/^            mTabObserver = null;$/a\
         // Alice patch start 0063\
         // Unregister the WebContents focus gate.\
         if (mAliceWebContentsObserver != null) {\
+            @Nullable WebContents previous = mAliceWebContentsObserver.getWebContents();\
+            if (previous != null) previous.setImeViewportFocusCallback(null);\
             mAliceWebContentsObserver.observe(null);\
             mAliceWebContentsObserver = null;\
         }\

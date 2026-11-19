@@ -54,7 +54,7 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/a\
         // Alice patch end 0064\
 ' "$path9"
 
-# 将 IME 逐帧位移投递到 compositor 线程，只 pan visual viewport。
+# 23) 将 IME 逐帧位移投递到 compositor 线程，只 pan visual viewport。
 #     不进入 Blink scroll/layout，也不平移 Android ContentView。
 # 为 Proxy 接口补充几何类型 include。
 sed -i '/^#include "services\/metrics\/public\/cpp\/ukm_source_id.h"$/a\
@@ -169,21 +169,25 @@ sed -i '/^  void SetNeedsRedraw(const gfx::Rect& damage_rect) override {}$/a\
   void SetImeViewportTranslation(float translation_y) override {}\
   // Alice patch end 0064' "$path11"
 
-# 在 FrameWidgetInputHandler mojom 中声明 IME 位移方法。
+# 在 FrameWidgetInputHandler mojom 中声明 IME 位移和焦点刷新方法。
 sed -i '/^  ScrollFocusedEditableNodeIntoView();$/a\
 \
   // Alice patch start 0064\
   // Sets a compositor-only IME viewport translation in physical pixels.\
   SetImeViewportTranslation(float translation_y);\
+\
+  // Reports the current focused editable bounds without scrolling it.\
+  RefreshFocusedEditableNodeBounds();\
   // Alice patch end 0064' "$path12"
 
 # 在 Blink 输入 handler 头文件声明 IME 位移 override。
 sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
   // Alice patch start 0064\
   void SetImeViewportTranslation(float translation_y) override;\
+  void RefreshFocusedEditableNodeBounds() override;\
   // Alice patch end 0064' "$path13"
 
-# 实现 Blink 输入 handler 的主线程投递。
+# 实现 Blink 输入 handler 的主线程投递和焦点刷新。
 sed -i '/^void FrameWidgetInputHandlerImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0064\
@@ -197,6 +201,15 @@ void FrameWidgetInputHandlerImpl::SetImeViewportTranslation(\
       },\
       main_thread_frame_widget_input_handler_, translation_y));\
 }\
+\
+void FrameWidgetInputHandlerImpl::RefreshFocusedEditableNodeBounds() {\
+  RunOnMainThread(base::BindOnce(\
+      [](base::WeakPtr<mojom::blink::FrameWidgetInputHandler> handler) {\
+        if (handler)\
+          handler->RefreshFocusedEditableNodeBounds();\
+      },\
+      main_thread_frame_widget_input_handler_));\
+}\
 // Alice patch end 0064
 ;}' "$path14"
 
@@ -204,9 +217,10 @@ void FrameWidgetInputHandlerImpl::SetImeViewportTranslation(\
 sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
   // Alice patch start 0064\
   void SetImeViewportTranslation(float translation_y) override;\
+  void RefreshFocusedEditableNodeBounds() override;\
   // Alice patch end 0064' "$path15"
 
-# 将 IME 位移从 WebFrameWidgetImpl 转发到 LayerTreeHost。
+# 将 IME 位移从 WebFrameWidgetImpl 转发到 LayerTreeHost，并刷新焦点 bounds。
 sed -i '/^void WebFrameWidgetImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0064\
@@ -214,6 +228,15 @@ void WebFrameWidgetImpl::SetImeViewportTranslation(float translation_y) {\
   if (!ForMainFrame())\
     return;\
   LayerTreeHost()->SetImeViewportTranslation(translation_y);\
+}\
+\
+void WebFrameWidgetImpl::RefreshFocusedEditableNodeBounds() {\
+  if (!ForMainFrame())\
+    return;\
+  if (Element* element = FocusedElement()) {\
+    element->GetDocument().SendFocusNotification(\
+        element, mojom::blink::FocusType::kNone);\
+  }\
 }\
 // Alice patch end 0064
 ;}' "$path16"

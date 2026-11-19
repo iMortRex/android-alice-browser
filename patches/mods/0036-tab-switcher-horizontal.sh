@@ -7,7 +7,8 @@
 #   - 当前标签固定排在最后一张。中心卡前的卡片按紧凑间距向左堆叠，中心卡后的卡片按
 #     大跨度向右展开；所有卡片左边不会越过屏幕左侧。
 #   - 滚动停止时把离屏幕中心最近的卡片平滑吸附到中心。
-#   - 向上滑关闭标签；禁止左右拖拽（左右滑只用来滚动卡片列表）。
+#   - 向上滑关闭标签；长按水平拖拽调整顺序，普通左右滑仍用来滚动卡片列表。
+#   - 长按排序时所有卡片缩放到 50% 并紧挨展开，松手后还原并吸附落位。
 #   - 上滑关闭时左侧卡片会向右挤压；点击时中心卡和邻卡严格跟随 Hub 预览图动画进度。
 #   - 设置里改样式后不用重启浏览器：下次打开标签管理页时会自动切换布局。
 #   - 横向样式捕获缩略图时使用更高倍率；默认样式继续沿用 0038 的清晰度设置。
@@ -105,6 +106,27 @@ public final class AliceTabStackHelper {
 
     /** 拖动一张卡片所需的位移。 */
     private static final float SCROLL_STEP_FRACTION = 0.6f;
+
+    /** 长按排序时卡片缩放比例。 */
+    private static final float REORDER_SCALE = 0.75f;
+
+    /** 长按排序时卡片缩放到 50% 后的中心间距。 */
+    private static final float REORDER_STEP_FRACTION = REORDER_SCALE;
+
+    /** 进入和退出长按排序展开状态的时长。 */
+    private static final long REORDER_ANIMATION_DURATION_MS = 220L;
+
+    /** 其他卡片为拖拽卡片让位时的动画时长。 */
+    private static final long REORDER_AVOIDANCE_DURATION_MS = 520L;
+
+    /** 长按拖到边缘时普通和近边缘两档固定滚动距离。 */
+    private static final float REORDER_AUTO_SCROLL_MIN_STEP_DP = 4f;
+
+    private static final float REORDER_AUTO_SCROLL_MAX_STEP_DP = 12f;
+
+    private static final android.view.animation.Interpolator REORDER_AVOIDANCE_INTERPOLATOR =
+            org.chromium.chrome.browser.hub.HubAnimationConstants
+                    .ALICE_HUB_PREVIEW_INTERPOLATOR;
 
     /** 中心卡左侧卡片的紧凑间距。 */
     private static final float LEFT_OFFSET_FRACTION = 0.16f;
@@ -515,6 +537,36 @@ public final class AliceTabStackHelper {
         return false;
     }
 
+    /** 标记长按拖拽排序状态，并避免拖拽结束时按甩动速度跨过多张卡片。 */
+    public static void setStackDragActive(
+            @Nullable RecyclerView recyclerView, boolean active) {
+        if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.setStackDragActive(active);
+        }
+    }
+
+    /** 记录拖拽结束后的落点，收缩动画结束后把该卡片吸附到中心。 */
+    public static void setStackDragTarget(
+            @Nullable RecyclerView recyclerView, int position) {
+        if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.setStackDragTarget(position);
+        }
+    }
+
+    /** 记录其他卡片当前位置，供下一次排序交换时做柔和让位动画。 */
+    public static void prepareReorderAvoidance(
+            @Nullable RecyclerView recyclerView, int selectedPosition) {
+        if (recyclerView == null) return;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
+            stackLayoutManager.prepareReorderAvoidance(selectedPosition);
+        }
+    }
+
     /** 在真实 ACTION_UP 处理完成后立即接管为吸附动画。 */
     public static void startPredictiveSnap(@Nullable RecyclerView recyclerView) {
         if (recyclerView == null) return;
@@ -740,6 +792,15 @@ public final class AliceTabStackHelper {
         private boolean mDiagonalSwipeCandidate;
         private boolean mDiagonalDirectionBypassPending;
         private boolean mHorizontalDragStarted;
+        private boolean mStackDragActive;
+        private float mReorderExpansionProgress;
+        private @Nullable ValueAnimator mReorderAnimator;
+        private final WeakHashMap<View, Integer> mReorderAvoidanceStartLefts =
+                new WeakHashMap<>();
+        private final WeakHashMap<View, Boolean> mReorderAvoidingViews = new WeakHashMap<>();
+        private final WeakHashMap<View, Integer> mReorderAvoidanceGenerations =
+                new WeakHashMap<>();
+        private int mReorderAvoidanceGeneration;
         private @Nullable VelocityTracker mTouchVelocityTracker;
         private int mPredictedSnapTarget = RecyclerView.NO_POSITION;
         private boolean mPredictiveSnapRequested;
@@ -773,6 +834,7 @@ public final class AliceTabStackHelper {
         private boolean mEnterAnimationPreDrawRegistered;
         private final WeakHashMap<View, Boolean> mTapAnimatingViews = new WeakHashMap<>();
         private RecyclerView.@Nullable ItemAnimator mSavedItemAnimator;
+        private RecyclerView.@Nullable ItemAnimator mReorderSavedItemAnimator;
         private final Runnable mSnapRunnable = this::performSnap;
         private final Runnable mTapResetRunnable = this::resetTapAnimationIfNotEntering;
         private final Runnable mSwipeClearRunnable =
@@ -812,7 +874,17 @@ public final class AliceTabStackHelper {
             if (mPendingScroll && mPendingPosition != RecyclerView.NO_POSITION) {
                 final int position =
                         Math.max(0, Math.min(itemCount - 1, mPendingPosition));
+                final float previousProgress = mProgress;
                 mProgress = clampProgress(position, itemCount);
+                if (mStackDragActive) {
+                    Log.i(
+                            TAG,
+                            "layout-pending t=%d old=%.4f position=%d new=%.4f",
+                            android.os.SystemClock.uptimeMillis(),
+                            previousProgress,
+                            position,
+                            mProgress);
+                }
                 mPendingScroll = false;
                 mPendingPosition = RecyclerView.NO_POSITION;
             } else if (!mDidInitialLayout) {
@@ -822,7 +894,9 @@ public final class AliceTabStackHelper {
             }
             mDidInitialLayout = true;
 
-            detachAndScrapAttachedViews(recycler);
+            if (!mStackDragActive) {
+                detachAndScrapAttachedViews(recycler);
+            }
             fillVisible(recycler, itemCount, cardWidthPx, cardHeightPx);
             runLayoutCompleted();
         }
@@ -834,16 +908,43 @@ public final class AliceTabStackHelper {
             if (itemCount == 0 || dx == 0) return 0;
             mHorizontalDragStarted = true;
 
+            final int scrollDx;
+            if (mStackDragActive) {
+                final float density =
+                        mRecyclerView.getResources().getDisplayMetrics().density;
+                final int minStepPx =
+                        Math.max(
+                                1,
+                                Math.round(REORDER_AUTO_SCROLL_MIN_STEP_DP * density));
+                final int maxStepPx =
+                        Math.max(
+                                minStepPx,
+                                Math.round(REORDER_AUTO_SCROLL_MAX_STEP_DP * density));
+                final int normalizedStepPx =
+                        Math.max(minStepPx, Math.min(Math.abs(dx), maxStepPx));
+                scrollDx = dx > 0 ? normalizedStepPx : -normalizedStepPx;
+            } else {
+                scrollDx = dx;
+            }
+            if (mStackDragActive) {
+                Log.i(
+                        TAG,
+                        "reorder-scroll t=%d raw=%d used=%d progress=%.4f",
+                        android.os.SystemClock.uptimeMillis(),
+                        dx,
+                        scrollDx,
+                        mProgress);
+            }
             final int cardWidthPx = getLayoutCardWidthPx();
             final int cardHeightPx = getLayoutCardHeightPx();
             final float stepPx = cardWidthPx * SCROLL_STEP_FRACTION;
             final float targetProgress =
-                    clampProgress(mProgress + dx / stepPx, itemCount);
+                    clampProgress(mProgress + scrollDx / stepPx, itemCount);
             if (targetProgress == mProgress) return 0;
 
             mProgress = targetProgress;
             fillVisible(recycler, itemCount, cardWidthPx, cardHeightPx);
-            return dx;
+            return scrollDx;
         }
 
         void updateSwipeReplacement(int anchorPosition, float swipeProgress) {
@@ -1041,6 +1142,9 @@ public final class AliceTabStackHelper {
             mSwipeReplacementActive = false;
             mSwipeReplacementFraction = 0f;
             mUserInteractionActive = false;
+            cancelReorderExpansion();
+            cancelReorderAvoidanceAnimations();
+            mStackDragActive = false;
 
             if (mSavedItemAnimator != null) {
                 mRecyclerView.setItemAnimator(mSavedItemAnimator);
@@ -1050,6 +1154,9 @@ public final class AliceTabStackHelper {
         }
 
         void onUserInteractionStarted() {
+            cancelReorderExpansion();
+            cancelReorderAvoidanceAnimations();
+            mStackDragActive = false;
             mUserInteractionActive = true;
             mPredictedSnapTarget = RecyclerView.NO_POSITION;
             mPredictiveSnapRequested = false;
@@ -1059,6 +1166,124 @@ public final class AliceTabStackHelper {
             if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
                 mRecyclerView.stopScroll();
             }
+        }
+
+        void setStackDragActive(boolean active) {
+            if (active) {
+                mStackDragActive = true;
+                mRecyclerView.removeCallbacks(mSnapRunnable);
+                mSnapPending = false;
+                mRecyclerView.stopScroll();
+                cancelSwipeUndoAnimation();
+                cancelHubTapAnimation();
+                disableReorderItemAnimator();
+                animateReorderExpansion(1f);
+                return;
+            }
+            if (!mStackDragActive) return;
+            animateReorderExpansion(0f);
+        }
+
+        void setStackDragTarget(int position) {
+            if (position == RecyclerView.NO_POSITION) return;
+            mPredictedSnapTarget = position;
+        }
+
+        void prepareReorderAvoidance(int selectedPosition) {
+            mReorderAvoidanceStartLefts.clear();
+            for (int i = 0; i < getChildCount(); i++) {
+                View child = getChildAt(i);
+                if (child == null || getPosition(child) == selectedPosition) continue;
+                mReorderAvoidanceStartLefts.put(
+                        child,
+                        Math.round(child.getLeft() + child.getTranslationX()));
+            }
+        }
+
+        private void animateReorderExpansion(float target) {
+            ValueAnimator animator = mReorderAnimator;
+            mReorderAnimator = null;
+            if (animator != null) animator.cancel();
+
+            final float start = mReorderExpansionProgress;
+            if (Math.abs(start - target) < 0.001f) {
+                finishReorderExpansion(target);
+                return;
+            }
+            final ValueAnimator nextAnimator = ValueAnimator.ofFloat(start, target);
+            mReorderAnimator = nextAnimator;
+            nextAnimator.setDuration(REORDER_ANIMATION_DURATION_MS);
+            nextAnimator.setInterpolator(
+                    org.chromium.chrome.browser.hub.HubAnimationConstants
+                            .ALICE_HUB_PREVIEW_INTERPOLATOR);
+            nextAnimator.addUpdateListener(
+                    animation -> {
+                        mReorderExpansionProgress =
+                                (float) animation.getAnimatedValue();
+                        mRecyclerView.requestLayout();
+                    });
+            nextAnimator.addListener(
+                    new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            if (mReorderAnimator != nextAnimator) return;
+                            mReorderAnimator = null;
+                            finishReorderExpansion(target);
+                        }
+                    });
+            nextAnimator.start();
+        }
+
+        private void finishReorderExpansion(float target) {
+            mReorderExpansionProgress = target;
+            mRecyclerView.requestLayout();
+            if (target > 0f) return;
+            mStackDragActive = false;
+            mUserInteractionActive = false;
+            restoreReorderItemAnimator();
+            snapToNearestCard();
+        }
+
+        private void cancelReorderExpansion() {
+            ValueAnimator animator = mReorderAnimator;
+            mReorderAnimator = null;
+            if (animator != null) animator.cancel();
+            if (mReorderExpansionProgress == 0f) {
+                restoreReorderItemAnimator();
+                return;
+            }
+            mReorderExpansionProgress = 0f;
+            restoreReorderItemAnimator();
+            mRecyclerView.requestLayout();
+        }
+
+        private void disableReorderItemAnimator() {
+            if (mReorderSavedItemAnimator != null) return;
+            RecyclerView.ItemAnimator itemAnimator = mRecyclerView.getItemAnimator();
+            if (itemAnimator == null) return;
+            itemAnimator.endAnimations();
+            mReorderSavedItemAnimator = itemAnimator;
+            mRecyclerView.setItemAnimator(null);
+        }
+
+        private void restoreReorderItemAnimator() {
+            if (mReorderSavedItemAnimator == null) return;
+            mRecyclerView.setItemAnimator(mReorderSavedItemAnimator);
+            mReorderSavedItemAnimator = null;
+        }
+
+        private void cancelReorderAvoidanceAnimations() {
+            mReorderAvoidanceGeneration++;
+            final View[] avoidingViews =
+                    mReorderAvoidingViews.keySet().toArray(new View[0]);
+            mReorderAvoidingViews.clear();
+            mReorderAvoidanceGenerations.clear();
+            for (View child : avoidingViews) {
+                if (child == null) continue;
+                child.animate().cancel();
+                child.setTranslationX(0f);
+            }
+            mReorderAvoidanceStartLefts.clear();
         }
 
         boolean onPreTouchEvent(android.view.MotionEvent event) {
@@ -1083,6 +1308,10 @@ public final class AliceTabStackHelper {
                 mLastMoveY = event.getY();
                 if (mTouchVelocityTracker != null) {
                     mTouchVelocityTracker.addMovement(event);
+                }
+                if (mStackDragActive) {
+                    releaseTouchVelocityTracker();
+                    return false;
                 }
                 if (action == android.view.MotionEvent.ACTION_UP
                         && !mDiagonalSwipeCandidate) {
@@ -1109,6 +1338,7 @@ public final class AliceTabStackHelper {
             if (mTouchVelocityTracker != null) {
                 mTouchVelocityTracker.addMovement(event);
             }
+            if (mStackDragActive) return false;
             final float dx = Math.abs(event.getX() - mTouchDownX);
             final float dy = event.getY() - mTouchDownY;
             if (!mHorizontalDragStarted
@@ -1507,7 +1737,8 @@ public final class AliceTabStackHelper {
         void snapToNearestCard() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             mSnapPending = true;
-            if (mUserInteractionActive
+            if (mStackDragActive
+                    || mUserInteractionActive
                     || mSwipeCommitted
                     || mSwipeReplacementActive
                     || mSwipePushActive) {
@@ -1519,7 +1750,7 @@ public final class AliceTabStackHelper {
         private void beginPredictiveSnap() {
             mRecyclerView.removeCallbacks(mSnapRunnable);
             mPredictiveSnapRequested = false;
-            if (mUserInteractionActive || mSwipeCommitted) return;
+            if (mStackDragActive || mUserInteractionActive || mSwipeCommitted) return;
             if (mRecyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
                 mRecyclerView.stopScroll();
             }
@@ -1528,7 +1759,8 @@ public final class AliceTabStackHelper {
 
         private void performSnap() {
             if (!mSnapPending) return;
-            if (mUserInteractionActive
+            if (mStackDragActive
+                    || mUserInteractionActive
                     || mSwipeCommitted
                     || mSwipeReplacementActive
                     || mSwipePushActive) {
@@ -1569,9 +1801,34 @@ public final class AliceTabStackHelper {
 
         @Override
         public void scrollToPositionWithOffset(int position, int offset) {
+            final StackTraceElement[] stackTrace = new Throwable().getStackTrace();
+            Log.i(
+                    TAG,
+                    "position-request t=%d position=%d offset=%d progress=%.4f drag=%b caller=%s",
+                    android.os.SystemClock.uptimeMillis(),
+                    position,
+                    offset,
+                    mProgress,
+                    mStackDragActive,
+                    stackTrace.length > 1 ? stackTrace[1] : "unknown");
             mPendingScroll = true;
             mPendingPosition = position;
             requestLayout();
+        }
+
+        @Override
+        public void prepareForDrop(View view, View target, int x, int y) {
+            if (!mStackDragActive) {
+                super.prepareForDrop(view, target, x, y);
+                return;
+            }
+            Log.i(
+                    TAG,
+                    "prepare-drop-blocked t=%d progress=%.4f from=%d to=%d",
+                    android.os.SystemClock.uptimeMillis(),
+                    mProgress,
+                    mRecyclerView.getChildAdapterPosition(view),
+                    mRecyclerView.getChildAdapterPosition(target));
         }
 
         @Override
@@ -1844,8 +2101,13 @@ public final class AliceTabStackHelper {
                         child, left, top, left + cardWidthPx, top + cardHeightPx);
                 sStackCards.put(child, true);
                 if (!isTapAnimating(child)) {
-                    applyChildTransform(child, getEffectiveDistance(position));
+                    applyLayoutChildTransform(child, getEffectiveDistance(position));
                 }
+                final float targetZ = mStackDragActive ? position * 0.001f : 0f;
+                if (Math.abs(child.getTranslationZ() - targetZ) > 0.0001f) {
+                    child.setTranslationZ(targetZ);
+                }
+                applyReorderAvoidanceTranslation(child, left);
                 applySwipeUndoDropTranslation(child, position);
             }
             if (mSwipeReplacementActive) {
@@ -1873,11 +2135,67 @@ public final class AliceTabStackHelper {
         }
 
         private int getCardLeftPx(int position, int cardWidthPx, int itemCount) {
-            return AliceTabStackHelper.getCardLeftPx(
-                    getEffectiveDistance(position),
-                    getWidth(),
-                    cardWidthPx,
-                    getCardInsetPx());
+            final int normalLeft =
+                    AliceTabStackHelper.getCardLeftPx(
+                            getEffectiveDistance(position),
+                            getWidth(),
+                            cardWidthPx,
+                            getCardInsetPx());
+            if (mReorderExpansionProgress <= 0f) return normalLeft;
+            final float expandedLeft =
+                    (getWidth() - cardWidthPx) / 2f
+                            + (position - mProgress)
+                                    * cardWidthPx
+                                    * REORDER_STEP_FRACTION;
+            return Math.round(
+                    normalLeft
+                            + (expandedLeft - normalLeft)
+                                    * mReorderExpansionProgress);
+        }
+
+        private void applyLayoutChildTransform(View child, float distance) {
+            final float normalScale = getScaleForDistance(distance);
+            final float scale =
+                    normalScale
+                            + (REORDER_SCALE - normalScale)
+                                    * mReorderExpansionProgress;
+            final float pivotX = child.getWidth() / 2f;
+            final float pivotY = child.getHeight() / 2f;
+            if (child.getPivotX() != pivotX) child.setPivotX(pivotX);
+            if (child.getPivotY() != pivotY) child.setPivotY(pivotY);
+            if (Math.abs(child.getScaleX() - scale) > 0.001f) child.setScaleX(scale);
+            if (Math.abs(child.getScaleY() - scale) > 0.001f) child.setScaleY(scale);
+            if (!mReorderAvoidingViews.containsKey(child)
+                    && child.getTranslationX() != 0f) {
+                child.setTranslationX(0f);
+            }
+        }
+
+        private void applyReorderAvoidanceTranslation(View child, int newLeft) {
+            Integer startLeft = mReorderAvoidanceStartLefts.remove(child);
+            if (startLeft == null) return;
+            final int startTranslationX = startLeft - newLeft;
+            if (startTranslationX == 0) return;
+            child.animate().cancel();
+            final int generation = ++mReorderAvoidanceGeneration;
+            mReorderAvoidingViews.put(child, true);
+            mReorderAvoidanceGenerations.put(child, generation);
+            child.setTranslationX(startTranslationX);
+            child.animate()
+                    .translationX(0f)
+                    .setDuration(REORDER_AVOIDANCE_DURATION_MS)
+                    .setInterpolator(REORDER_AVOIDANCE_INTERPOLATOR)
+                    .withEndAction(
+                            () -> {
+                                if (!Integer.valueOf(generation)
+                                        .equals(mReorderAvoidanceGenerations.get(child))) {
+                                    return;
+                                }
+                                mReorderAvoidanceGenerations.remove(child);
+                                mReorderAvoidingViews.remove(child);
+                                child.setTranslationX(0f);
+                            })
+                    .start();
         }
 
         private void applySwipeUndoDropTranslation(View child, int position) {
@@ -2077,7 +2395,14 @@ sed -i '/^        final GridLayoutManager layoutManager =$/i\
         // Alice patch end 0036\
 ' "$path1"
 
-# ---------- 6) TabGridItemTouchHelperCallback：上滑关闭、禁用左右拖拽 ----------
+# 横向牌堆由 ItemTouchHelper 自己处理长按拖拽，外部拖拽会吞掉排序手势。
+sed -i '/^        public boolean handleLongPress(MotionEvent event) {$/a\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.isStackLayout(mRecyclerView)) return false;\
+        // Alice patch end 0036\
+' "$path1"
+
+# ---------- 6) TabGridItemTouchHelperCallback：上滑关闭、水平拖拽排序 ----------
 sed -i '/^import android.view.View;$/a\
 // Alice patch start 0036\
 import android.view.animation.Interpolator;\
@@ -2101,27 +2426,59 @@ sed -i '/^    private float mSwipeToDismissThreshold;$/a\
     private static final float ALICE_STACK_SWIPE_THRESHOLD_DP = 300f;\
     private static final float ALICE_STACK_SWIPE_EXIT_SPEED_PX_PER_MS = 8f;\
     private static final float ALICE_STACK_SWIPE_CANCEL_SPEED_PX_PER_MS = 2.4f;\
+    private static final float ALICE_REORDER_AUTO_SCROLL_STEP_DP = 4f;\
+    private static final float ALICE_REORDER_AUTO_SCROLL_EDGE_STEP_DP = 12f;\
+    private static final float ALICE_REORDER_AUTO_SCROLL_EDGE_THRESHOLD_DP = 24f;\
     private int mAliceSwipePosition = RecyclerView.NO_POSITION;\
     private int mAliceRecoverAnimationType = ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL;\
+    private int mAliceDragPosition = RecyclerView.NO_POSITION;\
     // Alice patch end 0036\
 ' "$path2"
 
-sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n            Log.i(\n                    TAG,\n                    "swipe select anchor=%d action=%d count=%d",\n                    mAliceSwipePosition,\n                    actionState,\n                    recyclerView != null \&\& recyclerView.getAdapter() != null\n                            ? recyclerView.getAdapter().getItemCount()\n                            : 0);\n        }\n        // Alice patch end 0036|' "$path2"
+sed -i '/^        mSelectedTabIndex = toViewHolder.getAdapterPosition();$/i\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+            Log.i(\
+                    TAG,\
+                    "reorder-move t=%d from=%d to=%d",\
+                    android.os.SystemClock.uptimeMillis(),\
+                    fromViewHolder.getBindingAdapterPosition(),\
+                    toViewHolder.getBindingAdapterPosition());\
+            AliceTabStackHelper.prepareReorderAvoidance(\
+                    recyclerView, fromViewHolder.getBindingAdapterPosition());\
+        }\
+        // Alice patch end 0036\
+' "$path2"
+
+sed -i '/^        RecordUserAction.record("TabGrid.Drag.Reordered." + mComponentName);$/i\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+            mAliceDragPosition = mSelectedTabIndex;\
+        }\
+        // Alice patch end 0036\
+' "$path2"
+
+sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\n            if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {\n                assumeNonNull(viewHolder);\n                mAliceDragPosition = viewHolder.getBindingAdapterPosition();\n                mHoveredTabIndex = TabModel.INVALID_TAB_INDEX;\n                mPreviousArchivedMessageCardIndex = TabModel.INVALID_TAB_INDEX;\n                mUnGroupTabIndex = TabModel.INVALID_TAB_INDEX;\n                AliceTabStackHelper.setStackDragActive(recyclerView, true);\n            } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {\n                AliceTabStackHelper.setStackDragTarget(\n                        recyclerView, mAliceDragPosition);\n                AliceTabStackHelper.setStackDragActive(recyclerView, false);\n                mAliceDragPosition = RecyclerView.NO_POSITION;\n            }\n        }\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n            Log.i(\n                    TAG,\n                    "swipe select anchor=%d action=%d count=%d",\n                    mAliceSwipePosition,\n                    actionState,\n                    recyclerView != null \&\& recyclerView.getAdapter() != null\n                            ? recyclerView.getAdapter().getItemCount()\n                            : 0);\n        }\n        // Alice patch end 0036|' "$path2"
 
 sed -i '/^    public int getMovementFlags(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {$/a\
         // Alice patch start 0036\
-        // 横向堆叠样式：卡片不参与拖拽排序，只支持上滑关闭。\
+        // 横向堆叠样式：长按只做水平拖拽排序，扫动仍用于滚动，上滑用于关闭。\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
             final boolean blockUpSwipe =\
                     AliceTabStackHelper.shouldBlockUpSwipeAfterHorizontalDrag(\
                             recyclerView);\
+            final int dragFlags =\
+                    isMessageType(viewHolder)\
+                            ? 0\
+                            : ItemTouchHelper.START | ItemTouchHelper.END;\
             int swipeFlags = blockUpSwipe ? 0 : ItemTouchHelper.UP;\
             if (!blockUpSwipe\
                     \&\& AliceTabStackHelper.consumeDiagonalUpSwipeDirectionBypass(\
                             recyclerView)) {\
                 swipeFlags |= ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT;\
             }\
-            return makeMovementFlags(0, isSwipeable(viewHolder) ? swipeFlags : 0);\
+            return makeMovementFlags(\
+                    dragFlags, isSwipeable(viewHolder) ? swipeFlags : 0);\
         }\
         // Alice patch end 0036\
 ' "$path2"
@@ -2207,6 +2564,76 @@ sed -i '/^    public long getAnimationDuration($/i\
 ' "$path2"
 
 sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder) {$/i\
+    @Override\
+    public float getDragItemRecoveryTranslationZ(\
+            RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {\
+        // Alice patch start 0036\
+        if (!AliceTabStackHelper.isStackLayout(recyclerView)) return 0f;\
+        final int position =\
+                mAliceDragPosition != RecyclerView.NO_POSITION\
+                        ? mAliceDragPosition\
+                        : viewHolder.getBindingAdapterPosition();\
+        return Math.max(0, position) * 0.001f;\
+        // Alice patch end 0036\
+    }\
+    @Override\
+    public boolean shouldKeepDragItemElevatedDuringRecovery(\
+            RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {\
+        // Alice patch start 0036\
+        return !AliceTabStackHelper.isStackLayout(recyclerView);\
+        // Alice patch end 0036\
+    }\
+    @Override\
+    public boolean shouldCenterDragUnderTouch(\
+            RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {\
+        // Alice patch start 0036\
+        return AliceTabStackHelper.isStackLayout(recyclerView);\
+        // Alice patch end 0036\
+    }\
+    @Override\
+    public boolean shouldUseConstantOutOfBoundsScroll(RecyclerView recyclerView) {\
+        // Alice patch start 0036\
+        return AliceTabStackHelper.isStackLayout(recyclerView)\
+                \&\& !shouldBlockOutOfBoundsScroll();\
+        // Alice patch end 0036\
+    }\
+    @Override\
+    public int getConstantOutOfBoundsScroll(\
+            RecyclerView recyclerView,\
+            int viewSize,\
+            int viewSizeOutOfBounds,\
+            int totalSize) {\
+        // Alice patch start 0036\
+        final float density = recyclerView.getResources().getDisplayMetrics().density;\
+        final boolean nearEdge =\
+                Math.abs(viewSizeOutOfBounds)\
+                        >= ALICE_REORDER_AUTO_SCROLL_EDGE_THRESHOLD_DP * density;\
+        final float stepDp =\
+                nearEdge\
+                        ? ALICE_REORDER_AUTO_SCROLL_EDGE_STEP_DP\
+                        : ALICE_REORDER_AUTO_SCROLL_STEP_DP;\
+        Log.i(\
+                TAG,\
+                "constant-scroll t=%d out=%d edge=%b step=%.1f",\
+                android.os.SystemClock.uptimeMillis(),\
+                viewSizeOutOfBounds,\
+                nearEdge,\
+                stepDp);\
+        return Math.max(\
+                1,\
+                Math.round(stepDp * density));\
+        // Alice patch end 0036\
+    }\
+    @Override\
+    public float getMoveThreshold(RecyclerView.ViewHolder viewHolder) {\
+        // Alice patch start 0036\
+        if (AliceTabStackHelper.isStackLayout(mRecyclerViewSupplier.get())) {\
+            return 0.15f;\
+        }\
+        // Alice patch end 0036\
+        return super.getMoveThreshold(viewHolder);\
+    }\
+    @Override\
     public float getSwipeEscapeVelocity(float defaultValue) {\
         // Alice patch start 0036\
         // 横向牌堆允许更短的上滑手势；速度快时不应因为位移不足而回弹。\
@@ -2219,10 +2646,17 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
     @Override\
 ' "$path2"
 
+sed -i 's|^        if (actionState == ItemTouchHelper.ACTION_STATE_DRAG$|        if (actionState == ItemTouchHelper.ACTION_STATE_DRAG\n                // Alice patch start 0036\n                \&\& !AliceTabStackHelper.isStackLayout(recyclerView)\n                // Alice patch end 0036|' "$path2"
+
+sed -i 's|^        } else if (actionState == ItemTouchHelper.ACTION_STATE_DRAG$|        } else if (actionState == ItemTouchHelper.ACTION_STATE_DRAG\n                // Alice patch start 0036\n                \&\& !AliceTabStackHelper.isStackLayout(recyclerView)\n                // Alice patch end 0036|' "$path2"
+
+sed -i 's|^        if (mTabGridItemLongPressOrchestrator != null && viewHolder != null) {$|        if (mTabGridItemLongPressOrchestrator != null\n                // Alice patch start 0036\n                \&\& !AliceTabStackHelper.isStackLayout(recyclerView)\n                // Alice patch end 0036\n                \&\& viewHolder != null) {|' "$path2"
+
 sed -i '/^        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);$/i\
         // Alice patch start 0036\
         // 斜上滑按关闭处理时，不允许横向分量拖动卡片。\
-        if (AliceTabStackHelper.isDiagonalUpSwipeCandidate(recyclerView)) {\
+        if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE\
+                \&\& AliceTabStackHelper.isDiagonalUpSwipeCandidate(recyclerView)) {\
             dX = 0f;\
         }\
         // Alice patch end 0036\
@@ -2231,7 +2665,8 @@ sed -i '/^        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionS
 sed -i '/^        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);$/a\
         // Alice patch start 0036\
         // 横向牌堆中禁止 ItemTouchHelper 提升被拖卡片层级。\
-        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
+        if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE\
+                \&\& AliceTabStackHelper.isStackLayout(recyclerView)) {\
             viewHolder.itemView.setTranslationZ(0f);\
             viewHolder.itemView.setElevation(0f);\
             // 回收动画继续驱动挤压视觉，但不能覆盖最后一次真实上滑距离。\
@@ -2304,6 +2739,132 @@ sed -i '/^        super.clearView(recyclerView, viewHolder);$/a\
         AliceTabStackHelper.onSwipeCleared(recyclerView);\
         // Alice patch end 0036\
 ' "$path2"
+
+sed -i '/^                                    mRecyclerView.removeCallbacks(mScrollRunnable);$/,/^                                    mRecyclerView.invalidate();$/c\
+                                    mRecyclerView.removeCallbacks(mScrollRunnable);\
+                                    // Alice patch start 0036\
+                                    if (mCallback.shouldUseConstantOutOfBoundsScroll(\
+                                            mRecyclerView)) {\
+                                        ViewCompat.postOnAnimation(\
+                                                mRecyclerView, mScrollRunnable);\
+                                    } else {\
+                                    // Alice patch end 0036\
+                                        mScrollRunnable.run();\
+                                    // Alice patch start 0036\
+                                    }\
+                                    // Alice patch end 0036\
+                                    mRecyclerView.invalidate();\
+' "$path19"
+
+sed -i '/^            mSelectedStartY = selected.itemView.getTop();$/a\
+            // Alice patch start 0036\
+            if (actionState == ACTION_STATE_DRAG\
+                    \&\& mCallback.shouldCenterDragUnderTouch(mRecyclerView, selected)) {\
+                mDx =\
+                        mInitialTouchX\
+                                - (mSelectedStartX + selected.itemView.getWidth() / 2f);\
+                mInitialTouchX =\
+                        mSelectedStartX + selected.itemView.getWidth() / 2f;\
+            }\
+            // Alice patch end 0036\
+' "$path19"
+
+sed -i '/^        if (scrollX != 0) {$/,/^        }$/c\
+        if (scrollX != 0) {\
+            // Alice patch start 0036\
+            final boolean constantScroll =\
+                    mCallback.shouldUseConstantOutOfBoundsScroll(mRecyclerView);\
+            Log.i(\
+                    "AliceScroll",\
+                    "scroll-call t="\
+                            + android.os.SystemClock.uptimeMillis()\
+                            + " rawX="\
+                            + scrollX\
+                            + " constant="\
+                            + constantScroll);\
+            if (constantScroll) {\
+                scrollX =\
+                        Integer.signum(scrollX)\
+                                * mCallback.getConstantOutOfBoundsScroll(\
+                                        mRecyclerView,\
+                                        mSelected.itemView.getWidth(),\
+                                        scrollX,\
+                                        mRecyclerView.getWidth());\
+            } else {\
+            // Alice patch end 0036\
+                scrollX =\
+                        mCallback.interpolateOutOfBoundsScroll(\
+                                mRecyclerView,\
+                                mSelected.itemView.getWidth(),\
+                                scrollX,\
+                                mRecyclerView.getWidth(),\
+                                scrollDuration);\
+            // Alice patch start 0036\
+            }\
+            // Alice patch end 0036\
+        }\
+' "$path19"
+
+sed -i '/^        if (scrollY != 0) {$/,/^        }$/c\
+        if (scrollY != 0) {\
+            // Alice patch start 0036\
+            if (mCallback.shouldUseConstantOutOfBoundsScroll(mRecyclerView)) {\
+                scrollY =\
+                        Integer.signum(scrollY)\
+                                * mCallback.getConstantOutOfBoundsScroll(\
+                                        mRecyclerView,\
+                                        mSelected.itemView.getHeight(),\
+                                        scrollY,\
+                                        mRecyclerView.getHeight());\
+            } else {\
+            // Alice patch end 0036\
+                scrollY =\
+                        mCallback.interpolateOutOfBoundsScroll(\
+                                mRecyclerView,\
+                                mSelected.itemView.getHeight(),\
+                                scrollY,\
+                                mRecyclerView.getHeight(),\
+                                scrollDuration);\
+            // Alice patch start 0036\
+            }\
+            // Alice patch end 0036\
+        }\
+' "$path19"
+
+sed -i '/^                mRecoverAnimations.add(rv);$/i\
+                // Alice patch start 0036\
+                if (prevActionState == ACTION_STATE_DRAG\
+                        \&\& !mCallback.shouldKeepDragItemElevatedDuringRecovery(\
+                                mRecyclerView, prevSelected)) {\
+                    final View itemView = prevSelected.itemView;\
+                    final Object originalElevation =\
+                            itemView.getTag(R.id.item_touch_helper_previous_elevation);\
+                    if (originalElevation instanceof Float) {\
+                        ViewCompat.setElevation(itemView, (Float) originalElevation);\
+                    }\
+                    itemView.setTag(R.id.item_touch_helper_previous_elevation, null);\
+                    itemView.setTranslationZ(\
+                            mCallback.getDragItemRecoveryTranslationZ(\
+                                    mRecyclerView, prevSelected));\
+                    removeChildDrawingOrderCallbackIfNecessary(itemView);\
+                }\
+                // Alice patch end 0036\
+' "$path19"
+
+sed -i '/^        public int interpolateOutOfBoundsScroll(/,/^        }$/ s#^        }$#&\n        // Alice patch start 0036\n        public boolean shouldCenterDragUnderTouch(\n                @NonNull RecyclerView recyclerView, @NonNull ViewHolder viewHolder) {\n            return false;\n        }\n\n        public boolean shouldUseConstantOutOfBoundsScroll(\n                @NonNull RecyclerView recyclerView) {\n            return false;\n        }\n\n        public int getConstantOutOfBoundsScroll(\n                @NonNull RecyclerView recyclerView,\n                int viewSize,\n                int viewSizeOutOfBounds,\n                int totalSize) {\n            return 0;\n        }\n        // Alice patch end 0036#' "$path19"
+
+sed -i '/^        public boolean shouldCenterDragUnderTouch($/i\
+        public float getDragItemRecoveryTranslationZ(\
+                @NonNull RecyclerView recyclerView, @NonNull ViewHolder viewHolder) {\
+            return 0f;\
+        }\
+\
+        public boolean shouldKeepDragItemElevatedDuringRecovery(\
+                @NonNull RecyclerView recyclerView, @NonNull ViewHolder viewHolder) {\
+            return true;\
+        }\
+\
+' "$path19"
 
 sed -i '/^                rv.setDuration(duration);$/a\
                 // Alice patch start 0036\
