@@ -64,7 +64,6 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -84,8 +83,6 @@ import java.util.WeakHashMap;
  */
 @NullMarked
 public final class AliceTabStackHelper {
-    private static final String TAG = "AliceStack";
-
     /** SharedPreferences key（与设置页保持一致）。 */
     public static final String PREF_TAB_SWITCHER_STYLE = "alice_tab_switcher_style";
 
@@ -105,7 +102,7 @@ public final class AliceTabStackHelper {
     public static final float CARD_HEIGHT_FRACTION = 0.85f;
 
     /** 拖动一张卡片所需的位移。 */
-    private static final float SCROLL_STEP_FRACTION = 0.6f;
+    private static final float SCROLL_STEP_FRACTION = 0.5f;
 
     /** 长按排序时卡片缩放比例。 */
     private static final float REORDER_SCALE = 0.75f;
@@ -120,9 +117,9 @@ public final class AliceTabStackHelper {
     private static final long REORDER_AVOIDANCE_DURATION_MS = 520L;
 
     /** 长按拖到边缘时普通和近边缘两档固定滚动距离。 */
-    private static final float REORDER_AUTO_SCROLL_MIN_STEP_DP = 4f;
+    private static final float REORDER_AUTO_SCROLL_MIN_STEP_DP = 3.5f;
 
-    private static final float REORDER_AUTO_SCROLL_MAX_STEP_DP = 12f;
+    private static final float REORDER_AUTO_SCROLL_MAX_STEP_DP = 15f;
 
     private static final android.view.animation.Interpolator REORDER_AVOIDANCE_INTERPOLATOR =
             org.chromium.chrome.browser.hub.HubAnimationConstants
@@ -559,11 +556,11 @@ public final class AliceTabStackHelper {
 
     /** 记录其他卡片当前位置，供下一次排序交换时做柔和让位动画。 */
     public static void prepareReorderAvoidance(
-            @Nullable RecyclerView recyclerView, int selectedPosition) {
+            @Nullable RecyclerView recyclerView, View selectedView) {
         if (recyclerView == null) return;
         RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
         if (layoutManager instanceof AliceStackLayoutManager stackLayoutManager) {
-            stackLayoutManager.prepareReorderAvoidance(selectedPosition);
+            stackLayoutManager.prepareReorderAvoidance(selectedView);
         }
     }
 
@@ -816,7 +813,6 @@ public final class AliceTabStackHelper {
         private float mSwipeReplacementTargetProgress;
         private float mSwipeReplacementStartSwipeProgress;
         private float mSwipeReplacementStartPushProgress;
-        private int mSwipeReplacementLastLoggedTenth = -1;
         private boolean mSwipeUndoOffsetValid;
         private float mSwipeUndoRelativeOffset;
         private int mSwipeUndoRestoredPosition = RecyclerView.NO_POSITION;
@@ -874,17 +870,7 @@ public final class AliceTabStackHelper {
             if (mPendingScroll && mPendingPosition != RecyclerView.NO_POSITION) {
                 final int position =
                         Math.max(0, Math.min(itemCount - 1, mPendingPosition));
-                final float previousProgress = mProgress;
                 mProgress = clampProgress(position, itemCount);
-                if (mStackDragActive) {
-                    Log.i(
-                            TAG,
-                            "layout-pending t=%d old=%.4f position=%d new=%.4f",
-                            android.os.SystemClock.uptimeMillis(),
-                            previousProgress,
-                            position,
-                            mProgress);
-                }
                 mPendingScroll = false;
                 mPendingPosition = RecyclerView.NO_POSITION;
             } else if (!mDidInitialLayout) {
@@ -926,15 +912,6 @@ public final class AliceTabStackHelper {
             } else {
                 scrollDx = dx;
             }
-            if (mStackDragActive) {
-                Log.i(
-                        TAG,
-                        "reorder-scroll t=%d raw=%d used=%d progress=%.4f",
-                        android.os.SystemClock.uptimeMillis(),
-                        dx,
-                        scrollDx,
-                        mProgress);
-            }
             final int cardWidthPx = getLayoutCardWidthPx();
             final int cardHeightPx = getLayoutCardHeightPx();
             final float stepPx = cardWidthPx * SCROLL_STEP_FRACTION;
@@ -970,15 +947,6 @@ public final class AliceTabStackHelper {
                                 itemCount);
                 mSwipeReplacementStartSwipeProgress = clampedSwipeProgress;
                 mSwipeReplacementStartPushProgress = mSwipePushProgress;
-                mSwipeReplacementLastLoggedTenth = -1;
-                Log.i(
-                        TAG,
-                        "replacement init anchor=%d start=%.3f target=%.3f swipe=%.3f count=%d",
-                        anchorPosition,
-                        mSwipeReplacementStartProgress,
-                        mSwipeReplacementTargetProgress,
-                        clampedSwipeProgress,
-                        itemCount);
             }
 
             final float remainingSwipeProgress =
@@ -1002,31 +970,11 @@ public final class AliceTabStackHelper {
             mSwipePushProgress =
                     mSwipeReplacementStartPushProgress * (1f - fraction);
             mSwipePushActive = mSwipePushProgress > 0.001f;
-            final int loggedTenth = Math.round(fraction * 10f);
-            if (loggedTenth != mSwipeReplacementLastLoggedTenth) {
-                mSwipeReplacementLastLoggedTenth = loggedTenth;
-                Log.i(
-                        TAG,
-                        "replacement update fraction=%.3f progress=%.3f count=%d",
-                        fraction,
-                        mProgress,
-                        mRecyclerView.getAdapter() == null
-                                ? 0
-                                : mRecyclerView.getAdapter().getItemCount());
-            }
             mRecyclerView.requestLayout();
         }
 
         void finishSwipeReplacementAndThen(
                 int anchorPosition, @Nullable Runnable onComplete) {
-            Log.i(
-                    TAG,
-                    "replacement finish-before anchor=%d progress=%.3f count=%d",
-                    anchorPosition,
-                    mProgress,
-                    mRecyclerView.getAdapter() == null
-                            ? 0
-                            : mRecyclerView.getAdapter().getItemCount());
             updateSwipeReplacement(anchorPosition, 1f);
             mProgress = mSwipeReplacementTargetProgress;
             mSwipeReplacementFraction = 1f;
@@ -1040,13 +988,6 @@ public final class AliceTabStackHelper {
             if (onComplete != null) {
                 runWithoutItemAnimations(onComplete);
             }
-            Log.i(
-                    TAG,
-                    "replacement finish-after progress=%.3f count=%d",
-                    mProgress,
-                    mRecyclerView.getAdapter() == null
-                            ? 0
-                            : mRecyclerView.getAdapter().getItemCount());
             mDismissingPosition = RecyclerView.NO_POSITION;
             mSwipeReplacementActive = false;
             mSwipeReplacementFraction = 0f;
@@ -1189,11 +1130,11 @@ public final class AliceTabStackHelper {
             mPredictedSnapTarget = position;
         }
 
-        void prepareReorderAvoidance(int selectedPosition) {
+        void prepareReorderAvoidance(View selectedView) {
             mReorderAvoidanceStartLefts.clear();
             for (int i = 0; i < getChildCount(); i++) {
                 View child = getChildAt(i);
-                if (child == null || getPosition(child) == selectedPosition) continue;
+                if (child == null || child == selectedView) continue;
                 mReorderAvoidanceStartLefts.put(
                         child,
                         Math.round(child.getLeft() + child.getTranslationX()));
@@ -1801,16 +1742,6 @@ public final class AliceTabStackHelper {
 
         @Override
         public void scrollToPositionWithOffset(int position, int offset) {
-            final StackTraceElement[] stackTrace = new Throwable().getStackTrace();
-            Log.i(
-                    TAG,
-                    "position-request t=%d position=%d offset=%d progress=%.4f drag=%b caller=%s",
-                    android.os.SystemClock.uptimeMillis(),
-                    position,
-                    offset,
-                    mProgress,
-                    mStackDragActive,
-                    stackTrace.length > 1 ? stackTrace[1] : "unknown");
             mPendingScroll = true;
             mPendingPosition = position;
             requestLayout();
@@ -1820,15 +1751,7 @@ public final class AliceTabStackHelper {
         public void prepareForDrop(View view, View target, int x, int y) {
             if (!mStackDragActive) {
                 super.prepareForDrop(view, target, x, y);
-                return;
             }
-            Log.i(
-                    TAG,
-                    "prepare-drop-blocked t=%d progress=%.4f from=%d to=%d",
-                    android.os.SystemClock.uptimeMillis(),
-                    mProgress,
-                    mRecyclerView.getChildAdapterPosition(view),
-                    mRecyclerView.getChildAdapterPosition(target));
         }
 
         @Override
@@ -1852,12 +1775,6 @@ public final class AliceTabStackHelper {
             mPendingScroll = false;
             mPendingPosition = RecyclerView.NO_POSITION;
             mSwipeUndoOffsetValid = false;
-            Log.i(
-                    TAG,
-                    "swipe undo restore position=%d progress=%.3f count=%d",
-                    position,
-                    targetProgress,
-                    itemCount);
             mSwipeUndoRestoredPosition =
                     Math.max(0, Math.min(itemCount - 1, position));
             mSwipeUndoAvoidanceProgress = 1f;
@@ -2110,28 +2027,6 @@ public final class AliceTabStackHelper {
                 applyReorderAvoidanceTranslation(child, left);
                 applySwipeUndoDropTranslation(child, position);
             }
-            if (mSwipeReplacementActive) {
-                StringBuilder cards = new StringBuilder();
-                for (int i = 0; i < getChildCount(); i++) {
-                    View child = getChildAt(i);
-                    if (child == null) continue;
-                    if (cards.length() > 0) cards.append(',');
-                    cards.append(getPosition(child))
-                            .append(':')
-                            .append(child.getLeft())
-                            .append('-')
-                            .append(child.getRight());
-                }
-                Log.i(
-                        TAG,
-                        "replacement layout count=%d progress=%.3f fraction=%.3f"
-                                + " dismissing=%d cards=%s",
-                        itemCount,
-                        mProgress,
-                        mSwipeReplacementFraction,
-                        mDismissingPosition,
-                        cards);
-            }
         }
 
         private int getCardLeftPx(int position, int cardWidthPx, int itemCount) {
@@ -2165,7 +2060,8 @@ public final class AliceTabStackHelper {
             if (child.getPivotY() != pivotY) child.setPivotY(pivotY);
             if (Math.abs(child.getScaleX() - scale) > 0.001f) child.setScaleX(scale);
             if (Math.abs(child.getScaleY() - scale) > 0.001f) child.setScaleY(scale);
-            if (!mReorderAvoidingViews.containsKey(child)
+            if (!mStackDragActive
+                    && !mReorderAvoidingViews.containsKey(child)
                     && child.getTranslationX() != 0f) {
                 child.setTranslationX(0f);
             }
@@ -2409,26 +2305,13 @@ import android.view.animation.Interpolator;\
 // Alice patch end 0036\
 ' "$path2"
 
-sed -i '/^import org.chromium.base.ResettersForTesting;$/i\
-// Alice patch start 0036\
-import org.chromium.base.Log;\
-// Alice patch end 0036\
-' "$path2"
-
-sed -i '/^public class TabGridItemTouchHelperCallback extends TabListItemTouchHelperCallback {$/a\
-    // Alice patch start 0036\
-    private static final String TAG = "TabGridSwipe";\
-    // Alice patch end 0036\
-' "$path2"
-
 sed -i '/^    private float mSwipeToDismissThreshold;$/a\
     // Alice patch start 0036\
     private static final float ALICE_STACK_SWIPE_THRESHOLD_DP = 300f;\
     private static final float ALICE_STACK_SWIPE_EXIT_SPEED_PX_PER_MS = 8f;\
     private static final float ALICE_STACK_SWIPE_CANCEL_SPEED_PX_PER_MS = 2.4f;\
-    private static final float ALICE_REORDER_AUTO_SCROLL_STEP_DP = 4f;\
-    private static final float ALICE_REORDER_AUTO_SCROLL_EDGE_STEP_DP = 12f;\
-    private static final float ALICE_REORDER_AUTO_SCROLL_EDGE_THRESHOLD_DP = 24f;\
+    private static final float ALICE_REORDER_AUTO_SCROLL_STEP_DP = 3.5f;\
+    private static final float ALICE_REORDER_AUTO_SCROLL_EDGE_STEP_DP = 15f;\
     private int mAliceSwipePosition = RecyclerView.NO_POSITION;\
     private int mAliceRecoverAnimationType = ItemTouchHelper.ANIMATION_TYPE_SWIPE_CANCEL;\
     private int mAliceDragPosition = RecyclerView.NO_POSITION;\
@@ -2438,14 +2321,8 @@ sed -i '/^    private float mSwipeToDismissThreshold;$/a\
 sed -i '/^        mSelectedTabIndex = toViewHolder.getAdapterPosition();$/i\
         // Alice patch start 0036\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
-            Log.i(\
-                    TAG,\
-                    "reorder-move t=%d from=%d to=%d",\
-                    android.os.SystemClock.uptimeMillis(),\
-                    fromViewHolder.getBindingAdapterPosition(),\
-                    toViewHolder.getBindingAdapterPosition());\
             AliceTabStackHelper.prepareReorderAvoidance(\
-                    recyclerView, fromViewHolder.getBindingAdapterPosition());\
+                    recyclerView, fromViewHolder.itemView);\
         }\
         // Alice patch end 0036\
 ' "$path2"
@@ -2458,7 +2335,7 @@ sed -i '/^        RecordUserAction.record("TabGrid.Drag.Reordered." + mComponent
         // Alice patch end 0036\
 ' "$path2"
 
-sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\n            if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {\n                assumeNonNull(viewHolder);\n                mAliceDragPosition = viewHolder.getBindingAdapterPosition();\n                mHoveredTabIndex = TabModel.INVALID_TAB_INDEX;\n                mPreviousArchivedMessageCardIndex = TabModel.INVALID_TAB_INDEX;\n                mUnGroupTabIndex = TabModel.INVALID_TAB_INDEX;\n                AliceTabStackHelper.setStackDragActive(recyclerView, true);\n            } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {\n                AliceTabStackHelper.setStackDragTarget(\n                        recyclerView, mAliceDragPosition);\n                AliceTabStackHelper.setStackDragActive(recyclerView, false);\n                mAliceDragPosition = RecyclerView.NO_POSITION;\n            }\n        }\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n            Log.i(\n                    TAG,\n                    "swipe select anchor=%d action=%d count=%d",\n                    mAliceSwipePosition,\n                    actionState,\n                    recyclerView != null \&\& recyclerView.getAdapter() != null\n                            ? recyclerView.getAdapter().getItemCount()\n                            : 0);\n        }\n        // Alice patch end 0036|' "$path2"
+sed -i '/^    public void onSelectedChanged(/,/^    }$/ s|^        @Nullable RecyclerView recyclerView = mRecyclerViewSupplier.get();$|&\n        // Alice patch start 0036\n        final boolean aliceSwipeSelected =\n                actionState == ItemTouchHelper.ACTION_STATE_SWIPE\n                        \&\& viewHolder != null\n                        \&\& AliceTabStackHelper.isStackLayout(recyclerView);\n        if (AliceTabStackHelper.isStackLayout(recyclerView)) {\n            if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {\n                assumeNonNull(viewHolder);\n                mAliceDragPosition = viewHolder.getBindingAdapterPosition();\n                mHoveredTabIndex = TabModel.INVALID_TAB_INDEX;\n                mPreviousArchivedMessageCardIndex = TabModel.INVALID_TAB_INDEX;\n                mUnGroupTabIndex = TabModel.INVALID_TAB_INDEX;\n                AliceTabStackHelper.setStackDragActive(recyclerView, true);\n            } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {\n                AliceTabStackHelper.setStackDragTarget(\n                        recyclerView, mAliceDragPosition);\n                AliceTabStackHelper.setStackDragActive(recyclerView, false);\n                mAliceDragPosition = RecyclerView.NO_POSITION;\n            }\n        }\n        if (aliceSwipeSelected) {\n            assumeNonNull(viewHolder);\n            mAliceSwipePosition = viewHolder.getBindingAdapterPosition();\n        }\n        // Alice patch end 0036|' "$path2"
 
 sed -i '/^    public int getMovementFlags(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {$/a\
         // Alice patch start 0036\
@@ -2512,16 +2389,6 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
         // Alice patch start 0036\
         if (AliceTabStackHelper.isStackLayout(recyclerView)) {\
             mAliceRecoverAnimationType = animationType;\
-            Log.i(\
-                    TAG,\
-                    "swipe animation type=%d dx=%.1f dy=%.1f anchor=%d count=%d",\
-                    animationType,\
-                    animateDx,\
-                    animateDy,\
-                    mAliceSwipePosition,\
-                    recyclerView.getAdapter() == null\
-                            ? 0\
-                            : recyclerView.getAdapter().getItemCount());\
             final float distance =\
                     (float) Math.hypot(animateDx, animateDy);\
             final float speedPxPerMs =\
@@ -2606,19 +2473,11 @@ sed -i '/^    public float getSwipeThreshold(RecyclerView.ViewHolder viewHolder)
         // Alice patch start 0036\
         final float density = recyclerView.getResources().getDisplayMetrics().density;\
         final boolean nearEdge =\
-                Math.abs(viewSizeOutOfBounds)\
-                        >= ALICE_REORDER_AUTO_SCROLL_EDGE_THRESHOLD_DP * density;\
+                Math.abs(viewSizeOutOfBounds) >= viewSize / 3f;\
         final float stepDp =\
                 nearEdge\
                         ? ALICE_REORDER_AUTO_SCROLL_EDGE_STEP_DP\
                         : ALICE_REORDER_AUTO_SCROLL_STEP_DP;\
-        Log.i(\
-                TAG,\
-                "constant-scroll t=%d out=%d edge=%b step=%.1f",\
-                android.os.SystemClock.uptimeMillis(),\
-                viewSizeOutOfBounds,\
-                nearEdge,\
-                stepDp);\
         return Math.max(\
                 1,\
                 Math.round(stepDp * density));\
@@ -2707,16 +2566,6 @@ sed -i '/^            mTabClosedListener.run($/,/^                    \/\* trigg
                     mAliceSwipePosition != RecyclerView.NO_POSITION\
                             ? mAliceSwipePosition\
                             : viewHolder.getBindingAdapterPosition();\
-            Log.i(\
-                    TAG,\
-                    "onSwiped anchor=%d current=%d count=%d type=%d",\
-                    aliceClosePosition,\
-                    viewHolder.getBindingAdapterPosition(),\
-                    aliceSwipeRecyclerView == null\
-                            || aliceSwipeRecyclerView.getAdapter() == null\
-                            ? 0\
-                            : aliceSwipeRecyclerView.getAdapter().getItemCount(),\
-                    mAliceRecoverAnimationType);\
             Runnable aliceCloseTab =\
                     () ->\
                             mTabClosedListener.run(\
@@ -2774,14 +2623,6 @@ sed -i '/^        if (scrollX != 0) {$/,/^        }$/c\
             // Alice patch start 0036\
             final boolean constantScroll =\
                     mCallback.shouldUseConstantOutOfBoundsScroll(mRecyclerView);\
-            Log.i(\
-                    "AliceScroll",\
-                    "scroll-call t="\
-                            + android.os.SystemClock.uptimeMillis()\
-                            + " rawX="\
-                            + scrollX\
-                            + " constant="\
-                            + constantScroll);\
             if (constantScroll) {\
                 scrollX =\
                         Integer.signum(scrollX)\
