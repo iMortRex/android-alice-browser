@@ -189,12 +189,7 @@ sed -i '/^                    public void onShown(Tab tab, int type) {$/a\
 sed -i '/^    private void updateVisualViewportBottomInset() {$/a\
         // Alice patch start 0063\
         if (mAliceImeAnimationActive) return;\
-        // Alice patch end 0063\
-' "$path1"
-
-# 将 visual viewport inset 改为 IME 动画驱动的 compositor 位移。
-sed -i '/^        if (inset == mVisualViewportInsetBottomPx) return;$/,/^        mTab\.getWebContents()\.getRenderWidgetHostView()\.onViewportInsetBottomChanged();$/c\
-        // Alice patch start 0063\
+\
         if (shouldManageImeInVisualViewport()) {\
             WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getContentView());\
             int imeHeight =\
@@ -206,10 +201,10 @@ sed -i '/^        if (inset == mVisualViewportInsetBottomPx) return;$/,/^       
             }\
             updateImeViewportTranslation(imeHeight);\
             setVisualViewportBottomInset(0);\
-        } else {\
-            setVisualViewportBottomInset(inset);\
+            return;\
         }\
-        // Alice patch end 0063' "$path1"
+        // Alice patch end 0063\
+' "$path1"
 
 # 新增 IME 监听挂载、卸载、焦点高度和位移计算方法。
 sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\

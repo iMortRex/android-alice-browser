@@ -173,7 +173,72 @@ sed -i '/^  void SetNeedsBeginFrameForFlingProgress();$/a\
 sed -i '/^  float page_scale_;$/a\
   // Alice patch start 0065\
   float ime_viewport_translation_y_ = 0.f;\
+  viz::Selection<gfx::SelectionBound> ime_viewport_selection_;\
+  float ime_viewport_page_scale_factor_ = 1.f;\
+  float ime_viewport_top_controls_height_ = 0.f;\
+  float ime_viewport_top_controls_shown_ratio_ = 0.f;\
+  gfx::SizeF ime_viewport_scrollable_viewport_size_dip_;\
+  bool has_ime_viewport_selection_ = false;\
   // Alice patch end 0065' "$path8"
+
+sed -i '/^  void UpdateTouchSelectionController($/i\
+  // Alice patch start 0065\
+  void UpdateTouchSelectionControllerForImeViewport();\
+  // Alice patch end 0065\
+' "$path8"
+
+# TouchSelection 的选择柄不走 surface transform，需要按当前 IME 位移重算。
+sed -i '/^  UpdateTouchSelectionController($/,/^      scrollable_viewport_size_dip);$/c\
+  // Alice patch start 0065\
+  ime_viewport_selection_ = metadata.selection;\
+  ime_viewport_page_scale_factor_ = metadata.page_scale_factor;\
+  ime_viewport_top_controls_height_ =\
+      metadata.browser_controls_metadata.top_controls_height;\
+  ime_viewport_top_controls_shown_ratio_ =\
+      metadata.browser_controls_metadata.top_controls_shown_ratio;\
+  ime_viewport_scrollable_viewport_size_dip_ = scrollable_viewport_size_dip;\
+  has_ime_viewport_selection_ = true;\
+  UpdateTouchSelectionControllerForImeViewport();\
+  // Alice patch end 0065' "$path9"
+
+sed -i '/^void RenderWidgetHostViewAndroid::UpdateTouchSelectionController($/i\
+// Alice patch start 0065\
+void RenderWidgetHostViewAndroid::\
+    UpdateTouchSelectionControllerForImeViewport() {\
+  if (!has_ime_viewport_selection_)\
+    return;\
+\
+  viz::Selection<gfx::SelectionBound> selection = ime_viewport_selection_;\
+  if (ime_viewport_translation_y_ != 0.f) {\
+    auto shift_bound = [](const gfx::SelectionBound& bound,\
+                          float translation_y) {\
+      gfx::SelectionBound shifted(bound);\
+      shifted.SetEdge(\
+          gfx::PointF(bound.edge_start().x(),\
+                      bound.edge_start().y() - translation_y),\
+          gfx::PointF(bound.edge_end().x(),\
+                      bound.edge_end().y() - translation_y));\
+      shifted.SetVisibleEdge(\
+          gfx::PointF(bound.visible_edge_start().x(),\
+                      bound.visible_edge_start().y() - translation_y),\
+          gfx::PointF(bound.visible_edge_end().x(),\
+                      bound.visible_edge_end().y() - translation_y));\
+      return shifted;\
+    };\
+    selection.start =\
+        shift_bound(ime_viewport_selection_.start, ime_viewport_translation_y_);\
+    selection.end =\
+        shift_bound(ime_viewport_selection_.end, ime_viewport_translation_y_);\
+  }\
+\
+  UpdateTouchSelectionController(\
+      selection, ime_viewport_page_scale_factor_,\
+      ime_viewport_top_controls_height_,\
+      ime_viewport_top_controls_shown_ratio_,\
+      ime_viewport_scrollable_viewport_size_dip_);\
+}\
+// Alice patch end 0065\
+' "$path9"
 
 # 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    boolean focusedNodeEditable();$/a\
@@ -229,6 +294,7 @@ void RenderWidgetHostViewAndroid::SetImeViewportTranslation(\
   if (!view_.GetWindowAndroid())\
     return;\
   SetImeViewportTouchTranslation(translation_y);\
+  UpdateTouchSelectionControllerForImeViewport();\
   if (!delegated_frame_host_)\
     return;\
   auto* layer = delegated_frame_host_->content_layer();\
@@ -261,6 +327,73 @@ bool RenderWidgetHostViewAndroid::OnTouchEvent(\
   const ui::MotionEventAndroid\& event =\
       adjusted_event ? *adjusted_event : original_event;\
   // Alice patch end 0065' "$path9"
+
+# 选择柄按视觉坐标命中；网页输入继续使用补偿后的坐标。
+sed -i '/^  if (event\.for_touch_handle())$/,/^    return OnTouchHandleEvent(event);$/c\
+  // Alice patch start 0065\
+  if (event.for_touch_handle())\
+    return OnTouchHandleEvent(original_event);\
+  // Alice patch end 0065' "$path9"
+
+sed -i '/^  if (OnTouchHandleEvent(event)) {$/c\
+  // Alice patch start 0065\
+  if (OnTouchHandleEvent(original_event)) {\
+  // Alice patch end 0065' "$path9"
+
+# TouchSelection 在视觉坐标中拖动，发送给网页前恢复内容坐标。
+sed -i '/^void RenderWidgetHostViewAndroid::MoveCaret(const gfx::PointF& position) {$/,/^}$/c\
+// Alice patch start 0065\
+void RenderWidgetHostViewAndroid::MoveCaret(const gfx::PointF& position) {\
+  MoveCaret(gfx::Point(\
+      position.x(), position.y() + ime_viewport_translation_y_));\
+}\
+// Alice patch end 0065' "$path9"
+
+sed -i '/^void RenderWidgetHostViewAndroid::MoveRangeSelectionExtent($/,/^}$/c\
+// Alice patch start 0065\
+void RenderWidgetHostViewAndroid::MoveRangeSelectionExtent(\
+    const gfx::PointF& extent) {\
+  if (!selection_popup_controller_)\
+    return;\
+  selection_popup_controller_->MoveRangeSelectionExtent(\
+      gfx::PointF(extent.x(), extent.y() + ime_viewport_translation_y_));\
+}\
+// Alice patch end 0065' "$path9"
+
+sed -i '/^void RenderWidgetHostViewAndroid::SelectBetweenCoordinates($/,/^}$/c\
+// Alice patch start 0065\
+void RenderWidgetHostViewAndroid::SelectBetweenCoordinates(\
+    const gfx::PointF& base,\
+    const gfx::PointF& extent) {\
+  if (!selection_popup_controller_)\
+    return;\
+  selection_popup_controller_->SelectBetweenCoordinates(\
+      gfx::PointF(base.x(), base.y() + ime_viewport_translation_y_),\
+      gfx::PointF(extent.x(), extent.y() + ime_viewport_translation_y_));\
+}\
+// Alice patch end 0065' "$path9"
+
+# 菜单显示时按当前 IME 位移定位，不移动渲染器的菜单请求点。
+sed -i '/^  return selection_popup_controller_->ShowSelectionMenu($/,/^      render_frame_host, params, GetTouchHandleHeight());$/c\
+  // Alice patch start 0065\
+  ContextMenuParams adjusted_params(params);\
+  int translation_y_dips =\
+      static_cast<int>(std::lround(ime_viewport_translation_y_));\
+  adjusted_params.y -= translation_y_dips;\
+  adjusted_params.selection_rect.Offset(0, -translation_y_dips);\
+  return selection_popup_controller_->ShowSelectionMenu(\
+      render_frame_host, adjusted_params, GetTouchHandleHeight());\
+  // Alice patch end 0065' "$path9"
+
+sed -i '/^#include <array>$/a\
+// Alice patch start 0065\
+#include <cmath>\
+// Alice patch end 0065' "$path9"
+
+sed -i '/^#include "content\/public\/browser\/content_browser_client.h"$/i\
+// Alice patch start 0065\
+#include "content/public/browser/context_menu_params.h"\
+// Alice patch end 0065' "$path9"
 
 # 执行对应的 IME visual viewport 源码修改。
 sed -i '/^#include "ui\/gfx\/geometry\/size_conversions.h"$/a\
