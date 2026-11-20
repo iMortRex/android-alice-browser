@@ -342,13 +342,16 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         if (isDestroyed()) return;\
         if (!getContentView().isAttachedToWindow()) return;\
         int focusedNodeBottomPx = getAliceFocusedNodeBottomPx();\
-        int imeTopPx = getAliceRootBottomPx() - imeHeightPx;\
-        mAliceLiftForFocusedInput =\
-                imeHeightPx > 0 \&\& focusedNodeBottomPx > imeTopPx;\
+        int distanceToBottomPx = getAliceRootBottomPx() - focusedNodeBottomPx;\
+        int imeOverlapPx = Math.max(0, imeHeightPx - distanceToBottomPx);\
+        mAliceLiftForFocusedInput = imeHeightPx > 0 \&\& imeOverlapPx > 0;\
         int viewportInsetPx =\
                 mAliceLiftForFocusedInput\
-                        ? Math.max(\
-                                0, imeHeightPx - getAliceBottomChromeHeightPx())\
+                        ? Math.min(\
+                                imeOverlapPx,\
+                                Math.max(\
+                                        0,\
+                                        imeHeightPx - getAliceBottomChromeHeightPx()))\
                         : 0;\
         if (mTab.getWebContents() == null) return;\
         mTab.getWebContents().setImeViewportTranslation(viewportInsetPx);\
