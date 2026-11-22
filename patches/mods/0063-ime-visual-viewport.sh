@@ -83,6 +83,7 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
     private @Nullable InsetObserver mAliceImeInsetObserver;\
     private @Nullable WindowAndroid mAliceImeWindowAndroid;\
     private boolean mAliceImeAnimationActive;\
+    private boolean mAliceImeViewportLiftFrozen;\
     private int mAliceLastImeHeightPx;\
     private final int[] mAliceTmpLocation = new int[2];\
     private @Nullable WebContentsObserver mAliceWebContentsObserver;\
@@ -109,6 +110,7 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                         public void onPrepare(WindowInsetsAnimationCompat animation) {\
                             if ((animation.getTypeMask() \& WindowInsetsCompat.Type.ime())\
                                     != 0) {\
+                                mAliceImeViewportLiftFrozen = false;\
                                 mAliceImeAnimationActive =\
                                         shouldManageImeInVisualViewport();\
                                 if (!mAliceImeAnimationActive) return;\
@@ -151,6 +153,7 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                             ? 0\
                                             : getAliceKeyboardHeight(insets);\
                             mAliceLastImeHeightPx = finalHeightPx;\
+                            mAliceImeViewportLiftFrozen = finalHeightPx > 0;\
                             syncAliceImeViewportLift(finalHeightPx);\
                             setVisualViewportBottomInset(0);\
                         }\
@@ -193,12 +196,18 @@ sed -i '/^    private void updateVisualViewportBottomInset() {$/a\
             WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getContentView());\
             int imeHeight =\
                     insets == null ? 0 : getAliceKeyboardHeight(insets);\
-            if (imeHeight == 0\
-                    \&\& insets != null\
-                    \&\& insets.isVisible(WindowInsetsCompat.Type.ime())) {\
+            boolean imeVisible =\
+                    insets != null \&\& insets.isVisible(WindowInsetsCompat.Type.ime());\
+            if (imeHeight == 0 \&\& imeVisible) {\
                 imeHeight = mAliceLastImeHeightPx;\
             }\
-            syncAliceImeViewportLift(imeHeight);\
+            if (imeHeight <= 0 \&\& !imeVisible) {\
+                mAliceImeViewportLiftFrozen = false;\
+                mAliceLastImeHeightPx = 0;\
+                syncAliceImeViewportLift(0);\
+            } else if (!mAliceImeViewportLiftFrozen) {\
+                syncAliceImeViewportLift(imeHeight);\
+            }\
             setVisualViewportBottomInset(0);\
             return;\
         }\
@@ -266,6 +275,7 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
 \
     private void restoreAliceImeViewportTranslation() {\
         if (isDestroyed()) return;\
+        if (mAliceImeViewportLiftFrozen) return;\
         WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getContentView());\
         int imeHeightPx =\
                 insets == null\
@@ -360,6 +370,7 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
 \
     private void resetAliceImeViewportTranslation() {\
         mAliceImeAnimationActive = false;\
+        mAliceImeViewportLiftFrozen = false;\
         mAliceLastImeHeightPx = 0;\
         applyAliceImeViewportState(0);\
         setVisualViewportBottomInset(0);\

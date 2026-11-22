@@ -72,25 +72,6 @@ sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
                            float bottom_chrome_height) override;\
   // Alice patch end 0064' "$path5"
 
-sed -i '/^  std::optional<gfx::Point> host_context_menu_location_;$/a\
-  // Alice patch start 0064\
-  float ime_viewport_ime_height_ = 0.f;\
-  float ime_viewport_bottom_chrome_height_ = 0.f;\
-  bool ime_viewport_sync_received_ = false;\
-  // Alice patch end 0064' "$path5"
-
-sed -i '/^  View()->UpdatePagePopup();$/a\
-\
-  // Alice patch start 0064\
-  if (ForMainFrame()) {\
-    if (ime_viewport_ime_height_ > 0.f \&\& !ime_viewport_sync_received_) {\
-      SyncImeViewportLift(\
-          ime_viewport_ime_height_, ime_viewport_bottom_chrome_height_);\
-    }\
-    ime_viewport_sync_received_ = false;\
-  }\
-  // Alice patch end 0064' "$path6"
-
 # WebFrameWidgetImpl 直接同步 VisualViewport 视觉 transform。
 sed -i '/^void WebFrameWidgetImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
 \
@@ -99,10 +80,6 @@ void WebFrameWidgetImpl::SyncImeViewportLift(float ime_height,\
                                              float bottom_chrome_height) {\
   if (!ForMainFrame())\
     return;\
-\
-  ime_viewport_ime_height_ = ime_height;\
-  ime_viewport_bottom_chrome_height_ = bottom_chrome_height;\
-  ime_viewport_sync_received_ = ime_height > 0.f;\
 \
   float lift_height = 0.f;\
   Element* focused_element = FocusedElement();\

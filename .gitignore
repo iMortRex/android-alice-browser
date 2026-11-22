@@ -5,6 +5,7 @@ depot_tools/
 extensions/dist/
 keys/
 backups/
+alice/
 
 *.aab
 *.apk
