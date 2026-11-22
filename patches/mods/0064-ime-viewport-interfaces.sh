@@ -1,44 +1,37 @@
 #!/bin/bash
-# IME visual viewport 接口层：焦点滚动拦截和 CC/Blink 输入接口声明。
+# IME visual viewport 接口层：只同步独立视觉 transform，不修改滚动 offset。
 
 set -e
 
-path1="cc/trees/proxy.h"
-path2="cc/trees/layer_tree_host.h"
-path3="cc/trees/layer_tree_host.cc"
-path4="cc/trees/proxy_main.h"
-path5="cc/trees/proxy_main.cc"
-path6="cc/trees/proxy_impl.h"
-path7="cc/trees/proxy_impl.cc"
-path8="cc/trees/single_thread_proxy.h"
-path9="content/public/android/java/src/org/chromium/content/browser/webcontents/WebContentsImpl.java"
-path10="cc/trees/single_thread_proxy.cc"
-path11="cc/test/fake_proxy.h"
-path12="third_party/blink/public/mojom/input/input_handler.mojom"
-path13="third_party/blink/renderer/platform/widget/input/frame_widget_input_handler_impl.h"
-path14="third_party/blink/renderer/platform/widget/input/frame_widget_input_handler_impl.cc"
-path15="third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
-path16="third_party/blink/renderer/core/frame/web_frame_widget_impl.cc"
+path1="content/public/android/java/src/org/chromium/content/browser/webcontents/WebContentsImpl.java"
+path5="third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
+path6="third_party/blink/renderer/core/frame/web_frame_widget_impl.cc"
+path11="third_party/blink/renderer/core/frame/visual_viewport.h"
+path12="third_party/blink/renderer/core/frame/visual_viewport.cc"
+path13="third_party/blink/renderer/core/events/web_input_event_conversion.cc"
+path14="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.h"
+path15="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.cc"
+path16="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.h"
+path17="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.cc"
+path18="third_party/blink/public/mojom/page/widget.mojom"
+path19="content/public/test/fake_frame_widget.h"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0064' "$path1"; then
     exit 100
 fi
 
-# 拦截原有焦点滚动。实际 IME 跟随由 compositor visual viewport pan 完成。
-# 补充 Activity import。
+# 在 ADJUST_NOTHING 模式下拦截原有焦点滚动。
 sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0064\
 import android.app.Activity;\
-// Alice patch end 0064' "$path9"
+// Alice patch end 0064' "$path1"
 
-# 补充 WindowManager import。
 sed -i '/^import android\.view\.ViewStructure;$/a\
 // Alice patch start 0064\
 import android.view.WindowManager;\
-// Alice patch end 0064' "$path9"
+// Alice patch end 0064' "$path1"
 
-# 在 ADJUST_NOTHING 模式下拦截原生焦点滚动。
 sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/a\
         // Alice patch start 0064\
         WindowAndroid window = getTopLevelNativeWindow();\
@@ -52,192 +45,363 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/a\
             }\
         }\
         // Alice patch end 0064\
-' "$path9"
+' "$path1"
 
-# 23) 将 IME 逐帧位移投递到 compositor 线程，只 pan visual viewport。
-#     不进入 Blink scroll/layout，也不平移 Android ContentView。
-# 为 Proxy 接口补充几何类型 include。
-sed -i '/^#include "services\/metrics\/public\/cpp\/ukm_source_id.h"$/a\
-// Alice patch start 0064\
-#include "ui/gfx/geometry/vector2d_f.h"\
-// Alice patch end 0064' "$path1"
-# 在 Proxy 接口声明 IME viewport 位移方法。
-sed -i '/^  virtual void SetNeedsRedraw(const gfx::Rect& damage_rect) = 0;$/a\
-  // Alice patch start 0064\
-  virtual void SetImeViewportTranslation(float translation_y) = 0;\
-  // Alice patch end 0064' "$path1"
-
-# 为 LayerTreeHost 补充几何类型 include。
-sed -i '/^#include "ui\/gfx\/geometry\/rect.h"$/a\
-// Alice patch start 0064\
-#include "ui/gfx/geometry/vector2d_f.h"\
-// Alice patch end 0064' "$path2"
-# 在 LayerTreeHost 声明 IME viewport 位移方法。
-sed -i '/^  bool HasPendingPageScaleAnimation() const;$/a\
-  // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y);\
-  // Alice patch end 0064' "$path2"
-
-# 实现 LayerTreeHost 到 Proxy 的 IME 位移转发。
-sed -i '/^bool LayerTreeHost::HasPendingPageScaleAnimation() const {$/,/^}$/{/^}$/a\
+# 从浏览器直接调用 renderer 主线程，避免 compositor input queue 的额外投递。
+sed -i '/^  PassImeRenderWidgetHost(pending_remote<ImeRenderWidgetHost> remote);$/a\
 \
-// Alice patch start 0064\
-void LayerTreeHost::SetImeViewportTranslation(float translation_y) {\
-  DCHECK(IsMainThread());\
-  proxy()->SetImeViewportTranslation(translation_y);\
-}\
-// Alice patch end 0064
-;}' "$path3"
-
-# 在 ProxyMain 头文件声明 IME 位移 override。
-sed -i '/^  void SetNeedsRedraw(const gfx::Rect& damage_rect) override;$/a\
   // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y) override;\
-  // Alice patch end 0064' "$path4"
+  SyncImeViewportLift(float ime_height, float bottom_chrome_height);\
+  // Alice patch end 0064' "$path18"
 
-# 实现 ProxyMain 向 impl 线程投递 IME 位移。
-sed -i '/^void ProxyMain::SetNeedsRedraw(const gfx::Rect& damage_rect) {$/,/^}$/{/^}$/a\
+sed -i '/^  void SetBackgroundOpaque(bool value) override {}$/i\
+  // Alice patch start 0064\
+  void SyncImeViewportLift(float ime_height,\
+                           float bottom_chrome_height) override {}\
+  // Alice patch end 0064' "$path19"
+
+sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
+  // Alice patch start 0064\
+  void SyncImeViewportLift(float ime_height,\
+                           float bottom_chrome_height) override;\
+  // Alice patch end 0064' "$path5"
+
+sed -i '/^  std::optional<gfx::Point> host_context_menu_location_;$/a\
+  // Alice patch start 0064\
+  float ime_viewport_ime_height_ = 0.f;\
+  float ime_viewport_bottom_chrome_height_ = 0.f;\
+  bool ime_viewport_sync_received_ = false;\
+  // Alice patch end 0064' "$path5"
+
+sed -i '/^  View()->UpdatePagePopup();$/a\
 \
-// Alice patch start 0064\
-void ProxyMain::SetImeViewportTranslation(float translation_y) {\
-  DCHECK(IsMainThread());\
-  ImplThreadTaskRunner()->PostTask(\
-      FROM_HERE,\
-      base::BindOnce(\&ProxyImpl::SetImeViewportTranslationOnImpl,\
-                     base::Unretained(proxy_impl_.get()), translation_y));\
-}\
-// Alice patch end 0064
-;}' "$path5"
-
-# 为 ProxyImpl 补充几何类型 include。
-sed -i '/^#include "cc\/trees\/layer_tree_host_impl_delegate.h"$/a\
-// Alice patch start 0064\
-#include "ui/gfx/geometry/vector2d_f.h"\
-// Alice patch end 0064' "$path6"
-# 在 ProxyImpl 头文件声明 impl 线程 IME 位移方法。
-sed -i '/^  void SetNeedsRedrawOnImpl(const gfx::Rect& damage_rect);$/a\
   // Alice patch start 0064\
-  void SetImeViewportTranslationOnImpl(float translation_y);\
+  if (ForMainFrame()) {\
+    if (ime_viewport_ime_height_ > 0.f \&\& !ime_viewport_sync_received_) {\
+      SyncImeViewportLift(\
+          ime_viewport_ime_height_, ime_viewport_bottom_chrome_height_);\
+    }\
+    ime_viewport_sync_received_ = false;\
+  }\
   // Alice patch end 0064' "$path6"
 
-# 为 ProxyImpl 实现补充 viewport include。
-sed -i '/^#include "cc\/input\/browser_controls_offset_tag_modifications.h"$/a\
-// Alice patch start 0064\
-#include "cc/layers/viewport.h"\
-// Alice patch end 0064' "$path7"
-
-# 实现 impl 线程到 LayerTreeHostImpl 的 IME 位移转发。
-sed -i '/^void ProxyImpl::SetNeedsRedrawOnImpl(const gfx::Rect& damage_rect) {$/,/^}$/{/^}$/a\
-\
-// Alice patch start 0064\
-void ProxyImpl::SetImeViewportTranslationOnImpl(float translation_y) {\
-  DCHECK(IsImplThread());\
-  host_impl_->SetImeViewportTranslation(translation_y);\
-}\
-// Alice patch end 0064
-;}' "$path7"
-
-# 在 SingleThreadProxy 头文件声明 IME 位移 override。
-sed -i '/^  void SetNeedsRedraw(const gfx::Rect& damage_rect) override;$/a\
-  // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y) override;\
-  // Alice patch end 0064' "$path8"
-
-# 为 SingleThreadProxy 实现补充 viewport include。
-sed -i '/^#include "cc\/input\/browser_controls_offset_tag_modifications.h"$/a\
-// Alice patch start 0064\
-#include "cc/layers/viewport.h"\
-// Alice patch end 0064' "$path10"
-
-# 实现单线程 Proxy 的 IME 位移转发。
-sed -i '/^void SingleThreadProxy::SetNeedsRedraw(const gfx::Rect& damage_rect) {$/,/^}$/{/^}$/a\
-\
-// Alice patch start 0064\
-void SingleThreadProxy::SetImeViewportTranslation(float translation_y) {\
-  DCHECK(task_runner_provider_->IsMainThread());\
-  if (!host_impl_)\
-    return;\
-  DebugScopedSetImplThread impl(task_runner_provider_);\
-  host_impl_->SetImeViewportTranslation(translation_y);\
-}\
-// Alice patch end 0064
-;}' "$path10"
-
-# 为测试 FakeProxy 增加空实现。
-sed -i '/^  void SetNeedsRedraw(const gfx::Rect& damage_rect) override {}$/a\
-  // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y) override {}\
-  // Alice patch end 0064' "$path11"
-
-# 在 FrameWidgetInputHandler mojom 中声明 IME 位移和焦点刷新方法。
-sed -i '/^  ScrollFocusedEditableNodeIntoView();$/a\
-\
-  // Alice patch start 0064\
-  // Sets a compositor-only IME viewport translation in physical pixels.\
-  SetImeViewportTranslation(float translation_y);\
-\
-  // Reports the current focused editable bounds without scrolling it.\
-  RefreshFocusedEditableNodeBounds();\
-  // Alice patch end 0064' "$path12"
-
-# 在 Blink 输入 handler 头文件声明 IME 位移 override。
-sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
-  // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y) override;\
-  void RefreshFocusedEditableNodeBounds() override;\
-  // Alice patch end 0064' "$path13"
-
-# 实现 Blink 输入 handler 的主线程投递和焦点刷新。
-sed -i '/^void FrameWidgetInputHandlerImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
-\
-// Alice patch start 0064\
-void FrameWidgetInputHandlerImpl::SetImeViewportTranslation(\
-    float translation_y) {\
-  RunOnMainThread(base::BindOnce(\
-      [](base::WeakPtr<mojom::blink::FrameWidgetInputHandler> handler,\
-         float translation) {\
-        if (handler)\
-          handler->SetImeViewportTranslation(translation);\
-      },\
-      main_thread_frame_widget_input_handler_, translation_y));\
-}\
-\
-void FrameWidgetInputHandlerImpl::RefreshFocusedEditableNodeBounds() {\
-  RunOnMainThread(base::BindOnce(\
-      [](base::WeakPtr<mojom::blink::FrameWidgetInputHandler> handler) {\
-        if (handler)\
-          handler->RefreshFocusedEditableNodeBounds();\
-      },\
-      main_thread_frame_widget_input_handler_));\
-}\
-// Alice patch end 0064
-;}' "$path14"
-
-# 在 WebFrameWidgetImpl 头文件声明 IME 位移 override。
-sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
-  // Alice patch start 0064\
-  void SetImeViewportTranslation(float translation_y) override;\
-  void RefreshFocusedEditableNodeBounds() override;\
-  // Alice patch end 0064' "$path15"
-
-# 将 IME 位移从 WebFrameWidgetImpl 转发到 LayerTreeHost，并刷新焦点 bounds。
+# WebFrameWidgetImpl 直接同步 VisualViewport 视觉 transform。
 sed -i '/^void WebFrameWidgetImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
 \
 // Alice patch start 0064\
-void WebFrameWidgetImpl::SetImeViewportTranslation(float translation_y) {\
+void WebFrameWidgetImpl::SyncImeViewportLift(float ime_height,\
+                                             float bottom_chrome_height) {\
   if (!ForMainFrame())\
     return;\
-  LayerTreeHost()->SetImeViewportTranslation(translation_y);\
-}\
 \
-void WebFrameWidgetImpl::RefreshFocusedEditableNodeBounds() {\
-  if (!ForMainFrame())\
+  ime_viewport_ime_height_ = ime_height;\
+  ime_viewport_bottom_chrome_height_ = bottom_chrome_height;\
+  ime_viewport_sync_received_ = ime_height > 0.f;\
+\
+  float lift_height = 0.f;\
+  Element* focused_element = FocusedElement();\
+  if (focused_element \&\& ime_height > 0.f) {\
+    float current_lift = GetPage()->GetVisualViewport().ImeViewportLift();\
+    gfx::Rect focused_bounds = focused_element->BoundsInWidget();\
+    focused_bounds.Offset(0, base::ClampRound<int>(current_lift));\
+    LocalFrameView* frame_view = LocalRootImpl()->GetFrameView();\
+    int viewport_height = frame_view ? frame_view->Size().height() : 0;\
+    bool is_large_editor = focused_bounds.height() > viewport_height / 2;\
+    Element* bounds_element = focused_element;\
+    bool use_container_bounds = false;\
+    if (!is_large_editor) {\
+      Element* candidate = focused_element->ParentOrShadowHostElement();\
+      Element* selected_container = nullptr;\
+      gfx::Rect selected_container_bounds;\
+      int candidate_index = 0;\
+      while (candidate \&\& candidate_index < 2) {\
+        gfx::Rect candidate_bounds = candidate->BoundsInWidget();\
+        candidate_bounds.Offset(0, base::ClampRound<int>(current_lift));\
+        bool height_ok = candidate_bounds.height() <= viewport_height / 2;\
+        bool size_ok = candidate_bounds.height() >= focused_bounds.height();\
+        bool contains_focus = candidate_bounds.Contains(focused_bounds);\
+        bool extends_below =\
+            candidate_bounds.bottom() > focused_bounds.bottom();\
+        bool accepted =\
+            !candidate_bounds.IsEmpty() \&\& height_ok \&\& size_ok\
+            \&\& contains_focus \&\& extends_below;\
+        if (accepted \&\&\
+            (!selected_container\
+             || candidate_bounds.bottom() > selected_container_bounds.bottom())) {\
+          selected_container = candidate;\
+          selected_container_bounds = candidate_bounds;\
+        }\
+        candidate = candidate->ParentOrShadowHostElement();\
+        ++candidate_index;\
+      }\
+      if (selected_container) {\
+        bounds_element = selected_container;\
+        use_container_bounds = true;\
+      }\
+    }\
+\
+    gfx::Rect bounds_in_widget;\
+    if (use_container_bounds) {\
+      bounds_in_widget = bounds_element->BoundsInWidget();\
+    } else if (bounds_element->IsSVGElement()) {\
+      bounds_in_widget = bounds_element->BoundsInWidget();\
+    } else {\
+      Vector<gfx::Rect> outline_rects =\
+          bounds_element->OutlineRectsInWidget(\
+              DocumentUpdateReason::kFocus);\
+      for (auto\& outline_rect : outline_rects)\
+        bounds_in_widget.Union(outline_rect);\
+    }\
+    bounds_in_widget.Offset(0, base::ClampRound<int>(current_lift));\
+\
+    gfx::Rect bounds_in_dips =\
+        BlinkSpaceToEnclosedDIPs(bounds_in_widget);\
+    float device_scale_factor =\
+        widget_base_->GetScreenInfo().device_scale_factor;\
+    float focused_bottom_px = bounds_in_dips.bottom() * device_scale_factor;\
+    float viewport_height_px = ViewRect().height() * device_scale_factor;\
+    float effective_ime_height =\
+        std::max(0.f, ime_height - bottom_chrome_height);\
+    float required_lift_px =\
+        std::max(\
+            0.f,\
+            focused_bottom_px - (viewport_height_px - effective_ime_height));\
+    lift_height = std::min(required_lift_px, effective_ime_height);\
+  }\
+  GetPage()->GetVisualViewport().SyncImeViewportLift(lift_height);\
+}\
+// Alice patch end 0064
+;}' "$path6"
+
+# VisualViewport 内部只更新独立视觉 transform，不修改滚动 offset。
+sed -i '/^#include <memory>$/a\
+// Alice patch start 0064\
+#include <algorithm>\
+#include <cmath>\
+// Alice patch end 0064' "$path12"
+
+sed -i '/^  void Move(const ScrollOffset&);$/a\
+  // Alice patch start 0064\
+  void SyncImeViewportLift(float lift_height);\
+  // Alice patch end 0064' "$path11"
+
+sed -i '/^  float Scale() const { return scale_; }$/a\
+  // Alice patch start 0064\
+  float ImeViewportLift() const { return ime_viewport_lift_height_; }\
+  // Alice patch end 0064' "$path11"
+
+sed -i '/^\/\/     +- overscroll_elasticity_transform_node_$/c\
+// Alice patch start 0064\
+//     +- ime_viewport_transform_node_\
+//        +- overscroll_elasticity_transform_node_\
+// Alice patch end 0064' "$path11"
+
+sed -i '/^\/\/        +- page_scale_node__$/c\
+// Alice patch start 0064\
+//           +- page_scale_node__\
+// Alice patch end 0064' "$path11"
+
+sed -i '/^\/\/           +- scroll_translation_node_ (scroll: scroll_node_)$/c\
+// Alice patch start 0064\
+//              +- scroll_translation_node_ (scroll: scroll_node_)\
+// Alice patch end 0064' "$path11"
+
+sed -i '/^  if (overscroll_type_ == OverscrollType::kTransform) {$/i\
+  // Alice patch start 0064\
+  {\
+    TransformPaintPropertyNode::State state;\
+    if (ime_viewport_lift_height_ != 0.f) {\
+      state.transform_and_origin.matrix =\
+          gfx::Transform::MakeTranslation(0, -ime_viewport_lift_height_);\
+    }\
+    state.in_subtree_of_page_scale = false;\
+    state.direct_compositing_reasons = {CompositingReason::kViewport};\
+    if (!ime_viewport_transform_node_) {\
+      ime_viewport_transform_node_ = TransformPaintPropertyNode::Create(\
+          *transform_parent, std::move(state));\
+      change = PaintPropertyChangeType::kNodeAddedOrRemoved;\
+    } else {\
+      auto effective_change_type =\
+          ime_viewport_transform_node_->Update(*transform_parent,\
+                                               std::move(state));\
+      if (effective_change_type ==\
+          PaintPropertyChangeType::kChangedOnlySimpleValues) {\
+        if (auto* paint_artifact_compositor = GetPaintArtifactCompositor()) {\
+          bool updated =\
+              paint_artifact_compositor->DirectlyUpdateImeViewportTransform(\
+                  *ime_viewport_transform_node_);\
+          if (updated) {\
+            effective_change_type =\
+                PaintPropertyChangeType::kChangedOnlyCompositedValues;\
+            ime_viewport_transform_node_->CompositorSimpleValuesUpdated();\
+          }\
+        }\
+      }\
+      change = std::max(change, effective_change_type);\
+    }\
+    transform_parent = ime_viewport_transform_node_.Get();\
+  }\
+  // Alice patch end 0064
+' "$path12"
+
+sed -i '/^  ScrollOffset offset_;$/a\
+  // Alice patch start 0064\
+  float ime_viewport_lift_height_ = 0.f;\
+  // Alice patch end 0064' "$path11"
+
+sed -i '/^  Member<TransformPaintPropertyNode> device_emulation_transform_node_;$/a\
+  // Alice patch start 0064\
+  Member<TransformPaintPropertyNode> ime_viewport_transform_node_;\
+  // Alice patch end 0064' "$path11"
+
+sed -i '/^  visitor->Trace(device_emulation_transform_node_);$/a\
+  // Alice patch start 0064\
+  visitor->Trace(ime_viewport_transform_node_);\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^  device_emulation_transform_node_ = nullptr;$/a\
+  // Alice patch start 0064\
+  ime_viewport_transform_node_ = nullptr;\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^  point_in_root_frame += GetScrollOffset();$/a\
+  // Alice patch start 0064\
+  point_in_root_frame.Offset(0, ImeViewportLift());\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^  rect_in_root_frame.Offset(GetScrollOffset());$/a\
+  // Alice patch start 0064\
+  rect_in_root_frame.Offset(0, ImeViewportLift());\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^  rect_in_viewport.Offset(-GetScrollOffset());$/a\
+  // Alice patch start 0064\
+  rect_in_viewport.Offset(0, -ImeViewportLift());\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^  point_in_viewport -= GetScrollOffset();$/a\
+  // Alice patch start 0064\
+  point_in_viewport.Offset(0, -ImeViewportLift());\
+  // Alice patch end 0064' "$path12"
+
+sed -i '/^void VisualViewport::Move(const ScrollOffset& delta) {$/,/^}$/{/^}$/a\
+\
+// Alice patch start 0064\
+void VisualViewport::SyncImeViewportLift(float lift_height) {\
+  float target_lift = std::max(0.f, lift_height);\
+  if (std::abs(target_lift - ime_viewport_lift_height_) < 0.01f)\
     return;\
-  if (Element* element = FocusedElement()) {\
-    element->GetDocument().SendFocusNotification(\
-        element, mojom::blink::FocusType::kNone);\
+  ime_viewport_lift_height_ = target_lift;\
+\
+  bool updated_directly = false;\
+  if (ime_viewport_transform_node_) {\
+    auto* parent = ime_viewport_transform_node_->UnaliasedParent();\
+    if (parent) {\
+      TransformPaintPropertyNode::State state;\
+      if (ime_viewport_lift_height_ != 0.f) {\
+        state.transform_and_origin.matrix = gfx::Transform::MakeTranslation(\
+            0, -ime_viewport_lift_height_);\
+      }\
+      state.in_subtree_of_page_scale = false;\
+      state.direct_compositing_reasons = {CompositingReason::kViewport};\
+      auto change =\
+          ime_viewport_transform_node_->Update(*parent, std::move(state));\
+      if (change == PaintPropertyChangeType::kChangedOnlySimpleValues) {\
+        if (auto* paint_artifact_compositor = GetPaintArtifactCompositor()) {\
+          updated_directly =\
+              paint_artifact_compositor->DirectlyUpdateImeViewportTransform(\
+                  *ime_viewport_transform_node_);\
+          if (updated_directly) {\
+            ime_viewport_transform_node_->CompositorSimpleValuesUpdated();\
+          }\
+        }\
+      }\
+    }\
+  }\
+\
+  needs_paint_property_update_ |= !updated_directly;\
+  if (!updated_directly) {\
+    LocalMainFrame().View()->SetVisualViewportOrOverlayNeedsRepaint();\
+    ScheduleAnimation();\
   }\
 }\
 // Alice patch end 0064
-;}' "$path16"
+;}' "$path12"
+
+sed -i '/^  gfx::Vector2dF overscroll_offset;$/a\
+  // Alice patch start 0064\
+  gfx::Vector2dF ime_viewport_offset;\
+  // Alice patch end 0064' "$path13"
+
+sed -i '/^      visual_viewport = gfx::ToFlooredPoint($/,/^          root_view->GetPage()->GetVisualViewport().VisibleRect().origin());$/c\
+      // Alice patch start 0064\
+      VisualViewport\& root_visual_viewport =\
+          root_view->GetPage()->GetVisualViewport();\
+      visual_viewport =\
+          gfx::ToFlooredPoint(root_visual_viewport.VisibleRect().origin());\
+      // Alice patch end 0064' "$path13"
+
+sed -i '/^      overscroll_offset =$/a\
+      // Alice patch start 0064\
+      ime_viewport_offset =\
+          gfx::Vector2dF(0, root_visual_viewport.ImeViewportLift());\
+      // Alice patch end 0064' "$path13"
+
+sed -i '/^  return visual_viewport.OffsetFromOrigin() + overscroll_offset;$/c\
+  // Alice patch start 0064\
+  return visual_viewport.OffsetFromOrigin() + overscroll_offset +\
+         ime_viewport_offset;\
+  // Alice patch end 0064' "$path13"
+
+sed -i '/^  bool DirectlyUpdateTransform(const TransformPaintPropertyNode&);$/a\
+  // Alice patch start 0064\
+  bool DirectlyUpdateImeViewportTransform(const TransformPaintPropertyNode\&);\
+  // Alice patch end 0064' "$path14"
+
+sed -i '/^  static bool DirectlyUpdateTransform(cc::LayerTreeHost&,$/,/^                                      const TransformPaintPropertyNode&);$/ { /^                                      const TransformPaintPropertyNode&);$/a\
+  // Alice patch start 0064\
+  static bool DirectlyUpdateImeViewportTransform(\
+      cc::LayerTreeHost\&,\
+      const TransformPaintPropertyNode\&);\
+  // Alice patch end 0064
+; }' "$path16"
+
+sed -i '/^bool PaintArtifactCompositor::DirectlyUpdatePageScaleTransform($/i\
+// Alice patch start 0064\
+bool PaintArtifactCompositor::DirectlyUpdateImeViewportTransform(\
+    const TransformPaintPropertyNode\& transform) {\
+  DCHECK(transform.HasDirectCompositingReasons());\
+  if (CanDirectlyUpdateProperties()) {\
+    return PropertyTreeManager::DirectlyUpdateImeViewportTransform(\
+        *root_layer_->layer_tree_host(), transform);\
+  }\
+  return false;\
+}\
+// Alice patch end 0064
+' "$path15"
+
+sed -i '/^bool PropertyTreeManager::DirectlyUpdatePageScaleTransform($/i\
+// Alice patch start 0064\
+bool PropertyTreeManager::DirectlyUpdateImeViewportTransform(\
+    cc::LayerTreeHost\& host,\
+    const TransformPaintPropertyNode\& transform) {\
+  DCHECK(!transform.ScrollNode());\
+\
+  auto* property_trees = host.property_trees();\
+  int cc_transform_id = transform.CcNodeId(property_trees->sequence_number());\
+  if (cc_transform_id == cc::kInvalidPropertyNodeId) {\
+    return false;\
+  }\
+\
+  auto\& cc_transform =\
+      property_trees->transform_tree_mutable().MutableNode(cc_transform_id);\
+  UpdateCcTransformLocalMatrix(cc_transform, transform);\
+  cc_transform.is_currently_animating = false;\
+  cc_transform.SetTransformChanged(cc::DamageReason::kUntracked);\
+  property_trees->transform_tree_mutable().set_needs_update(true);\
+  host.SetNeedsCommit(/*urgent=*/true);\
+  return true;\
+}\
+// Alice patch end 0064
+' "$path17"
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# IME visual viewport：逐帧同步 Android WebContents、Blink 和 compositor 视口。
+# IME visual viewport：按输入法进度逐帧同步 Blink VisualViewport。
 
 set -e
 
@@ -10,9 +10,8 @@ if grep -q 'Alice patch start 0063' "$path1"; then
     exit 100
 fi
 
-# IME 动画逐帧更新 Blink inner visual viewport。抬升量从 IME 高度中扣除
-#     底部工具栏和导航栏，并以物理像素原样传给 Blink。
-#     同一个动画源驱动 Blink 内部视口，不再平移整个网页 View。
+# Java 只同步当前 IME 和底部浏览器控件高度；焦点容器几何由 renderer
+#     在布局生命周期中实时计算。
 # 补充 IME 动画使用的 List import。
 sed -i '/^import org\.chromium\.ui\.dragdrop\.DragStateTracker;$/a\
 // Alice patch start 0063\
@@ -51,10 +50,9 @@ import androidx.core.view.WindowInsetsAnimationCompat;\
 import androidx.core.view.WindowInsetsCompat;\
 // Alice patch end 0063' "$path1"
 
-# 补充 Content 层 ImeAdapter、WebContents 和 observer import。
+# 补充 Content 层 WebContents 和 observer import。
 sed -i '/^import org\.chromium\.content_public\.browser\.ContentFeatureMap;$/a\
 // Alice patch start 0063\
-import org.chromium.content_public.browser.ImeAdapter;\
 import org.chromium.content_public.browser.WebContents;\
 import org.chromium.content_public.browser.WebContentsObserver;\
 // Alice patch end 0063' "$path1"
@@ -85,7 +83,6 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
     private @Nullable InsetObserver mAliceImeInsetObserver;\
     private @Nullable WindowAndroid mAliceImeWindowAndroid;\
     private boolean mAliceImeAnimationActive;\
-    private boolean mAliceLiftForFocusedInput;\
     private int mAliceLastImeHeightPx;\
     private final int[] mAliceTmpLocation = new int[2];\
     private @Nullable WebContentsObserver mAliceWebContentsObserver;\
@@ -93,12 +90,16 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
             new WindowAndroid.ActivityStateObserver() {\
                 @Override\
                 public void onActivityPaused() {\
-                    resetAliceImeViewportTranslation();\
+                    pauseAliceImeViewportAnimation();\
                 }\
 \
                 @Override\
                 public void onActivityTopResumedChanged(boolean isTopResumedActivity) {\
-                    if (!isTopResumedActivity) resetAliceImeViewportTranslation();\
+                    if (!isTopResumedActivity) {\
+                        pauseAliceImeViewportAnimation();\
+                    } else {\
+                        restoreAliceImeViewportTranslation();\
+                    }\
                 }\
             };\
     private final InsetObserver.WindowInsetsAnimationListener\
@@ -110,14 +111,13 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                     != 0) {\
                                 mAliceImeAnimationActive =\
                                         shouldManageImeInVisualViewport();\
+                                if (!mAliceImeAnimationActive) return;\
                                 WindowInsetsCompat insets =\
                                         ViewCompat.getRootWindowInsets(getContentView());\
-                                if (mAliceImeAnimationActive\
-                                        \&\& (insets == null\
-                                                || !insets.isVisible(\
-                                                        WindowInsetsCompat.Type.ime()))) {\
-                                    mAliceLiftForFocusedInput = false;\
-                                }\
+                                if (insets == null) return;\
+                                int currentHeightPx = getAliceKeyboardHeight(insets);\
+                                mAliceLastImeHeightPx =\
+                                        Math.max(mAliceLastImeHeightPx, currentHeightPx);\
                             }\
                         }\
 \
@@ -131,14 +131,9 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 WindowInsetsCompat insets,\
                                 List<WindowInsetsAnimationCompat> runningAnimations) {\
                             if (!mAliceImeAnimationActive) return;\
-                            mAliceLastImeHeightPx = getAliceKeyboardHeight(insets);\
-                            int focusedNodeBottomPx = getAliceFocusedNodeBottomPx();\
-                            int imeTopPx =\
-                                    getAliceRootBottomPx() - mAliceLastImeHeightPx;\
-                            if (focusedNodeBottomPx > imeTopPx) {\
-                                mAliceLiftForFocusedInput = true;\
-                            }\
-                            updateImeViewportTranslation(mAliceLastImeHeightPx);\
+                            int currentHeightPx = getAliceKeyboardHeight(insets);\
+                            mAliceLastImeHeightPx = currentHeightPx;\
+                            syncAliceImeViewportLift(currentHeightPx);\
                         }\
 \
                         @Override\
@@ -149,10 +144,14 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                             }\
                             if (!mAliceImeAnimationActive) return;\
                             mAliceImeAnimationActive = false;\
-                            updateImeViewportTranslation(mAliceLastImeHeightPx);\
-                            if (mAliceLastImeHeightPx == 0) {\
-                                mAliceLiftForFocusedInput = false;\
-                            }\
+                            WindowInsetsCompat insets =\
+                                    ViewCompat.getRootWindowInsets(getContentView());\
+                            int finalHeightPx =\
+                                    insets == null\
+                                            ? 0\
+                                            : getAliceKeyboardHeight(insets);\
+                            mAliceLastImeHeightPx = finalHeightPx;\
+                            syncAliceImeViewportLift(finalHeightPx);\
                             setVisualViewportBottomInset(0);\
                         }\
                     };\
@@ -199,7 +198,7 @@ sed -i '/^    private void updateVisualViewportBottomInset() {$/a\
                     \&\& insets.isVisible(WindowInsetsCompat.Type.ime())) {\
                 imeHeight = mAliceLastImeHeightPx;\
             }\
-            updateImeViewportTranslation(imeHeight);\
+            syncAliceImeViewportLift(imeHeight);\
             setVisualViewportBottomInset(0);\
             return;\
         }\
@@ -261,6 +260,27 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         resetAliceImeViewportTranslation();\
     }\
 \
+    private void pauseAliceImeViewportAnimation() {\
+        mAliceImeAnimationActive = false;\
+    }\
+\
+    private void restoreAliceImeViewportTranslation() {\
+        if (isDestroyed()) return;\
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getContentView());\
+        int imeHeightPx =\
+                insets == null\
+                        ? 0\
+                        : getAliceKeyboardHeight(insets);\
+        if (imeHeightPx <= 0) {\
+            resetAliceImeViewportTranslation();\
+            return;\
+        }\
+        mAliceImeAnimationActive = shouldManageImeInVisualViewport();\
+        if (!mAliceImeAnimationActive) return;\
+        mAliceLastImeHeightPx = imeHeightPx;\
+        syncAliceImeViewportLift(imeHeightPx);\
+    }\
+\
     private int getAliceKeyboardHeight(WindowInsetsCompat insets) {\
         return insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;\
     }\
@@ -285,9 +305,9 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                 new WebContentsObserver(webContents) {\
                     @Override\
                     public void onWebContentsLostFocus() {\
-                        mAliceLiftForFocusedInput = false;\
-                        if (!isDestroyed()) {\
-                            updateImeViewportTranslation(mAliceLastImeHeightPx);\
+                        if (isDestroyed()) return;\
+                        if (!mAliceImeAnimationActive && mAliceLastImeHeightPx <= 0) {\
+                            applyAliceImeViewportState(0);\
                         }\
                     }\
 \
@@ -298,72 +318,50 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                 };\
     }\
 \
-    private int getAliceFocusedNodeBottomPx() {\
-        if (mTab.getWebContents() == null) return 0;\
-        @Nullable ImeAdapter imeAdapter = ImeAdapter.fromWebContents(mTab.getWebContents());\
-        return imeAdapter == null ? 0 : imeAdapter.getFocusedNodeBottomPx();\
-    }\
-\
-    private int getAliceRootBottomPx() {\
-        View rootView = getContentView().getRootView();\
-        rootView.getLocationOnScreen(mAliceTmpLocation);\
-        return mAliceTmpLocation[1] + rootView.getHeight();\
-    }\
-\
     private int getAliceBottomChromeHeightPx() {\
         View contentView = getContentView();\
         View rootView = contentView.getRootView();\
         View bottomControls = rootView.findViewById(R.id.control_container);\
         if (bottomControls != null) {\
-            int rootBottom = getAliceRootBottomPx();\
+            rootView.getLocationOnScreen(mAliceTmpLocation);\
+            int rootBottomPx = mAliceTmpLocation[1] + rootView.getHeight();\
             bottomControls.getLocationOnScreen(mAliceTmpLocation);\
-            return Math.max(0, rootBottom - mAliceTmpLocation[1]);\
+            return Math.max(0, rootBottomPx - mAliceTmpLocation[1]);\
         }\
 \
-        int toolbarHeight =\
+        int toolbarHeightPx =\
                 contentView\
                         .getResources()\
                         .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
-        int hairlineHeight =\
+        int hairlineHeightPx =\
                 contentView\
                         .getResources()\
                         .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
         WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(contentView);\
-        int navigationBarHeight =\
+        int navigationBarHeightPx =\
                 insets == null\
                         ? 0\
-                        : insets.getInsets(\
-                                        WindowInsetsCompat.Type.navigationBars())\
-                                .bottom;\
-        return toolbarHeight + hairlineHeight + navigationBarHeight;\
+                        : insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;\
+        return toolbarHeightPx + hairlineHeightPx + navigationBarHeightPx;\
     }\
 \
-    private void updateImeViewportTranslation(int imeHeightPx) {\
-        if (isDestroyed()) return;\
-        if (!getContentView().isAttachedToWindow()) return;\
-        int focusedNodeBottomPx = getAliceFocusedNodeBottomPx();\
-        int distanceToBottomPx = getAliceRootBottomPx() - focusedNodeBottomPx;\
-        int imeOverlapPx = Math.max(0, imeHeightPx - distanceToBottomPx);\
-        mAliceLiftForFocusedInput = imeHeightPx > 0 \&\& imeOverlapPx > 0;\
-        int viewportInsetPx =\
-                mAliceLiftForFocusedInput\
-                        ? Math.min(\
-                                imeOverlapPx,\
-                                Math.max(\
-                                        0,\
-                                        imeHeightPx - getAliceBottomChromeHeightPx()))\
-                        : 0;\
-        if (mTab.getWebContents() == null) return;\
-        mTab.getWebContents().setImeViewportTranslation(viewportInsetPx);\
+    private void applyAliceImeViewportState(int imeHeightPx) {\
+        @Nullable WebContents webContents = mTab.getWebContents();\
+        if (webContents != null) {\
+            webContents.syncImeViewportLift(\
+                    imeHeightPx,\
+                    imeHeightPx <= 0 ? 0 : getAliceBottomChromeHeightPx());\
+        }\
+    }\
+\
+    private void syncAliceImeViewportLift(int imeHeightPx) {\
+        applyAliceImeViewportState(imeHeightPx);\
     }\
 \
     private void resetAliceImeViewportTranslation() {\
         mAliceImeAnimationActive = false;\
-        mAliceLiftForFocusedInput = false;\
         mAliceLastImeHeightPx = 0;\
-        if (mTab.getWebContents() != null) {\
-            mTab.getWebContents().setImeViewportTranslation(0);\
-        }\
+        applyAliceImeViewportState(0);\
         setVisualViewportBottomInset(0);\
     }\
 \
