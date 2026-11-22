@@ -1,11 +1,14 @@
 #!/bin/bash
 # 标签切换器「横向」样式（类 iOS 后台的横向堆叠卡片）
-#   - 只有 设置-标签页和标签页分组-标签切换器 选中「横向」时生效，且只作用于标签切换器网格
+#   - 只有 设置-标签页和标签页分组-标签切换器 选中「横向」或「横向（不重排标签）」时生效，
+#     且只作用于标签切换器网格
 #     （TabComponentId.GRID_TAB_SWITCHER）；标签组对话框 / 标签编辑器 / 底部标签条不受影响。
+#   - 未保存设置时默认使用「横向（不重排标签）」。
 #   - 卡片高度 =（标签列表可视区高度 - 顶部工具栏 - 底部控制栏）×
 #     AliceTabStackHelper.CARD_HEIGHT_FRACTION；宽度按网页内容区宽高比计算。
-#   - 当前标签固定排在最后一张。中心卡前的卡片按紧凑间距向左堆叠，中心卡后的卡片按
-#     大跨度向右展开；所有卡片左边不会越过屏幕左侧。
+#   - 「横向」会把当前标签固定排在最后一张；「横向（不重排标签）」保持标签模型顺序。
+#     中心卡前的卡片按紧凑间距向左堆叠，中心卡后的卡片按大跨度向右展开；
+#     所有卡片左边不会越过屏幕左侧。
 #   - 滚动停止时把离屏幕中心最近的卡片平滑吸附到中心。
 #   - 向上滑关闭标签；长按水平拖拽调整顺序，普通左右滑仍用来滚动卡片列表。
 #   - 长按排序时所有卡片缩放到 50% 并紧挨展开，松手后还原并吸附落位。
@@ -97,6 +100,9 @@ public final class AliceTabStackHelper {
 
     /** 横向堆叠，但不重排标签。 */
     public static final int STYLE_HORIZONTAL_NO_REORDER = 3;
+
+    /** 未保存设置时使用的默认样式：横向（不重排标签）。 */
+    public static final int DEFAULT_STYLE = STYLE_HORIZONTAL_NO_REORDER;
 
     /** 卡片高度 = 去掉浏览器顶部/底部控制栏后的可用高度 × 这个比例。 */
     public static final float CARD_HEIGHT_FRACTION = 0.85f;
@@ -194,10 +200,10 @@ public final class AliceTabStackHelper {
     /** @return 用户选择的标签切换器样式。 */
     public static int getStyle() {
         return ChromeSharedPreferences.getInstance()
-                .readInt(PREF_TAB_SWITCHER_STYLE, STYLE_DEFAULT);
+                .readInt(PREF_TAB_SWITCHER_STYLE, DEFAULT_STYLE);
     }
 
-    /** @return 实际生效的样式（竖向还没做，按默认样式处理）。 */
+    /** @return 实际生效的样式（竖向还没做，按上游样式处理）。 */
     public static int getEffectiveStyle() {
         int style = getStyle();
         return style == STYLE_HORIZONTAL || style == STYLE_HORIZONTAL_NO_REORDER
@@ -2965,7 +2971,9 @@ sed -i '/^    \/\*\* Called after native library is loaded\. \*\/$/i\
     private float getThumbnailScale() {\
         int style =\
                 ContextUtils.getAppSharedPreferences()\
-                        .getInt(PREF_ALICE_TAB_SWITCHER_STYLE, 0);\
+                        .getInt(\
+                                PREF_ALICE_TAB_SWITCHER_STYLE,\
+                                ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER);\
         return style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL\
                         || style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER\
                 ? mAliceHorizontalThumbnailScale\
@@ -3244,6 +3252,10 @@ sed -i '/^public class HubAnimationConstants {$/a\
     private static Runnable sAliceHubTapAnimationStarter = () -> {};\
     private static Runnable sAliceHubEnterAnimationStarter = () -> {};\
     private static @Nullable Runnable sAlicePendingTabReorder;\
+    private static final String ALICE_TAB_SWITCHER_STYLE_PREF =\
+            "alice_tab_switcher_style";\
+    private static final int ALICE_TAB_SWITCHER_STYLE_HORIZONTAL = 2;\
+    private static final int ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER = 3;\
 \
     public static void setAliceHubTapAnimationStarter(Runnable starter) {\
         sAliceHubTapAnimationStarter = starter;\
@@ -3266,8 +3278,11 @@ sed -i '/^public class HubAnimationConstants {$/a\
     public static boolean isAliceHorizontalStyle() {\
         int style =\
                 org.chromium.base.ContextUtils.getAppSharedPreferences()\
-                        .getInt("alice_tab_switcher_style", 0);\
-        return style == 2 || style == 3;\
+                        .getInt(\
+                                ALICE_TAB_SWITCHER_STYLE_PREF,\
+                                ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER);\
+        return style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL\
+                || style == ALICE_TAB_SWITCHER_STYLE_HORIZONTAL_NO_REORDER;\
     }\
 \
     public static void notifyAliceHubTapAnimationStart() {\

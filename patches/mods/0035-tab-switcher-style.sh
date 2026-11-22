@@ -1,6 +1,7 @@
 #!/bin/bash
 # 设置-标签页和标签页分组：新增「标签切换器」入口（点击进入子页选择样式），并在入口下方显示当前选项。
-#   0 默认（上游标签网格） / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0036 实现）
+#   0 上游标签网格 / 1 竖向（暂未支持，置灰） / 2 横向（类 iOS 横向堆叠卡片，由 0036 实现）
+#   3 横向（不重排标签）；未保存设置时默认使用 3
 # 取值保存在 ChromeSharedPreferences: alice_tab_switcher_style
 
 set -e
@@ -173,7 +174,10 @@ public class AliceTabSwitcherStylePreference extends ContainedRadioButtonGroupPr
     /** 横向堆叠，但不重排标签顺序。 */
     public static final int STYLE_HORIZONTAL_NO_REORDER = 3;
 
-    private int mStyle = STYLE_DEFAULT;
+    /** 未保存设置时使用的默认样式：横向（不重排标签）。 */
+    public static final int STYLE_APP_DEFAULT = STYLE_HORIZONTAL_NO_REORDER;
+
+    private int mStyle = STYLE_APP_DEFAULT;
     private @Nullable RadioButtonWithDescriptionLayout mGroup;
     private @Nullable RadioButtonWithDescription mDefaultButton;
     private @Nullable RadioButtonWithDescription mVerticalButton;
@@ -236,17 +240,18 @@ public class AliceTabSwitcherStylePreference extends ContainedRadioButtonGroupPr
         }
     }
 
-    /** @return 已保存的样式，非法值回退为默认。 */
+    /** @return 已保存的样式，未保存或非法值回退为应用默认样式。 */
     public static int getCurrentStyle() {
         int style =
                 ChromeSharedPreferences.getInstance()
-                        .readInt(PREF_TAB_SWITCHER_STYLE, STYLE_DEFAULT);
-        if (style == STYLE_VERTICAL
+                        .readInt(PREF_TAB_SWITCHER_STYLE, STYLE_APP_DEFAULT);
+        if (style == STYLE_DEFAULT
+                || style == STYLE_VERTICAL
                 || style == STYLE_HORIZONTAL
                 || style == STYLE_HORIZONTAL_NO_REORDER) {
             return style;
         }
-        return STYLE_DEFAULT;
+        return STYLE_APP_DEFAULT;
     }
 
     /** @return 样式的短名称，用于「标签页和标签页分组」入口下方的摘要。 */

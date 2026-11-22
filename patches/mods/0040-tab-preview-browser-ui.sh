@@ -229,9 +229,10 @@ sed -i '/^    private @Nullable Bitmap cacheNativeTabThumbnail(/i\
     }\
 \
     private boolean isAliceHorizontalTabSwitcher() {\
-        return ContextUtils.getAppSharedPreferences()\
-                        .getInt("alice_tab_switcher_style", 0)\
-                == 2;\
+        int style =\
+                ContextUtils.getAppSharedPreferences()\
+                        .getInt("alice_tab_switcher_style", 3);\
+        return style == 2 || style == 3;\
     }\
 \
     private boolean shouldCaptureAliceToolbar() {\
