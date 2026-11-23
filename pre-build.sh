@@ -17,6 +17,22 @@ export PATH="$SCRIPT_DIR/depot_tools:$PATH"
 # 进入 Chromium 源码
 cd "$CHROMIUM"
 
+# 清理异常退出后遗留的 Git 索引锁。
+ALICE_GIT_INDEX_LOCK="$CHROMIUM/.git/index.lock"
+if [[ -e "$ALICE_GIT_INDEX_LOCK" ]]; then
+    if command -v lsof >/dev/null 2>&1; then
+        ALICE_GIT_LOCK_IN_USE=0
+        lsof -- "$ALICE_GIT_INDEX_LOCK" >/dev/null 2>&1 && ALICE_GIT_LOCK_IN_USE=1
+    else
+        ALICE_GIT_LOCK_IN_USE=0
+        pgrep -x git >/dev/null 2>&1 && ALICE_GIT_LOCK_IN_USE=1
+    fi
+    if [[ "$ALICE_GIT_LOCK_IN_USE" -eq 0 ]]; then
+        echo "=== 清理残留 Git 索引锁 ==="
+        rm -f -- "$ALICE_GIT_INDEX_LOCK"
+    fi
+fi
+
 # 恢复干净（撤销上次所有 patch 和 mod 的修改）
 echo "=== 恢复工作区 ==="
 "$SCRIPT_DIR/restore-paths.sh" --all alice-state-00
