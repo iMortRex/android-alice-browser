@@ -139,7 +139,7 @@ sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&
     <!-- Alice patch start 0084 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
         android:key="alice_show_settings_search_box_switch"\
-        android:order="5"\
+        android:order="4"\
         android:title="Show settings search bar"\
         android:summary="Show the search box only on the main settings page. It stays hidden on subpages." />\
     <!-- Alice patch end 0084 -->|' "$path2"

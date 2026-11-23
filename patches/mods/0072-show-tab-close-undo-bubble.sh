@@ -22,6 +22,7 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
 sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0072 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
         android:key="alice_show_tab_close_undo_bar_switch"\
+        android:order="3"\
         android:title="Show undo bubble" />\
     <!-- Alice patch end 0072 -->\
 \

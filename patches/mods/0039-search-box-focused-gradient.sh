@@ -159,7 +159,7 @@ sed -i 's|^        android:summary="@string/bookmark_bar_setting_subtitle" />$|&
     <!-- Alice patch start 0039 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
         android:key="alice_search_page_gradient_switch"\
-        android:order="5"\
+        android:order="3"\
         android:title="Fade the search box background" />\
     <!-- Alice patch end 0039 -->|' "$path2"
 

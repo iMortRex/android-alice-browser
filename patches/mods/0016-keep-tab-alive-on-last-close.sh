@@ -85,6 +85,7 @@ sed -i '/^                            @TabClosingSource int closingSource) {$/a\
 sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0016 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\
         android:key="alice_open_new_tab_on_last_close_switch"\
+        android:order="2"\
         android:title="Open a new tab after closing the last tab" />\
     <!-- Alice patch end 0016 -->\
 \

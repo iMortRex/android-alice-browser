@@ -373,7 +373,7 @@ sed -i '/^chrome_app_java_resources_ext_sources = \[$/a\
 ' "$path3"
 
 # ---------- 设置-标签页和标签页分组 新增入口 ----------
-sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0035 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:persistent="false"\n        android:title="@string/alice_tab_switcher_title" />\n    <!-- Alice patch end 0035 -->\n</PreferenceScreen>|' "$path1"
+sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0035 -->\n    <org.chromium.components.browser_ui.settings.ChromeBasePreference\n        android:fragment="org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStyleSettingsFragment"\n        android:key="alice_tab_switcher_style_entry"\n        android:order="4"\n        android:persistent="false"\n        android:title="@string/alice_tab_switcher_title" />\n    <!-- Alice patch end 0035 -->\n</PreferenceScreen>|' "$path1"
 
 # ---------- 设置-标签页和标签页分组 入口下方显示当前选项 ----------
 sed -i 's|^import org.chromium.chrome.R;$|&\n// Alice patch start 0035\nimport org.chromium.chrome.browser.appearance.settings.AliceTabSwitcherStylePreference;\n// Alice patch end 0035|' "$path4"
