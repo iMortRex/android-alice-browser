@@ -118,9 +118,9 @@ sed -i 's|^        searchBox.setVisibility(show ? View.VISIBLE : View.GONE);$|  
         // Alice patch end 0084|' "$path1"
 
 # 多栏布局的普通设置页同样默认隐藏搜索框。
-sed -i '0,/^                if (mSuppressUi) {$/s|^                if (mSuppressUi) {$|                // Alice patch start 0084\
+sed -i '0,/^                if (mSuppressUi) {$/s@^                if (mSuppressUi) {$@                // Alice patch start 0084\
                 if (mSuppressUi || !isAliceSettingsSearchBoxEnabled()) {\
-                // Alice patch end 0084|' "$path1"
+                // Alice patch end 0084@' "$path1"
 
 # 单栏布局切换时保留原有“主页显示、子页隐藏”的语义，并叠加开关判断。
 sed -i '/^            if (showingMain) {$/,/^            }$/c\
