@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0021' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 行为：末尾是否补空格由 设置-标签页和标签页分组 的开关决定（默认补）
 sed -i 's|^import org.chromium.chrome.browser.omnibox.R;$|// Alice patch start 0021\nimport org.chromium.chrome.browser.omnibox.R;\nimport org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\n// Alice patch end 0021|' "$path1"
 

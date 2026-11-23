@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0072' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 设置页只保留标题和开关。
 sed -i 's|^</PreferenceScreen>$|    <!-- Alice patch start 0072 -->\
     <org.chromium.components.browser_ui.settings.ChromeSwitchPreference\

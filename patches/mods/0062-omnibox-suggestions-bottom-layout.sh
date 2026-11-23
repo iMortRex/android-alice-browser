@@ -19,6 +19,8 @@ if grep -q 'Alice patch start 0062' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 底置工具栏时 NTP 推荐内容从搜索框上沿向上排列。
 sed -i '/^    void onUrlFocusAnimationChanged() {$/a\
         // Alice patch start 0062\

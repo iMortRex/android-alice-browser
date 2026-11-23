@@ -47,6 +47,7 @@ mod_files=("$PROJECT_DIR"/patches/mods/*.sh)
 
 if [ ${#mod_files[@]} -gt 0 ]; then
     echo "=== 应用 Alice mod ==="
+    match_failures=()
     for m in "${mod_files[@]}"; do
         [ -f "$m" ] || continue
         name=$(basename "$m")
@@ -59,8 +60,14 @@ if [ ${#mod_files[@]} -gt 0 ]; then
         case $code in
             0)   echo "应用: $name" ;;
             100) echo "已应用，跳过: $name" ;;
+            2)   match_failures+=("$name") ;;
             *)   echo "应用失败: $name (exit=$code)"
                  exit 1 ;;
         esac
     done
+
+    if [ ${#match_failures[@]} -gt 0 ]; then
+        printf '命中失败补丁: %s\n' "${match_failures[*]}" >&2
+        exit 2
+    fi
 fi

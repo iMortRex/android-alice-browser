@@ -20,6 +20,8 @@ if grep -q 'Alice patch start 0073' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # --- ToolbarPhone：搜索页进入渐显 ---
 
 sed -i 's|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 225;|URL_FOCUS_CHANGE_ANIMATION_DURATION_MS = 125;|' "$path1"

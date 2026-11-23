@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0049' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 在 Embedder 接口中暴露工具栏位置和锚点 View。
 sed -i '/^import android\.annotation\.SuppressLint;$/a\
     // Alice patch start 0049\

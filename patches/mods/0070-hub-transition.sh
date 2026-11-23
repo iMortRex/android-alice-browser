@@ -15,6 +15,8 @@ if grep -q 'Alice patch start 0070' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 引入 Hub 动画进度观察器 API。
 sed -i '/^import org\.chromium\.chrome\.browser\.hub\.HubExitNavigationHelper;$/a\
 // Alice patch start 0070\

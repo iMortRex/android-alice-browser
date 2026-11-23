@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0046' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 在 ControlContainer 中增加横滑临时颜色入口。
 sed -i '/^import android\.view\.View;$/a\
 // Alice patch start 0046\

@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0007' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 反射设置 LinearLayoutManager.mStackFromEnd，让网格从底部开始排列。
 sed -i '/^                mRecyclerView\.setLayoutManager(gridLayoutManager);$/i\
                 // Alice patch start 0007\

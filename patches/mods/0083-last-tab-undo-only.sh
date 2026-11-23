@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0083' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 在父类中提供提交排队关闭项的方法。
 sed -i '/^    \/\*\* Removes all queued snapshots\. \*\/$/i\
     // Alice patch start 0083\

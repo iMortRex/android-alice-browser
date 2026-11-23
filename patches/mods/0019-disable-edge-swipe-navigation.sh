@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0019' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 边缘左右滑动 = overscroll 的 HISTORY_NAVIGATION。
 # SwipeRefreshHandler.start() 返回 false 时，native 会执行默认的前进/后退；
 # 返回 true 表示"这个 overscroll 序列由我消费"。这里直接消费掉并且什么都不做，

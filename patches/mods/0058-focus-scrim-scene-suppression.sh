@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0058' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 遮罩处理器补充动画和 Activity 相关 import。
 sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0058\

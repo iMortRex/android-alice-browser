@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0065' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 执行对应的 IME visual viewport 源码修改。
 sed -i '/^    void scrollFocusedEditableNodeIntoView();$/a\
     // Alice patch start 0065\

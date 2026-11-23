@@ -15,6 +15,8 @@ if grep -q 'Alice patch start 0079' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # show() 的 next-layout 回调绑定本次 runner。
 sed -i 's|^                containerView\.runOnNextLayout(this::queueAnimation);$|                // Alice patch start 0079\
                 HubLayoutAnimationRunner aliceShowRunner =\

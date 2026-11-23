@@ -15,6 +15,8 @@ if grep -q 'Alice patch start 0039' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 工具栏增加绘制搜索页背景渐变所需的状态。
 sed -i '/^import android\.graphics\.Color;$/a\
 // Alice patch start 0039\

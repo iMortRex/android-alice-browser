@@ -19,6 +19,8 @@ if grep -q 'Alice patch start 0004' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # --- 密码管理工具：保存密码 / 自动登录 关闭 ---
 sed -i 's|^\( *\)prefs::kCredentialsEnableService, true,$|\1// Alice patch start 0004\n\1prefs::kCredentialsEnableService, false,\n\1// Alice patch end 0004|' "$path1"
 sed -i 's|^\( *\)prefs::kCredentialsEnableAutosignin, true,$|\1// Alice patch start 0004\n\1prefs::kCredentialsEnableAutosignin, false,\n\1// Alice patch end 0004|' "$path1"

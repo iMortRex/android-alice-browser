@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0016' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 标签组页面需要读取开关状态。
 sed -i '/^import org\.chromium\.chrome\.browser\.profiles\.Profile;$/i\
 // Alice patch start 0016\

@@ -20,6 +20,8 @@ if grep -q 'Alice patch start 0033' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 从根 InsetObserver 接收 IME 动画帧。
 sed -i '/^import org\.chromium\.build\.annotations\.NullMarked;$/i\
 // Alice patch start 0033\

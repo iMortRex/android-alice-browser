@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0043' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 不依赖默认关闭的 ClearIntentWhenRecreated 功能开关，重建时始终规范化 Intent。
 sed -i '/^        if (ChromeFeatureList\.sClearIntentWhenRecreated\.isEnabled()) {$/,/^        }$/c\
         // Alice patch start 0043\

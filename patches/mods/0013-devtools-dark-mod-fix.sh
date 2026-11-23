@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0013' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 #    关掉 DevTools 的"与 Chrome 配色方案匹配"（chrome-theme-colors）默认值：
 #    它默认 true，第一次打开时会按 Chrome 配色把界面画成浅色；这里只在用户没有设置值时改成 false。
 #    注意 DevTools 的设置值是 JSON 文本（Setting.set 用 JSON.stringify、get 用 JSON.parse），

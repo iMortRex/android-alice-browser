@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0048' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 首次布局完成后再按真实尺寸计算初始滚动位置。
 sed -i '/^        } else if (INITIAL_SCROLL_INDEX == propertyKey) {$/,/^        } else if (FOCUS_TAB_INDEX_FOR_ACCESSIBILITY == propertyKey) {$/c\
         } else if (INITIAL_SCROLL_INDEX == propertyKey) {\

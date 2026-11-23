@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0023' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # mini origin 状态机始终停留在 NOT_READY，表单聚焦和输入法事件都不会改变
 # 地址栏尺寸、缩放、位置或工具栏可见性。
 sed -i '/^    private @MiniOriginState int getNewMiniOriginState(@MiniOriginEvent int miniOriginEvent) {$/,/^    }$/c\

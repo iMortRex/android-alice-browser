@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0022' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # A0) 默认普通 NTP 滑动时，Android 工具栏保持唯一的可见工具栏。
 sed -i '/^    private @Nullable LayoutTab mToTab; \/\/ Set to mLeftTab or mRightTab or null if undetermined.$/a\
     // Alice patch start 0022\

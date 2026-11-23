@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0031' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) RoundedCornerImageView：新增按 x/y 分别设置圆角的入口
 sed -i '/^    private void refreshState() {$/i\
 \

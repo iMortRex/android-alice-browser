@@ -18,6 +18,8 @@ if grep -q 'Alice patch start 0042' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 // Alice patch start 0042\
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;\

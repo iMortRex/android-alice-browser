@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0024' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # path1：主页为自定义网址时，新标签页直接打开该网址（无痕等仍沿用原逻辑）
 sed -i 's|            tabCreator.launchUrl(urlConstantResolver.getNtpUrl(), type);|            // Alice patch start 0024\n            // Alice: 主页为自定义网址时，新标签页直接打开该网址（无痕等仍沿用原逻辑）。\n            String homepageUrl =\n                    profile.isOffTheRecord()\n                            ? null\n                            : UrlConstantResolverFactory.getHomepageForNewTab();\n            tabCreator.launchUrl(\n                    homepageUrl == null ? urlConstantResolver.getNtpUrl() : homepageUrl, type);\n            // Alice patch end 0024|' "$path1"
 

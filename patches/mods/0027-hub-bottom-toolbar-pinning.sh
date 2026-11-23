@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0027' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # --- HubContainerView.java ---
 # 增加固定底部 View 所需的 import。
 sed -i '/^import android\.widget\.FrameLayout;$/i\

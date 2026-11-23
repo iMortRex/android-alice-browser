@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0069' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 预览网页强制使用可参与普通 View 合成的 TextureView
 sed -i '/^import android\.view\.LayoutInflater;$/a\
 // Alice patch start 0069\

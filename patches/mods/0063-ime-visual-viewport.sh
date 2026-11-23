@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0063' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # Java 只同步当前 IME 和底部浏览器控件高度；焦点容器几何由 renderer
 #     在布局生命周期中实时计算。
 # 补充 IME 动画使用的 List import。

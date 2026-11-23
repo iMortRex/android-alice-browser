@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0018' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 原理：BrowserStateBrowserControlsVisibilityDelegate 在 AndroidToolbarScrollAblation
 # 开启时把浏览器控件可见性约束锁定为 SHOWN，页面滚动不再把工具栏滚出屏幕
 # （进入全屏时仍可隐藏）。

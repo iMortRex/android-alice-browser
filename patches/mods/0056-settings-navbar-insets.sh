@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0056' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 设置 Activity 的系统导航栏透明。
 sed -i '/^        setContentView(R.layout.settings_activity);$/a\
         // Alice patch start 0056\

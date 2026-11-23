@@ -44,6 +44,8 @@ if grep -q 'Alice patch start 0036' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # ---------- 新增文件 ----------
 mkdir -p "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/tasks/tab_management"
 cat > "alice/chromium_src/chrome/android/java/src/org/chromium/chrome/browser/tasks/tab_management/AliceTabStackHelper.java" << 'ALICE_EOF'

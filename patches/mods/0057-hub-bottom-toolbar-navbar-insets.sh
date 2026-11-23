@@ -15,6 +15,8 @@ if grep -q 'Alice patch start 0057' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 标签管理页底部 inset 同时考虑系统导航栏。
 sed -i 's|^\( *\)mEdgeToEdgeBottomInsets = .*;$|\1// Alice patch start 0057\n\1mEdgeToEdgeBottomInsets = Math.max(inset, mEdgeToEdgeSupplier.get() != null ? mEdgeToEdgeSupplier.get().getSystemBottomInsetPx() : 0);\n\1// Alice patch end 0057|' "$path1"
 

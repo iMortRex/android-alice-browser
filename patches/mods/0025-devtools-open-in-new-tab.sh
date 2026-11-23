@@ -17,6 +17,8 @@ if grep -q 'Alice patch start 0025' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) ChromeActivity：三个入口打开 DevTools 前，把目标浏览器窗口告诉原生层
 sed -i '/^            DevToolsWindowAndroid\.openDevTools(webContents);$/i\
             // Alice patch start 0025\

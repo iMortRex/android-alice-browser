@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0054' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 记录标签管理页菜单按钮最近一次点击时间。
 sed -i '/^public class ToolbarPositionController implements OnSharedPreferenceChangeListener {$/a\
     // Alice patch start 0054\

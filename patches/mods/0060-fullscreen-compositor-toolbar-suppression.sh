@@ -17,6 +17,8 @@ if grep -q 'Alice patch start 0060' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 增加全屏过渡共享状态：退出、持久全屏、进入动画和视口同步。
 sed -i '/^public interface FullscreenManager {$/a\
     // Alice patch start 0060\

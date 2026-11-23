@@ -23,6 +23,8 @@ if grep -q 'Alice patch start 0030' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 在「更多工具」之前插入一级「开发者工具」入口。
 sed -i 's|^        // More tools|        // Alice patch start 0030\n        // 开发者工具：从「更多工具」子菜单提升到一级菜单\n        if (mMoreToolsItemBuilder.shouldShowDevToolsItem(currentTab)) {\n            modelList.add(mMoreToolsItemBuilder.buildDevToolsItem());\n        }\n        // Alice patch end 0030\n\n        // More tools|' "$path1"
 

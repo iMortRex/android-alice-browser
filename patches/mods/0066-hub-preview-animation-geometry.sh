@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0066' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 底置工具栏快照已包含工具栏区域，动画高度不再额外叠加纯色底栏。
 sed -i '/^        int aliceToolbarHeight = toolbarView == null ? 0 : toolbarView.getHeight();$/,/^                                : Math.max(0, bottomControlsHeight - bottomMargin);$/c\
         // Alice patch start 0066\

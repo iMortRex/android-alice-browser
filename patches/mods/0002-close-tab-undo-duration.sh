@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0002' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i 's|^\( *\)public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 10000;$|\1// Alice patch start 0002\n\1public static final int DEFAULT_TYPE_ACTION_SNACKBAR_DURATION_MS = 3000;\n\1// Alice patch end 0002|' "$path1"
 
 sed -i '/^    public long get(@MessageIdentifier int messageIdentifier, long customDuration) {$/a\

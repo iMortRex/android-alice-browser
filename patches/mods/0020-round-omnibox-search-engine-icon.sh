@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0020' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 非桌面状态图标圆角半径改为 6dp
 sed -i 's|^\( *\)<dimen name="omnibox_search_engine_logo_composed_half_size">12dp</dimen>$|\1<!-- Alice patch start 0020 -->\n\1<dimen name="omnibox_search_engine_logo_composed_half_size">6dp</dimen>\n\1<!-- Alice patch end 0020 -->|' "$path2"
 

@@ -21,6 +21,8 @@ if grep -q 'Alice patch start 0041' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '/^    private final int mBottomBarHeight;$/a\
 // Alice patch start 0041\
     // Alice: generation counter for the deferred shrink/expand rect captures.\

@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0067' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 横滑前缓存当前网页标签缩略图。加载中的页面稍后会再次触发缩略图更新，
 # 此处跳过可以避免把未加载完成的内容和错误的工具栏快照写进缓存。
 sed -i '/^        if (tab != null [&][&] tab\.isNativePage()) {$/,/^        }$/c\

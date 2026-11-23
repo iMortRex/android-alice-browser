@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0052' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 将 Hub 搜索框高度清零。
 sed -i 's|^\( *\)<dimen name="hub_search_box_height">40dp</dimen>$|\1<!-- Alice patch start 0052 -->\n\1<dimen name="hub_search_box_height">0dp</dimen>\n\1<!-- Alice patch end 0052 -->|' "$path1"
 

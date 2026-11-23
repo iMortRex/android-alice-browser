@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0032' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 3 键导航也启用底部 edge-to-edge。
 sed -i 's|^        return !DeviceInfo\.isAutomotive() \&\& !hasTappableNavigationBar(activity\.getWindow());$|        // Alice patch start 0032\n        return !DeviceInfo.isAutomotive();\n        // Alice patch end 0032|' "$path1"
 

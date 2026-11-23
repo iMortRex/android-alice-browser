@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0006' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 上滑工具栏不再打开标签页管理，改为原来的「下拉显示工具栏」
 sed -i 's|^            showLayout(LayoutType.HUB, /\* animate= \*/ true);$|            // Alice patch start 0006\
             startShowing(mToolbarSwipeLayout, true);\

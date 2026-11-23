@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0003' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i 's|^\( *\)public void show() {$|\1// Alice patch start 0003\n\1public void show() { if (true) return;\n\1// Alice patch end 0003|' "$path1"
 
 sed -i 's|^\( *\)public void update(@JniType("std::u16string") String text) {$|\1// Alice patch start 0003\n\1public void update(@JniType("std::u16string") String text) { if (true) return;\n\1// Alice patch end 0003|' "$path1"

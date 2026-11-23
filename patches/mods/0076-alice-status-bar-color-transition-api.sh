@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0076' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '$d' "$path1"
 sed -e 's/^public final class/    public static final class/' \
     -e 's/^/    /' <<'ALICE_EOF' >> "$path1"

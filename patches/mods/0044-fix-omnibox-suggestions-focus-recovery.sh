@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0044' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 焦点缓存只作为最后一次回调结果，注册建议监听器前必须再核对实时窗口状态。
 # 否则初始化期间 hasWindowFocus() 为 false 且顶层 Activity 回调被错过时，
 # OnSuggestionsReceivedListener 会直到整个 Activity 进程结束都不再注册。

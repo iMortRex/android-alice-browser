@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0068' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 动画数据保存实时卡片位置供应商。
 sed -i '/^import android\.util\.Size;$/a\
 // Alice patch start 0068\

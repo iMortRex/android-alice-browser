@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0050' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 全屏时隐藏 Android 工具栏；底置工具栏固定使用 Android View。
 sed -i 's|^        return !BrowserControlsUtils.drawControlsAsTexture(this);$|        // Alice patch start 0050\
         if (getFullscreenManager() != null \&\& getFullscreenManager().getPersistentFullscreenMode()) {\

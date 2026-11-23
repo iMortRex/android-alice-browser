@@ -14,6 +14,8 @@ if grep -q 'Alice patch start 0051' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 将 Hub 内容区的顶部工具栏留白改成底部工具栏留白。
 sed -i '/^    <LinearLayout$/{N;/\n      android:id="@+id\/hub_pane_host_container"$/i\
 <!-- Alice patch start 0051 -->

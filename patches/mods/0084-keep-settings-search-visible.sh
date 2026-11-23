@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0084' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 搜索控制器增加偏好依赖和稳定的偏好键。
 sed -i '/^import org\.chromium\.chrome\.browser\.profiles\.Profile;$/i\
 // Alice patch start 0084\

@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0017' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 加静态时间戳字段（锚点是唯一的 UNKNOWN_APP_ID）
 sed -i '/^    private static final String UNKNOWN_APP_ID = /a\
 \

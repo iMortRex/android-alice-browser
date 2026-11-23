@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0078' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 扩展 URL 未指定位置时，插到当前活动标签页的下一位。
 sed -i '\|^  TabModel::TabLaunchType launch_type = GetTabLaunchType(params);$|i\
   // Alice patch start 0078\

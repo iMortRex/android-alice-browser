@@ -9,6 +9,8 @@ if grep -q 'Alice patch start 0081' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '/^            int browserControlsHeightDp =$/,/^                                            \/ context\.getResources()\.getDisplayMetrics()\.density);$/c\
             // Alice patch start 0081\
             int browserControlsHeightPx = 0;\

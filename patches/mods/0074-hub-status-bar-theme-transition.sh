@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0074' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 动画进度依赖。
 sed -i '/^import android\.app\.Activity;$/i\
 // Alice patch start 0074\

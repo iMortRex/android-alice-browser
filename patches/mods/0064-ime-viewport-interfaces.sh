@@ -27,6 +27,8 @@ if grep -q 'Alice patch start 0064' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 在 ADJUST_NOTHING 模式下拦截原有焦点滚动。
 sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0064\

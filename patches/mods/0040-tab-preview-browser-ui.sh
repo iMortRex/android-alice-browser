@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0040' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 补充工具栏合成所需的 Android import。
 # 导入 Activity，用于从 Context 定位当前浏览器窗口。
 sed -i '/^import android\.content\.Context;$/i\

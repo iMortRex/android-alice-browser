@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0001' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 根据横屏或 HTML 全屏状态切换窗口挖孔模式，避免全屏页面继续避让挖孔。
 sed -i '/^        final int displayCutoutMode = computeDisplayCutoutMode();$/,/^        setWindowAttributes(attributes);$/c\
         // Alice patch start 0001\

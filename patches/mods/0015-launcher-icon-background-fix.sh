@@ -11,4 +11,6 @@ if grep -q 'Alice patch start 0015' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i 's|^\( *\)<background android:drawable="@android:color/white"/>$|\1<!-- Alice patch start 0015 -->\n\1<background android:drawable="@mipmap/layered_app_icon_background"/>\n\1<!-- Alice patch end 0015 -->|' "$path1"

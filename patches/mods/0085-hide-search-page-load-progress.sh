@@ -5,6 +5,13 @@ set -e
 
 path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/top/ToolbarPhone.java"
 
+# 检测是否已应用
+if grep -q 'Alice patch start 0085' "$path1"; then
+    exit 100
+fi
+
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 进度条可见性同时受标签页模式和 URL 焦点控制。
 sed -i '/^    private void updateProgressBarVisibility() {$/,/^    }$/c\
     // Alice patch start 0085\

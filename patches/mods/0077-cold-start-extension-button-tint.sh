@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0077' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 和其他工具栏按钮保持一致：优先使用 ThemeColorProvider 已生效的 tint；
 # 如果主题色尚未初始化，则保留 View 在 XML 中已有的 tint，等待后续回调。
 sed -i '/^        mThemeColorProvider.addTintObserver(mTintObserver);$/a\

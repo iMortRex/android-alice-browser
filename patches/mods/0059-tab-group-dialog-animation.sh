@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0059' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 使用当前窗口位置修正弹窗父容器坐标。
 sed -i 's|^        assumeNonNull(mParent)\.getGlobalVisibleRect(dialogParentRect);$|        // Alice patch start 0059\n        int[] aliceDialogLocation = new int[2];\n        getLocationInWindow(aliceDialogLocation);\n        dialogParentRect.offsetTo(aliceDialogLocation[0], aliceDialogLocation[1]);\n        // Alice patch end 0059|' "$path1"
 

@@ -20,6 +20,8 @@ if grep -q 'Alice patch start 0034' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) SnackbarView 已经使用 ViewCompat，补充 WindowInsetsCompat 类型
 sed -i '/^import androidx\.core\.view\.ViewCompat;$/a\
 // Alice patch start 0034\

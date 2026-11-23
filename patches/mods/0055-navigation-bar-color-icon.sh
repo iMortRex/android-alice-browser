@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0055' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 导航栏颜色控制器增加工具栏位置观察和临时工具栏颜色来源。
 sed -i '/^import org\.chromium\.chrome\.browser\.browser_controls\.BrowserControlsStateProvider;$/a\
 // Alice patch start 0055\

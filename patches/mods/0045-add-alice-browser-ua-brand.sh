@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0045' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # GetUserAgentBrandList 同时生成低熵 brands 与高熵 fullVersionList，
 # 因此在这里追加品牌可以保证 navigator.userAgentData 的两份列表一致。
 sed -i '/^  return GenerateBrandVersionList(major_version_number, brand, brand_version,$/,/^                                  additional_brand_version);$/c\

@@ -13,6 +13,8 @@ if grep -q 'Alice patch start 0014' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 去掉 23dp 的 message_bubble_inset 修正
 sed -i 's|^\( *\)final Resources res = mContainer\.getResources();$|\1// Alice patch start 0014\n\1// Alice patch end 0014|' "$path1"
 sed -i 's|^\( *\)return contentOffset - res\.getDimensionPixelOffset(R\.dimen\.message_bubble_inset);$|\1// Alice patch start 0014\n\1return contentOffset;\n\1// Alice patch end 0014|' "$path1"

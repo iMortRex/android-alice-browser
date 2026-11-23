@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0029' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 工具栏配置在底部时，不按顶部工具栏判断动画方向。
 sed -i '/^    public static boolean shouldShowToolbarOnTop(@Nullable Tab tab) {$/a\
         // Alice patch start 0029\

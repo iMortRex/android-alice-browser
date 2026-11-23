@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0082' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 只对通过 UndoBarController 创建的撤销气泡启用单按钮形态。
 # 标签组合并仍保留原有消息和按钮，避免扩大改动范围。
 sed -i '/^    void adjustViewPosition() {$/i\

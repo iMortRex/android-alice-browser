@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0080' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     // Alice patch start 0080\
     private boolean mAliceNavigationBarLayoutSyncPending = true;\

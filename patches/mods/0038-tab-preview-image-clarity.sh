@@ -11,5 +11,7 @@ if grep -q 'Alice patch start 0038' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i 's|^\( *\)thumbnailScale = 1.5f / deviceDensity;$|\1// Alice patch start 0038\n\1thumbnailScale = 2.5f / deviceDensity;\n\1// Alice patch end 0038|' "$path1"
 

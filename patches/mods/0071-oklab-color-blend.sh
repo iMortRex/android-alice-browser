@@ -1,12 +1,12 @@
 #!/bin/bash
-# 通用 OKLab 颜色插值接口：供 0071、0074 及后续功能复用。
+# 通用 OKLab 颜色插值接口：供 0075、0074 及后续功能复用。
 
 set -e
 
 path1="ui/android/java/src/org/chromium/ui/util/ColorUtils.java"
 
 # 检测是否已应用
-if grep -q 'Alice patch start 0075' "$path1"; then
+if grep -q 'Alice patch start 0071' "$path1"; then
     exit 100
 fi
 
@@ -15,8 +15,10 @@ if grep -q 'blendColorsOklab' "$path1"; then
     exit 101
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 sed -i '$i\
-    // Alice patch start 0075\
+    // Alice patch start 0071\
     /**\
      * Interpolates opaque colors in OKLab for a more even perceptual transition.\
      *\
@@ -93,4 +95,4 @@ sed -i '$i\
                 : 1.055 * Math.pow(value, 1.0 / 2.4) - 0.055;\
         return (int) Math.round(encoded * 255.0);\
     }\
-    // Alice patch end 0075' "$path1"
+    // Alice patch end 0071' "$path1"

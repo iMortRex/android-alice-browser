@@ -11,6 +11,8 @@ if grep -q 'Alice patch start 0061' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 导航栏颜色控制器监听 IME 动画。
 sed -i '/^import androidx\.annotation\.VisibleForTesting;$/a\
 // Alice patch start 0061\

@@ -12,6 +12,8 @@ if grep -q 'Alice patch start 0009' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 1) 主页按钮永久隐藏：GONE = 连 48dp 占位一起去掉（想保留占位就改成 INVISIBLE）
 sed -i -e 's|^        mVisibility = visibility;$|        // Alice patch start 0009\n        mVisibility = GONE;\n        // Alice patch end 0009|' \
        -e 's|^        super.setVisibility(mHasSpaceToShow ? mVisibility : GONE);$|        // Alice patch start 0009\n        super.setVisibility(GONE);\n        // Alice patch end 0009|' \

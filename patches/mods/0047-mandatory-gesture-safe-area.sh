@@ -10,6 +10,8 @@ if grep -q 'Alice patch start 0047' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 将手势热区纳入 bottom safe-area，避免可见但不可点击的底部窄条。
 sed -i 's|^        newSafeArea.bottom += mBottomInsetsForEdgeToEdge;$|        // Alice patch start 0047\
         int aliceMandatoryGestureBottom = 0;\

@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0028' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 原生 popup 加载完成时，把最终 URL 一起回传给 Java。
 sed -i '/^  Java_ExtensionActionPopupContents_onLoaded(AttachCurrentThread(),$/,/^                                             java_object_);$/c\
 // Alice patch start 0028\

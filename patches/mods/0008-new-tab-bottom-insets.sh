@@ -15,6 +15,8 @@ if grep -q 'Alice patch start 0008' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # --- 1) NewTabPageLayoutProperties：新增 BOTTOM_INSET_PX 属性 ---
 sed -i '/^    static final WritableIntPropertyKey TOP_INSET_PX = new WritableIntPropertyKey();$/a\
     // Alice patch start 0008\

@@ -16,6 +16,8 @@ if grep -q 'Alice patch start 0026' "$path1"; then
     exit 100
 fi
 
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
+
 # 重排图标行：去掉后退和页面信息，下载改为「下载内容」，新增「扩展」。
 sed -i '/^            if (ChromeFeatureList\.sThreeDotMenuBackButton\.isEnabled()) {$/,/^            }$/d' "$path1"
 sed -i '/^            iconModels\.add(buildDownloadActionModel(currentTab));$/d' "$path1"
