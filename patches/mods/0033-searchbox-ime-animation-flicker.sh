@@ -1003,63 +1003,69 @@ sed -i '/^import org\.chromium\.components\.browser_ui\.widget\.scrim\.ScrimProp
 import org.chromium.components.browser_ui.widget.scrim.ScrimView;\
 // Alice patch end 0033' "$path3"
 
-sed -i '/^                                updateScrimBottomMargin());$/a\
-            // Alice patch start 0033\
-            mImeBoundaryView = aliceBottomBoundary;\
-            ViewTreeObserver.OnPreDrawListener aliceBoundaryPreDrawListener =\
-                    () -> {\
-                        View aliceBoundary = mImeBoundaryView;\
-                        if (aliceBoundary == null) return true;\
-                        boolean aliceBottomToolbar = isBottomToolbarActive();\
-                        aliceBoundary.getLocationInWindow(mImeBoundaryPosition);\
-                        View aliceRoot = aliceBoundary.getRootView();\
-                        if (mScrimModel.get(ScrimProperties.TOP_MARGIN) != 0) {\
-                            mScrimModel.set(ScrimProperties.TOP_MARGIN, 0);\
-                        }\
-                        if (mScrimModel.get(ScrimProperties.BOTTOM_MARGIN) != 0) {\
-                            mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, 0);\
-                        }\
-                        @Nullable View aliceScrim = mOmniboxScrimView;\
-                        if (aliceScrim == null || aliceScrim.getParent() == null) {\
-                            aliceScrim = findOmniboxScrimView(aliceRoot);\
-                            mOmniboxScrimView = aliceScrim;\
-                        }\
-                        if (aliceScrim != null\
-                                \&\& aliceScrim.getParent() instanceof View) {\
-                            View aliceScrimParent = (View) aliceScrim.getParent();\
-                            if (aliceScrim.getLayoutParams()\
-                                    instanceof ViewGroup.MarginLayoutParams) {\
-                                ViewGroup.MarginLayoutParams aliceScrimParams =\
-                                        (ViewGroup.MarginLayoutParams)\
-                                                aliceScrim.getLayoutParams();\
-                                aliceScrimParams.topMargin = 0;\
-                                aliceScrimParams.bottomMargin = 0;\
+sed -i '/^        mTabStripHeightSupplier\.addSyncObserverAndPostIfNonNull(mTabStripHeightChangeCallback);$/a\
+        // Alice patch start 0033\
+        if (mContext instanceof Activity) {\
+            View aliceBottomBoundary =\
+                    ((Activity) mContext).findViewById(R.id.control_container);\
+            if (aliceBottomBoundary != null) {\
+                mImeBoundaryView = aliceBottomBoundary;\
+                ViewTreeObserver.OnPreDrawListener aliceBoundaryPreDrawListener =\
+                        () -> {\
+                            View aliceBoundary = mImeBoundaryView;\
+                            if (aliceBoundary == null) return true;\
+                            boolean aliceBottomToolbar = isBottomToolbarActive();\
+                            aliceBoundary.getLocationInWindow(mImeBoundaryPosition);\
+                            View aliceRoot = aliceBoundary.getRootView();\
+                            if (mScrimModel.get(ScrimProperties.TOP_MARGIN) != 0) {\
+                                mScrimModel.set(ScrimProperties.TOP_MARGIN, 0);\
                             }\
-                            aliceScrimParent.getLocationInWindow(mScrimParentPosition);\
-                            int aliceScrimBottom =\
-                                    aliceBottomToolbar\
-                                            ? Math.max(\
-                                                    0,\
-                                                    Math.min(\
-                                                            aliceScrimParent.getHeight(),\
-                                                            mImeBoundaryPosition[1]\
-                                                                    - mScrimParentPosition[1]))\
-                                            : aliceScrimParent.getHeight();\
-                            if (aliceScrim.getBottom() != aliceScrimBottom) {\
-                                aliceScrim.layout(\
-                                        aliceScrim.getLeft(),\
-                                        aliceScrim.getTop(),\
-                                        aliceScrim.getRight(),\
-                                        aliceScrimBottom);\
+                            if (mScrimModel.get(ScrimProperties.BOTTOM_MARGIN) != 0) {\
+                                mScrimModel.set(ScrimProperties.BOTTOM_MARGIN, 0);\
                             }\
-                        }\
-                        return true;\
-                    };\
-            mImeBoundaryPreDrawListener = aliceBoundaryPreDrawListener;\
-            aliceBottomBoundary\
-                    .getViewTreeObserver()\
-                    .addOnPreDrawListener(aliceBoundaryPreDrawListener);\
-            // Alice patch end 0033' "$path3"
+                            @Nullable View aliceScrim = mOmniboxScrimView;\
+                            if (aliceScrim == null || aliceScrim.getParent() == null) {\
+                                aliceScrim = findAliceScrimView(aliceRoot);\
+                                mOmniboxScrimView = aliceScrim;\
+                            }\
+                            if (aliceScrim != null\
+                                    \&\& aliceScrim.getParent() instanceof View) {\
+                                View aliceScrimParent = (View) aliceScrim.getParent();\
+                                if (aliceScrim.getLayoutParams()\
+                                        instanceof ViewGroup.MarginLayoutParams) {\
+                                    ViewGroup.MarginLayoutParams aliceScrimParams =\
+                                            (ViewGroup.MarginLayoutParams)\
+                                                    aliceScrim.getLayoutParams();\
+                                    aliceScrimParams.topMargin = 0;\
+                                    aliceScrimParams.bottomMargin = 0;\
+                                }\
+                                aliceScrimParent.getLocationInWindow(mScrimParentPosition);\
+                                int aliceScrimBottom =\
+                                        aliceBottomToolbar\
+                                                ? Math.max(\
+                                                        0,\
+                                                        Math.min(\
+                                                                aliceScrimParent.getHeight(),\
+                                                                mImeBoundaryPosition[1]\
+                                                                        - mScrimParentPosition[1]))\
+                                                : aliceScrimParent.getHeight();\
+                                if (aliceScrim.getBottom() != aliceScrimBottom) {\
+                                    aliceScrim.layout(\
+                                            aliceScrim.getLeft(),\
+                                            aliceScrim.getTop(),\
+                                            aliceScrim.getRight(),\
+                                            aliceScrimBottom);\
+                                }\
+                            }\
+                            return true;\
+                        };\
+                mImeBoundaryPreDrawListener = aliceBoundaryPreDrawListener;\
+                aliceBottomBoundary\
+                        .getViewTreeObserver()\
+                        .addOnPreDrawListener(aliceBoundaryPreDrawListener);\
+            }\
+        }\
+        // Alice patch end 0033' "$path3"
 
 sed -i '/^                    mScrimModel\.set(ScrimProperties\.TOP_MARGIN, newHeight);$/c\
                     // Alice patch start 0033\
@@ -1151,49 +1157,6 @@ sed -i '/^    public void updateScrimVisualState() {$/i\
         return mBrowserControlsStateProvider != null\
                 \&\& mBrowserControlsStateProvider.getControlsPosition()\
                         == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
-    }\
-    // Alice patch end 0033\
-' "$path3"
-
-sed -i '/^    private void updateScrimBottomMargin() {$/a\
-        // Alice patch start 0033\
-        if (!isBottomToolbarActive()) {\
-            updateScrimBottomMargin(0);\
-            return;\
-        }\
-        if (!(mContext instanceof Activity)) {\
-            updateScrimBottomMargin(0);\
-            return;\
-        }\
-        View aliceBoundary =\
-                ((Activity) mContext).findViewById(R.id.control_container);\
-        if (aliceBoundary == null\
-                || !KeyboardVisibilityDelegate.getInstance()\
-                        .isKeyboardShowing(aliceBoundary)) {\
-            updateScrimBottomMargin(0);\
-            return;\
-        }\
-        if (mIsImeAnimationRunning) {\
-            if (mCurrentImeAnimationHeight >= 0) {\
-                updateScrimBottomMargin(mCurrentImeAnimationHeight);\
-            }\
-            return;\
-        }\
-        // Alice patch end 0033' "$path3"
-
-sed -i '/^    private void updateScrimBottomMargin() {$/i\
-    // Alice patch start 0033\
-    private @Nullable View findOmniboxScrimView(View view) {\
-        if (view.getVisibility() != View.GONE \&\& view instanceof ScrimView) {\
-            return view;\
-        }\
-        if (!(view instanceof ViewGroup)) return null;\
-        ViewGroup group = (ViewGroup) view;\
-        for (int i = 0; i < group.getChildCount(); i++) {\
-            @Nullable View result = findOmniboxScrimView(group.getChildAt(i));\
-            if (result != null) return result;\
-        }\
-        return null;\
     }\
     // Alice patch end 0033\
 ' "$path3"

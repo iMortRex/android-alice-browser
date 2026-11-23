@@ -185,41 +185,6 @@ sed -i '/^    private void captureSearchToolbarSnapshot() {$/,/^    private void
 \
     private void updateSearchToolbarSnapshot() {' "$path8"
 
-sed -i '/^    private void updateSearchToolbarSnapshot() {$/,/^    }$/c\
-    private void updateSearchToolbarSnapshot() {\
-        boolean aliceFocused = mIsOmniboxFocusedSupplier.get();\
-        boolean aliceShouldShow =\
-                aliceFocused\
-                        \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\
-                        \&\& mLayerVisibility != LayerVisibility.HIDDEN;\
-        if (!aliceShouldShow) {\
-            if (mSearchToolbarSnapshot != null) {\
-                mSearchToolbarSnapshot.setVisibility(View.INVISIBLE);\
-            }\
-            if (!aliceFocused) releaseSearchToolbarSnapshot();\
-            return;\
-        }\
-\
-        ImageView aliceSnapshot = mSearchToolbarSnapshot;\
-        if (aliceSnapshot != null\
-                \&\& mSearchToolbarSnapshotBitmap != null\
-                \&\& aliceSnapshot.isAttachedToWindow()\
-                \&\& (aliceSnapshot.getWidth() <= 0\
-                        || aliceSnapshot.getHeight() <= 0)) {\
-            aliceSnapshot.postOnAnimation(\
-                    ToolbarPositionController.this::updateSearchToolbarSnapshot);\
-            return;\
-        }\
-        if (aliceSnapshot != null\
-                \&\& mSearchToolbarSnapshotBitmap != null\
-                \&\& aliceSnapshot.getWidth() > 0\
-                \&\& aliceSnapshot.getHeight() > 0) {\
-            aliceSnapshot.setTranslationY(0);\
-            moveSearchToolbarSnapshotBelowScrim();\
-            aliceSnapshot.setVisibility(View.VISIBLE);\
-        }\
-    }' "$path8"
-
 # System UI 退出动画期间，原生逻辑会延迟 500ms 再更新 viewport。日志确认
 # 导航栏避让恰好在这段延迟后才恢复；现在由显式全屏同步处理，不再等待。
 sed -i 's|^    private static final long SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS = 500;$|    // Alice patch start 0042\

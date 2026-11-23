@@ -107,7 +107,7 @@ sed -i '/^                        if (disableUndo(true)) return;$/a\
                         // Alice patch end 0072' "$path3"
 
 # 已保存标签组关闭：关闭时只提交关联标签页，不创建撤销气泡和租约。
-sed -i '/^import org\.chromium\.chrome\.R;$/a\
+sed -i '/^import org\.chromium\.chrome\.browser\.tab\.Tab;$/i\
 // Alice patch start 0072\
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;\
 // Alice patch end 0072' "$path4"

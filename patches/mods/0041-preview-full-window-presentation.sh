@@ -264,14 +264,16 @@ sed -i '/^    int getVerticalScrollOffset();$/i\
 # Alice: a negative inset pushes the full-window preview below the container bottom;
 # keep it while hiding so the preview slides fully off the screen instead of stopping
 # at the navigation-bar top edge.
-sed -i '/^        int bottomInsetAdjustment = (mTargetState == SheetState\.HIDDEN) ? 0 : e2eBottomInset;$/c\
+sed -i '/^        float bottomInsetAdjustment =$/,+1c\
         // Alice patch start 0041\
         // Alice: keep a negative inset while hiding so the full-window preview slides\
         // fully off the screen; positive insets still zero out for the hidden state.\
-        int bottomInsetAdjustment =\
-                (mTargetState == SheetState.HIDDEN \&\& e2eBottomInset > 0)\
-                        ? 0\
-                        : e2eBottomInset;\
+        float bottomInsetAdjustment =\
+                mTargetState == SheetState.HIDDEN\
+                        ? (e2eBottomInset < 0 ? e2eBottomInset : 0f)\
+                        : currentOffsetPx <= 0\
+                                ? 0f\
+                                : Math.min(currentOffsetPx, e2eBottomInset);\
         // Alice patch end 0041' "$path8"
 
 # BottomSheet 不参与预览内容区的触摸竞争，标题栏仍保留原有拖动行为。
@@ -463,7 +465,7 @@ sed -i '/^    public void onExitFullscreen(Tab tab) {$/,/^    }$/c\
     }\
 ' "$path10"
 
-sed -i '/^    public void onToEdgeChange(\$/i\
+sed -i '/^    public void onToEdgeChange($/i\
 // Alice patch start 0041\
 // Alice: the authoritative inset state arrived; drop the exit force.\
 // Alice patch end 0041\
@@ -518,7 +520,10 @@ sed -i '/^    private void onAnimationDataAvailable(ShrinkExpandAnimationData an
     }\
 ' "$path9"
 
-sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
+sed -i '/^    @Px$/{
+N
+/\n    int getEdgeToEdgeBottomInset() {$/{
+i\
     // Alice patch start 0041\
     private int getAliceNavigationBarVisualHeight() {\
         WindowInsetsCompat aliceRawInsets = mInsetObserver.getLastRawWindowInsets();\
@@ -617,8 +622,9 @@ sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
                 },\
                 alicePollDelayMs);\
     }\
-    // Alice patch end 0041\
-' "$path7"
+    // Alice patch end 0041
+}
+}' "$path7"
 
 sed -i '/^        onSheetContentChanged(content);$/a\
         // Alice patch start 0041\
@@ -778,30 +784,40 @@ sed -i '/^        mModel\.set(BottomSheetProperties\.CONTAINER_TOUCH_ENABLED, st
                 state != SheetState.SCROLLING || fullWindowContent);\
         // Alice patch end 0041' "$path8"
 
-sed -i '/^    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {$/,/^    }$/c\
+sed -i '/^    private void updateViewport(@Px int e2eBottomInset) {$/i\
     // Alice patch start 0041\
-    private @Px int getViewportBottomInset(@Px int e2eBottomInset) {\
-        @Px int viewportBottomInset = e2eBottomInset;\
-\
-        if (shouldFollowImeForSheetPosition()) {\
-            return isKeyboardShowing() || mFullWindowImeAnimationRunning\
-                    ? 0\
-                    : viewportBottomInset;\
-        }\
-\
-        if (isSheetOpen()) {\
-            int visibleViewport = mVisibleViewportRect.height();\
-            viewportBottomInset =\
-                    Math.max(viewportBottomInset, mContainerHeight - visibleViewport);\
-        }\
-        return viewportBottomInset;\
-    }\
-\
     private boolean shouldFollowImeForSheetPosition() {\
         BottomSheetContent content = getCurrentSheetContent();\
         return content != null \&\& content.shouldUseFullWindowPresentation();\
     }\
-    // Alice patch end 0041' "$path7"
+    // Alice patch end 0041\
+\
+' "$path7"
+
+# Alice: the full-window preview owns the IME crop animation, so the visible
+# viewport must not shrink underneath it while the keyboard is moving.
+sed -i '/^        decorView\.getWindowVisibleDisplayFrame(mVisibleViewportRect);$/a\
+        // Alice patch start 0041\
+        if (shouldFollowImeForSheetPosition()) {\
+            mVisibleViewportRect.bottom =\
+                    decorView.getBottom()\
+                            - ((isKeyboardShowing() || mFullWindowImeAnimationRunning)\
+                                    ? 0\
+                                    : e2eBottomInset);\
+            return;\
+        }\
+        // Alice patch end 0041' "$path7"
+
+sed -i '/^        bottomInset = Math\.min(bottomInset, decorHeight);$/i\
+        // Alice patch start 0041\
+        if (shouldFollowImeForSheetPosition()) {\
+            bottomInset =\
+                    (isKeyboardShowing() || mFullWindowImeAnimationRunning)\
+                            ? 0\
+                            : e2eBottomInset;\
+        }\
+        // Alice patch end 0041\
+' "$path7"
 
 sed -i '/^    private boolean isFullHeightWrapContent() {$/,/^    }$/c\
     // Alice patch start 0041\
@@ -961,7 +977,10 @@ import android.widget.FrameLayout;\
 // Alice patch end 0041\
 ' "$path7"
 
-sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
+sed -i '/^    @Px$/{
+N
+/\n    int getEdgeToEdgeBottomInset() {$/{
+i\
     // Alice patch start 0041\
     private int getAliceNavigationBarInset() {\
         WindowInsetsCompat aliceRawInsets = mInsetObserver.getLastRawWindowInsets();\
@@ -982,9 +1001,9 @@ sed -i '/^    private @Px int getEdgeToEdgeBottomInset() {$/i\
                 FULL_WINDOW_PREVIEW_HEIGHT_RATIO * getMaxSheetHeight()\
                         - getAliceNavigationBarInset());\
     }\
-    // Alice patch end 0041\
-\
-' "$path7"
+    // Alice patch end 0041
+}
+}' "$path7"
 
 # Alice: let the preview draw past the container bottom into the navigation-bar area,
 # otherwise the parent clipping slices the sheet at the navigation-bar top edge.

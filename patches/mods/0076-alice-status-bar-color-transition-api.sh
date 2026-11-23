@@ -3,40 +3,16 @@
 
 set -e
 
-path1="$(mktemp)"
-path2="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
-nested="$(mktemp)"
-trap 'rm -f "$path1" "$nested"' EXIT
+path1="chrome/android/java/src/org/chromium/chrome/browser/ui/system/StatusBarColorController.java"
 
-if grep -q 'Alice patch start 0076' "$path2"; then
+# 检测是否已应用
+if grep -q 'Alice patch start 0076' "$path1"; then
     exit 100
 fi
 
-cat > "$path1" <<'ALICE_EOF'
-// Copyright 2026 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-package org.chromium.chrome.browser.ui.system;
-
-import android.animation.ValueAnimator;
-import android.app.Activity;
-import android.graphics.Color;
-
-import androidx.annotation.ColorInt;
-
-import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
-import org.chromium.ui.interpolators.Interpolators;
-import org.chromium.ui.util.ColorUtils;
-
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-
-/** Coordinates transient status bar colors for one Activity. */
+sed -i '$d' "$path1"
+sed -e 's/^public final class/    public static final class/' \
+    -e 's/^/    /' <<'ALICE_EOF' >> "$path1"
 // Alice patch start 0076
 @NullMarked
 public final class AliceStatusBarColorTransitionController {
@@ -202,18 +178,11 @@ public final class AliceStatusBarColorTransitionController {
 }
 // Alice patch end 0076
 ALICE_EOF
+printf '}\n' >> "$path1"
 
 sed -i '/^import java.util.Map;$/i\
 // Alice patch start 0076\
 import java.lang.ref.WeakReference;\
 import java.util.ArrayList;\
 import java.util.List;\
-// Alice patch end 0076' "$path2"
-
-sed -n '/^\/\/ Alice patch start 0076$/,/^\/\/ Alice patch end 0076$/p' "$path1" \
-    | sed 's/^public final class/    public static final class/' \
-    | sed 's/^/    /' > "$nested"
-
-sed -i '$d' "$path2"
-cat "$nested" >> "$path2"
-printf '}\n' >> "$path2"
+// Alice patch end 0076' "$path1"

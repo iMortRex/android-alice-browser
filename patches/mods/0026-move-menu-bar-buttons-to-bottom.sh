@@ -175,12 +175,19 @@ sed -i '/^            ExtensionsToolbarCoordinator coordinator =$/,/^           
             // Alice patch end 0026' "$path3"
 
 # footer 也参与菜单宽度测量，避免底部按钮行被裁切。
-sed -i '/^        int contentWidth = itemWidth + bgPadding\.left + bgPadding\.right;$/i\
+sed -i '/^        int minWidth = context\.getResources()\.getDimensionPixelSize(R\.dimen\.menu_width_min);$/i\
         // Alice patch start 0026\
-        if (footer != null) {\
-            footer.measure(\
-                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),\
-                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));\
-            itemWidth = Math.max(itemWidth, footer.getMeasuredWidth());\
+        if (footer instanceof ViewGroup footerGroup) {\
+            int footerWidth = footerGroup.getPaddingLeft() + footerGroup.getPaddingRight();\
+            int footerWidthSpec =\
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);\
+            int footerHeightSpec = footerWidthSpec;\
+            for (int i = 0; i < footerGroup.getChildCount(); i++) {\
+                View footerChild = footerGroup.getChildAt(i);\
+                if (footerChild.getVisibility() == View.GONE) continue;\
+                footerChild.measure(footerWidthSpec, footerHeightSpec);\
+                footerWidth += footerChild.getMeasuredWidth();\
+            }\
+            contentWidth = Math.max(contentWidth, footerWidth);\
         }\
         // Alice patch end 0026' "$path4"

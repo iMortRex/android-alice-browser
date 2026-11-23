@@ -941,47 +941,6 @@ sed -i '/^                        : mCurrentInsetSupplier\.get()\.visualViewport
         }\
         // Alice patch end 0034' "$path6"
 
-# 14) 底部工具栏在 IME 动画期间会从 minibar 切回完整工具栏。
-#     WebContents 如果读取动态控件高度，会跟着 minibar 重新布局并短暂绘制到底部。
-#     地址栏位于底部时固定预留 toolbar_height_no_shadow + toolbar_hairline_height，
-#     导航栏仍由后续 inset 单独叠加；地址栏位于顶部时也预留系统导航栏高度，
-#     让网页绘制区域不伸到系统导航栏下面。
-sed -i '/^        int aliceTopControlsInset = 0;$/,/^        }$/c\
-        // Alice patch start 0034\
-        int aliceTopControlsInset = 0;\
-        int aliceBottomControlsInset = 0;\
-        if (!aliceInFullscreen && mBrowserControlsManager != null) {\
-            aliceTopControlsInset =\
-                    mControlsResizeView\
-                            ? mBrowserControlsManager.getTopControlsHeight()\
-                            : mBrowserControlsManager.getTopControlsMinHeight();\
-            boolean aliceBottomToolbar =\
-                    mBrowserControlsManager.getControlsPosition()\
-                            == BrowserControlsStateProvider.ControlsPosition.BOTTOM;\
-            if (aliceBottomToolbar) {\
-                int aliceToolbarHeight =\
-                        getResources()\
-                                .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);\
-                int aliceToolbarHairlineHeight =\
-                        getResources()\
-                                .getDimensionPixelSize(R.dimen.toolbar_hairline_height);\
-                aliceBottomControlsInset = aliceToolbarHeight + aliceToolbarHairlineHeight;\
-            } else {\
-                if (!mBrowserControlsManager.hasHidingTokens()) {\
-                    aliceBottomControlsInset =\
-                            mControlsResizeView\
-                                    ? mBrowserControlsManager.getBottomControlsHeight()\
-                                    : mBrowserControlsManager.getBottomControlsMinHeight();\
-                }\
-                if (mBrowserControlsManager.getControlsPosition()\
-                        == BrowserControlsStateProvider.ControlsPosition.TOP) {\
-                    aliceBottomControlsInset += mAliceNavigationBarInset;\
-                }\
-            }\
-        }\
-        // Alice patch end 0034\
-' "$path7"
-
 # 15) Hub 标签页预览（缩略图/展开动画）在 bottom_container 之后绘制，
 #     会盖住撤销气泡。把 bottom_container 移到 tab_switcher_view_holder_stub
 #     之后，让气泡位于 Hub 预览动画之上。forked 布局已经是这个顺序，无需处理。

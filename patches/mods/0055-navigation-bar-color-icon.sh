@@ -209,11 +209,7 @@ sed -i '/^    protected void setDefaultTaskDescription() {$/,/^    }$/c\
         // Alice patch end 0055\
     }' "$path6"
 sed -i 's|^        edgeToEdgeSystemBarColorHelper\.setNavigationBarColor(defaultNavigationBarColor);$|        // Alice patch start 0055\n        edgeToEdgeSystemBarColorHelper.setNavigationBarColor(android.graphics.Color.TRANSPARENT);\n        // Alice patch end 0055|' "$path6"
-sed -i '/^                                \.setBackgroundColor(opaqueBgColor)$/a\
+sed -i 's|^                                \.setStatusBarColor(opaqueColor);$|                                .setStatusBarColor(opaqueColor)\
                                 // Alice patch start 0055\
-                                .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
-                                // Alice patch end 0055' "$path7"
-sed -i '/^                                \.setStatusBarColor(opaqueColor)$/a\
-                                // Alice patch start 0055\
-                                .setNavigationBarColor(android.graphics.Color.TRANSPARENT)\
-                                // Alice patch end 0055' "$path7"
+                                .setNavigationBarColor(android.graphics.Color.TRANSPARENT);\
+                                // Alice patch end 0055|' "$path7"

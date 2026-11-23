@@ -4,23 +4,23 @@
 set -e
 
 path1="content/public/android/java/src/org/chromium/content/browser/webcontents/WebContentsImpl.java"
-path5="third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
-path6="third_party/blink/renderer/core/frame/web_frame_widget_impl.cc"
-path11="third_party/blink/renderer/core/frame/visual_viewport.h"
-path12="third_party/blink/renderer/core/frame/visual_viewport.cc"
-path13="third_party/blink/renderer/core/events/web_input_event_conversion.cc"
-path14="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.h"
-path15="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.cc"
-path16="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.h"
-path17="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.cc"
-path18="third_party/blink/public/mojom/page/widget.mojom"
-path19="content/public/test/fake_frame_widget.h"
-path20="third_party/blink/renderer/platform/widget/input/widget_input_handler_manager.h"
-path21="third_party/blink/renderer/platform/widget/input/widget_input_handler_manager.cc"
-path22="third_party/blink/renderer/platform/widget/input/input_handler_proxy.h"
-path23="third_party/blink/renderer/platform/widget/input/input_handler_proxy.cc"
-path24="cc/input/input_handler.h"
-path25="cc/input/input_handler.cc"
+path2="third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
+path3="third_party/blink/renderer/core/frame/web_frame_widget_impl.cc"
+path4="third_party/blink/renderer/core/frame/visual_viewport.h"
+path5="third_party/blink/renderer/core/frame/visual_viewport.cc"
+path6="third_party/blink/renderer/core/events/web_input_event_conversion.cc"
+path7="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.h"
+path8="third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.cc"
+path9="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.h"
+path10="third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.cc"
+path11="third_party/blink/public/mojom/page/widget.mojom"
+path12="content/public/test/fake_frame_widget.h"
+path13="third_party/blink/renderer/platform/widget/input/widget_input_handler_manager.h"
+path14="third_party/blink/renderer/platform/widget/input/widget_input_handler_manager.cc"
+path15="third_party/blink/renderer/platform/widget/input/input_handler_proxy.h"
+path16="third_party/blink/renderer/platform/widget/input/input_handler_proxy.cc"
+path17="cc/input/input_handler.h"
+path18="cc/input/input_handler.cc"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0064' "$path1"; then
@@ -58,19 +58,19 @@ sed -i '/^  PassImeRenderWidgetHost(pending_remote<ImeRenderWidgetHost> remote);
 \
   // Alice patch start 0064\
   SyncImeViewportLift(float ime_height, float bottom_chrome_height);\
-  // Alice patch end 0064' "$path18"
+  // Alice patch end 0064' "$path11"
 
 sed -i '/^  void SetBackgroundOpaque(bool value) override {}$/i\
   // Alice patch start 0064\
   void SyncImeViewportLift(float ime_height,\
                            float bottom_chrome_height) override {}\
-  // Alice patch end 0064' "$path19"
+  // Alice patch end 0064' "$path12"
 
 sed -i '/^  void ScrollFocusedEditableNodeIntoView() override;$/a\
   // Alice patch start 0064\
   void SyncImeViewportLift(float ime_height,\
                            float bottom_chrome_height) override;\
-  // Alice patch end 0064' "$path5"
+  // Alice patch end 0064' "$path2"
 
 # WebFrameWidgetImpl 直接同步 VisualViewport 视觉 transform。
 sed -i '/^void WebFrameWidgetImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/{/^}$/a\
@@ -164,14 +164,14 @@ void WebFrameWidgetImpl::SyncImeViewportLift(float ime_height,\
     LayerTreeHost()->SetNeedsCommit(/*urgent=*/true);\
 }\
 // Alice patch end 0064
-;}' "$path6"
+;}' "$path3"
 
 # VisualViewport 内部只更新独立视觉 transform，不修改滚动 offset。
 sed -i '/^#include <memory>$/a\
 // Alice patch start 0064\
 #include <algorithm>\
 #include <cmath>\
-// Alice patch end 0064' "$path12"
+// Alice patch end 0064' "$path5"
 
 sed -i '/^  void Move(const ScrollOffset&);$/a\
   // Alice patch start 0064\
@@ -180,28 +180,28 @@ sed -i '/^  void Move(const ScrollOffset&);$/a\
     return ime_viewport_element_id_;\
   }\
   gfx::Transform ImeViewportTransform() const;\
-  // Alice patch end 0064' "$path11"
+  // Alice patch end 0064' "$path4"
 
 sed -i '/^  float Scale() const { return scale_; }$/a\
   // Alice patch start 0064\
   float ImeViewportLift() const { return ime_viewport_lift_height_; }\
-  // Alice patch end 0064' "$path11"
+  // Alice patch end 0064' "$path4"
 
 sed -i '/^\/\/     +- overscroll_elasticity_transform_node_$/c\
 // Alice patch start 0064\
 //     +- ime_viewport_transform_node_\
 //        +- overscroll_elasticity_transform_node_\
-// Alice patch end 0064' "$path11"
+// Alice patch end 0064' "$path4"
 
 sed -i '/^\/\/        +- page_scale_node__$/c\
 // Alice patch start 0064\
 //           +- page_scale_node__\
-// Alice patch end 0064' "$path11"
+// Alice patch end 0064' "$path4"
 
 sed -i '/^\/\/           +- scroll_translation_node_ (scroll: scroll_node_)$/c\
 // Alice patch start 0064\
 //              +- scroll_translation_node_ (scroll: scroll_node_)\
-// Alice patch end 0064' "$path11"
+// Alice patch end 0064' "$path4"
 
 sed -i '/^  if (overscroll_type_ == OverscrollType::kTransform) {$/i\
   // Alice patch start 0064\
@@ -226,58 +226,58 @@ sed -i '/^  if (overscroll_type_ == OverscrollType::kTransform) {$/i\
     transform_parent = ime_viewport_transform_node_.Get();\
   }\
   // Alice patch end 0064
-' "$path12"
+' "$path5"
 
 sed -i '/^      unique_id, CompositorElementIdNamespace::kPrimary);$/a\
   // Alice patch start 0064\
   ime_viewport_element_id_ = CompositorElementIdFromUniqueObjectId(\
       unique_id, CompositorElementIdNamespace::kPrimaryTransform);\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  ScrollOffset offset_;$/a\
   // Alice patch start 0064\
   float ime_viewport_lift_height_ = 0.f;\
-  // Alice patch end 0064' "$path11"
+  // Alice patch end 0064' "$path4"
 
 sed -i '/^  CompositorElementId page_scale_element_id_;$/a\
   // Alice patch start 0064\
   CompositorElementId ime_viewport_element_id_;\
-  // Alice patch end 0064' "$path11"
+  // Alice patch end 0064' "$path4"
 
 sed -i '/^  Member<TransformPaintPropertyNode> device_emulation_transform_node_;$/a\
   // Alice patch start 0064\
   Member<TransformPaintPropertyNode> ime_viewport_transform_node_;\
-  // Alice patch end 0064' "$path11"
+  // Alice patch end 0064' "$path4"
 
 sed -i '/^  visitor->Trace(device_emulation_transform_node_);$/a\
   // Alice patch start 0064\
   visitor->Trace(ime_viewport_transform_node_);\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  device_emulation_transform_node_ = nullptr;$/a\
   // Alice patch start 0064\
   ime_viewport_transform_node_ = nullptr;\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  point_in_root_frame += GetScrollOffset();$/a\
   // Alice patch start 0064\
   point_in_root_frame.Offset(0, ImeViewportLift());\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  rect_in_root_frame.Offset(GetScrollOffset());$/a\
   // Alice patch start 0064\
   rect_in_root_frame.Offset(0, ImeViewportLift());\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  rect_in_viewport.Offset(-GetScrollOffset());$/a\
   // Alice patch start 0064\
   rect_in_viewport.Offset(0, -ImeViewportLift());\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^  point_in_viewport -= GetScrollOffset();$/a\
   // Alice patch start 0064\
   point_in_viewport.Offset(0, -ImeViewportLift());\
-  // Alice patch end 0064' "$path12"
+  // Alice patch end 0064' "$path5"
 
 sed -i '/^void VisualViewport::Move(const ScrollOffset& delta) {$/,/^}$/{/^}$/a\
 \
@@ -327,12 +327,12 @@ gfx::Transform VisualViewport::ImeViewportTransform() const {\
   return gfx::Transform::MakeTranslation(0, -ime_viewport_lift_height_);\
 }\
 // Alice patch end 0064
-;}' "$path12"
+;}' "$path5"
 
 sed -i '/^  gfx::Vector2dF overscroll_offset;$/a\
   // Alice patch start 0064\
   gfx::Vector2dF ime_viewport_offset;\
-  // Alice patch end 0064' "$path13"
+  // Alice patch end 0064' "$path6"
 
 sed -i '/^      visual_viewport = gfx::ToFlooredPoint($/,/^          root_view->GetPage()->GetVisualViewport().VisibleRect().origin());$/c\
       // Alice patch start 0064\
@@ -340,24 +340,24 @@ sed -i '/^      visual_viewport = gfx::ToFlooredPoint($/,/^          root_view->
           root_view->GetPage()->GetVisualViewport();\
       visual_viewport =\
           gfx::ToFlooredPoint(root_visual_viewport.VisibleRect().origin());\
-      // Alice patch end 0064' "$path13"
+      // Alice patch end 0064' "$path6"
 
 sed -i '/^          root_view->GetPage()->GetChromeClient().ElasticOverscroll();$/a\
       // Alice patch start 0064\
       ime_viewport_offset =\
           gfx::Vector2dF(0, root_visual_viewport.ImeViewportLift());\
-      // Alice patch end 0064' "$path13"
+      // Alice patch end 0064' "$path6"
 
 sed -i '/^  return visual_viewport.OffsetFromOrigin() + overscroll_offset;$/c\
   // Alice patch start 0064\
   return visual_viewport.OffsetFromOrigin() + overscroll_offset +\
          ime_viewport_offset;\
-  // Alice patch end 0064' "$path13"
+  // Alice patch end 0064' "$path6"
 
 sed -i '/^  bool DirectlyUpdateTransform(const TransformPaintPropertyNode&);$/a\
   // Alice patch start 0064\
   bool DirectlyUpdateImeViewportTransform(const TransformPaintPropertyNode\&);\
-  // Alice patch end 0064' "$path14"
+  // Alice patch end 0064' "$path7"
 
 sed -i '/^  static bool DirectlyUpdateTransform(cc::LayerTreeHost&,$/,/^                                      const TransformPaintPropertyNode&);$/ { /^                                      const TransformPaintPropertyNode&);$/a\
   // Alice patch start 0064\
@@ -365,7 +365,7 @@ sed -i '/^  static bool DirectlyUpdateTransform(cc::LayerTreeHost&,$/,/^        
       cc::LayerTreeHost\&,\
       const TransformPaintPropertyNode\&);\
   // Alice patch end 0064
-; }' "$path16"
+; }' "$path9"
 
 sed -i '/^bool PaintArtifactCompositor::DirectlyUpdatePageScaleTransform($/i\
 // Alice patch start 0064\
@@ -379,7 +379,7 @@ bool PaintArtifactCompositor::DirectlyUpdateImeViewportTransform(\
   return false;\
 }\
 // Alice patch end 0064
-' "$path15"
+' "$path8"
 
 sed -i '/^bool PropertyTreeManager::DirectlyUpdatePageScaleTransform($/i\
 // Alice patch start 0064\
@@ -403,7 +403,7 @@ bool PropertyTreeManager::DirectlyUpdateImeViewportTransform(\
   return true;\
 }\
 // Alice patch end 0064
-' "$path17"
+' "$path10"
 
 sed -i '/^  MainThreadEventQueue\* input_event_queue()/i\
   // Alice patch start 0064\
@@ -411,7 +411,7 @@ sed -i '/^  MainThreadEventQueue\* input_event_queue()/i\
       cc::ElementId element_id,\
       const gfx::Transform\& transform);\
   // Alice patch end 0064\
-' "$path20"
+' "$path13"
 
 sed -i '/^ private:$/a\
   // Alice patch start 0064\
@@ -419,7 +419,7 @@ sed -i '/^ private:$/a\
       cc::ElementId element_id,\
       const gfx::Transform\& transform);\
   // Alice patch end 0064\
-' "$path20"
+' "$path13"
 
 sed -i '/^void WidgetInputHandlerManager::DidHandleInputEventSentToMain($/i\
 // Alice patch start 0064\
@@ -444,7 +444,7 @@ void WidgetInputHandlerManager::SetTransformForElementOnInputThread(\
     input_handler_proxy_->SetTransformForElementOnImpl(element_id, transform);\
 }\
 // Alice patch end 0064\
-' "$path21"
+' "$path14"
 
 sed -i '/^  void SetPointerLockedOnInputThread(bool is_locked);$/a\
 \
@@ -452,7 +452,7 @@ sed -i '/^  void SetPointerLockedOnInputThread(bool is_locked);$/a\
   void SetTransformForElementOnImpl(\
       cc::ElementId element_id,\
       const gfx::Transform\& transform);\
-  // Alice patch end 0064' "$path22"
+  // Alice patch end 0064' "$path15"
 
 sed -i '/^void InputHandlerProxy::FlushQueuedEventsForTesting/i\
 // Alice patch start 0064\
@@ -463,7 +463,7 @@ void InputHandlerProxy::SetTransformForElementOnImpl(\
   input_handler_->SetTransformForElementOnImpl(element_id, transform);\
 }\
 // Alice patch end 0064\
-' "$path23"
+' "$path16"
 
 sed -i '/^  virtual bool GetScrollOffsetForLayer(ElementId element_id,$/i\
   // Alice patch start 0064\
@@ -471,12 +471,12 @@ sed -i '/^  virtual bool GetScrollOffsetForLayer(ElementId element_id,$/i\
       ElementId element_id,\
       const gfx::Transform\& transform);\
   // Alice patch end 0064\
-' "$path24"
+' "$path17"
 
 sed -i '/^#include "ui\/gfx\/geometry\/point_f.h"$/a\
 // Alice patch start 0064\
 #include "ui/gfx/geometry/transform.h"\
-// Alice patch end 0064' "$path24"
+// Alice patch end 0064' "$path17"
 
 sed -i '/^void InputHandler::UpdateBrowserControlsState($/i\
 // Alice patch start 0064\
@@ -506,10 +506,10 @@ bool InputHandler::SetTransformForElementOnImpl(\
   return true;\
 }\
 // Alice patch end 0064\
-' "$path25"
+' "$path18"
 
 sed -i '/^#include "cc\/trees\/layer_tree_settings.h"$/a\
 // Alice patch start 0064\
 #include "cc/trees/mutator_host_delegate.h"\
-// Alice patch end 0064' "$path25"
+// Alice patch end 0064' "$path18"
 

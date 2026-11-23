@@ -12,4 +12,6 @@ if grep -q 'Alice patch start 0006' "$path1"; then
 fi
 
 # 上滑工具栏不再打开标签页管理，改为原来的「下拉显示工具栏」
-sed -i '/^        public void onSwipeUpdated(/,/^        }$/ s|^\( *\)showLayout(LayoutType.HUB, true);$|\1// Alice patch start 0006\n\1startShowing(mToolbarSwipeLayout, true);\n\1// Alice patch end 0006|' "$path1"
+sed -i 's|^            showLayout(LayoutType.HUB, /\* animate= \*/ true);$|            // Alice patch start 0006\
+            startShowing(mToolbarSwipeLayout, true);\
+            // Alice patch end 0006|' "$path1"

@@ -44,8 +44,6 @@ sed -i '/^  registry->RegisterBooleanPref(prefs::kAccessibilityForceEnableZoom,$
     "cnbing": {"name": "必应", "keyword": "cn.bing.com", "favicon_url": "https://cn.bing.com/favicon.ico", "search_url": "https://cn.bing.com/search?q={searchTerms}", "suggest_url": "https://cn.bing.com/osjson.aspx?query={searchTerms}\&language={language}", "type": "SEARCH_ENGINE_BING", "id": 118},\
 // Alice patch end 0004' "$path7"
 
-    sed -i 's|^\( *\)"kMaxPrepopulatedEngineID": 117,$|\1// Alice patch start 0004\n\1"kMaxPrepopulatedEngineID": 118,\n\1// Alice patch end 0004|' "$path7"
-
     sed -i '/^    "CN": {/,/^    },/ s|^\( *\)"search_engines": \[$|\1// Alice patch start 0004\n\1"search_engines": [\n\1"\&cnbing",\n\1// Alice patch end 0004|' "$path8"
 
 sed -i '/^std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(/,/^}$/ s|^  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,$|  // Alice patch start 0004\n  for (const auto\& engine : regional_prepopulated_engines) {\n    if (engine->id == 118) {\n      return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,\n                                            118,\n                                            /*use_first_as_fallback=*/false);\n    }\n  }\n  // Alice patch end 0004\n\n  return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,|' "$path9"

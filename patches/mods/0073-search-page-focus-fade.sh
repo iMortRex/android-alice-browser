@@ -779,8 +779,7 @@ sed -i '/^    public void onUrlFocusChange(boolean hasFocus) {$/,/^    }$/c\
             setStatusBarColor(\
                     mEdgeToEdgeSystemBarColorHelper,\
                     mActivity,\
-                    startColor,\
-                    /* forceLightIconColor= */ false);\
+                    startColor);\
             int aliceToken =\
                     mAliceSearchStatusBarController.animateTo(\
                             startColor, targetColor, ALICE_SEARCH_STATUS_BAR_FADE_MS);\

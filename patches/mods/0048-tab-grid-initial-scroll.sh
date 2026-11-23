@@ -192,7 +192,7 @@ sed -i '/^    private @Nullable PropertyModel mAwaitingModel;$/a\
     private @Nullable OnLayoutChangeListener mAliceAwaitingLayoutReadyListener;\
     // Alice patch end 0048' "$path1"
 
-sed -i '/^        mTabListFaviconProvider\.destroy\(\);$/i\
+sed -i '/^        mTabListFaviconProvider\.destroy();$/i\
         // Alice patch start 0048\
         if (mAliceAwaitingLayoutReadyListener != null) {\
             mRecyclerView.removeOnLayoutChangeListener(mAliceAwaitingLayoutReadyListener);\

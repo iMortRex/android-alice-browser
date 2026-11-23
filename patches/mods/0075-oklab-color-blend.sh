@@ -5,6 +5,7 @@ set -e
 
 path1="ui/android/java/src/org/chromium/ui/util/ColorUtils.java"
 
+# 检测是否已应用
 if grep -q 'Alice patch start 0075' "$path1"; then
     exit 100
 fi

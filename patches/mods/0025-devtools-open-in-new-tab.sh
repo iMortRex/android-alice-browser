@@ -59,7 +59,7 @@ sed -i '/^    @NativeMethods$/i\
 ' "$path2"
 
 # 3) DevToolsWindowAndroid：JNI 声明
-sed -i '/^        void attachToBrowser(WebContents webContents, long nativeBrowserWindowPtr);$/a\
+sed -i '/^                WebContents webContents, JniPtr<NativeBrowserWindowInterface> browserWindow);$/a\
 \
         // Alice patch start 0025\
         void setTargetBrowserWindow(long browserWindowPtr);\

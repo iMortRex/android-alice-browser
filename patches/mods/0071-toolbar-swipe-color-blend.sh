@@ -62,7 +62,7 @@ sed -i '/^    private final @Nullable View mControlView;$/a\
     // Alice patch end 0071' "$path1"
 
 # 保存横滑颜色更新所需的容器和主题色提供者。
-sed -i '/^        mControlView = controlContainer instanceof View ? (View) controlContainer : null;$/i\
+sed -i '/^        mControlView = (controlContainer instanceof View view) ? view : null;$/i\
         // Alice patch start 0071\
         mControlContainer = controlContainer;\
         mToolbarThemeColorProvider = toolbarColorProvider;\

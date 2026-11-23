@@ -56,7 +56,29 @@ import android.view.ViewParent;\
 // Alice patch end 0051' "$path3"
 
 # 按横竖屏重新计算 Hub 容器顶部 margin。
-sed -i 's|^\( *\)params\.topMargin = mStatusIndicatorHeight + (isVerticalTabsOn ? 0 : mAppHeaderHeight);$|\1// Alice patch start 0051\n\1int searchBoxGap =\n\1        mHubContainerView\n\1                .getResources()\n\1                .getDimensionPixelSize(R.dimen.hub_search_box_gap);\n\1boolean aliceLandscape;\n\1if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {\n\1    android.graphics.Rect bounds =\n\1            mActivity\n\1                    .getWindowManager()\n\1                    .getCurrentWindowMetrics()\n\1                    .getBounds();\n\1    aliceLandscape = bounds.width() > bounds.height();\n\1} else {\n\1    android.content.res.Configuration configuration =\n\1            mHubContainerView.getResources().getConfiguration();\n\1    aliceLandscape = configuration.screenWidthDp > configuration.screenHeightDp;\n\1}\n\1params.topMargin =\n\1        aliceLandscape ? mStatusIndicatorHeight : mStatusIndicatorHeight - searchBoxGap;\n\1// Alice patch end 0051|' "$path3"
+sed -i '/^        params\.topMargin =$/,+3c\
+        // Alice patch start 0051\
+        int searchBoxGap =\
+                mHubContainerView\
+                        .getResources()\
+                        .getDimensionPixelSize(R.dimen.hub_search_box_gap);\
+        boolean aliceLandscape;\
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {\
+            android.graphics.Rect bounds =\
+                    mActivity\
+                            .getWindowManager()\
+                            .getCurrentWindowMetrics()\
+                            .getBounds();\
+            aliceLandscape = bounds.width() > bounds.height();\
+        } else {\
+            android.content.res.Configuration configuration =\
+                    mHubContainerView.getResources().getConfiguration();\
+            aliceLandscape = configuration.screenWidthDp > configuration.screenHeightDp;\
+        }\
+        int aliceBaseTopMargin = mStatusIndicatorHeight + mEdgeToEdgeTopInset;\
+        params.topMargin =\
+                aliceLandscape ? aliceBaseTopMargin : aliceBaseTopMargin - searchBoxGap;\
+        // Alice patch end 0051' "$path3"
 
 # 清除 Hub 容器顶部 padding，并允许底部工具栏越界绘制。
 sed -i 's|^\( *\)mHubContainerView\.setPadding(0, isVerticalTabsOn ? mAppHeaderHeight : 0, 0, 0);$|\1// Alice patch start 0051\n\1mHubContainerView.setPadding(0, 0, 0, 0);\n\n\1ViewParent parent = mHubContainerView.getParent();\n\1if (parent instanceof ViewGroup) {\n\1    ((ViewGroup) parent).setClipChildren(false);\n\1    ((ViewGroup) parent).setClipToPadding(false);\n\1}\n\1// Alice patch end 0051|' "$path3"

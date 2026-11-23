@@ -77,10 +77,7 @@ sed -i '/^        if (wasInPersistentFullscreenMode || mNotifyOnNextExit) {$/a\
             // Alice patch end 0060\
 ' "$path2"
 
-# 退出全屏时直接设置 SHOWN 且禁止动画。
-sed -i '/^    private void resetExitFullscreenLayoutChangeListener(View contentView) {$/,/^    }$/s@^                            mTab, BrowserControlsState.SHOWN, true);$@                            // Alice patch start 0060\n                            mTab, BrowserControlsState.SHOWN, false);\n                            // Alice patch end 0060@' "$path2"
-
-# 约束辅助器在全屏退出时使用 SHOWN 无动画。
+# 约束辅助器在全屏退出期间保持退出状态。
 sed -i '/^import org\.chromium\.chrome\.browser\.flags\.ChromeFeatureList;$/a\
 // Alice patch start 0060\
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;\
@@ -94,7 +91,6 @@ sed -i '/^        int constraints = getConstraints();$/a\
         }\
         // Alice patch end 0060\
 ' "$path3"
-sed -i '/^    private void updateEnabledState() {$/,/^    }$/s@^        update(BrowserControlsState.BOTH, getConstraints() != BrowserControlsState.HIDDEN);$@        // Alice patch start 0060\n        if (FullscreenManager.FullscreenTransitionState.isExitingFullscreen()) {\n            update(BrowserControlsState.SHOWN, false);\n        } else {\n            update(\n                    BrowserControlsState.BOTH,\n                    getConstraints() != BrowserControlsState.HIDDEN);\n        }\n        // Alice patch end 0060@' "$path3"
 
 # BrowserControlsManager 在退出和隐藏时刷新可见性。
 sed -i '/^        if (constraints == BrowserControlsState.SHOWN) {$/i\
