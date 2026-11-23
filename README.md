@@ -12,15 +12,38 @@
   <a href="https://github.com/iMortRex/android-alice-browser/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="license"></a> <a href="https://github.com/iMortRex/android-alice-browser/releases"><img src="https://img.shields.io/github/v/release/iMortRex/android-alice-browser" alt="release"></a>
 </p>
 
+---
+
 A secure, fully open-source, Chromium-based android web browser with extension support, based on [Tianium Browser](https://github.com/jqssun/android-titanium-browser). Built with extensive AI assistance and tested/modified by me.
 
 Thanks to [Tianium Browser](https://github.com/jqssun/android-titanium-browser) and all creators. If you want to build a similar browser or learn more about it, check out [Tianium Browser](https://github.com/jqssun/android-titanium-browser).
 
 I built this browser for my own use for the time being, so I’m not accepting issues or pull requests. Sorry! :(
 
-| Extensions | DevTools | Menu | Tab Manager |
-|---|---|---|---|
-| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg) |
+---
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="300">
+      <sub>Extensions Popup</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>DevTools</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>Toolbar Menu</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>Tab Manager</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg">
+    </td>
+  </tr>
+</table>
+</div>
 
 ---
 

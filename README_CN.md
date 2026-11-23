@@ -12,15 +12,39 @@
   <a href="https://github.com/iMortRex/android-alice-browser/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="license"></a> <a href="https://github.com/iMortRex/android-alice-browser/releases"><img src="https://img.shields.io/github/v/release/iMortRex/android-alice-browser" alt="release"></a>
 </p>
 
+---
+
 一个安全且完全开源、基于 Chromium 并支持扩展的安卓网页浏览器，基于 [Tianium Browser](https://github.com/jqssun/android-titanium-browser)。借助大量 AI 帮助，并由我进行测试/修改。
 
 感谢 [Tianium Browser](https://github.com/jqssun/android-titanium-browser) 及所有创作者。如果你想构建一个类似的浏览器，或想了解更多，可以查看 [Tianium Browser](https://github.com/jqssun/android-titanium-browser)。
 
 这个浏览器暂时只是为了我个人使用而制作，因此不接受 issue 和 pull request 请求。抱歉！:(
 
-| 扩展 | 开发者工具 | 菜单 | 标签管理页 |
-|---|---|---|---|
-| ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg) | ![](fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg) |
+---
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="300">
+      <sub>扩展弹窗</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/1.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>开发者工具</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/2.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>工具栏菜单</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/3.jpg">
+    </td>
+    <td align="center" width="300">
+      <sub>标签管理页</sub><br>&nbsp;<br>
+      <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/AliceImages/4.jpg">
+    </td>
+  </tr>
+</table>
+</div>
+
 
 ---
 
