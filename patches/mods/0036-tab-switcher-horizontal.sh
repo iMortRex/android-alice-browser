@@ -13,7 +13,8 @@
 #   - 向上滑关闭标签；长按水平拖拽调整顺序，普通左右滑仍用来滚动卡片列表。
 #   - 长按排序时所有卡片缩放到 50% 并紧挨展开，松手后还原并吸附落位。
 #   - 上滑关闭时左侧卡片会向右挤压；点击时中心卡和邻卡严格跟随 Hub 预览图动画进度。
-#   - 小窗中的卡片和 Hub 预览图统一使用视图全局变换坐标，并且不使用底部搜索框的额外留白。
+#   - 小窗中的卡片和 Hub 预览图统一使用视图全局变换坐标，卡片高度避开底部工具栏，
+#     并且不使用底部搜索框的额外留白。
 #   - 设置里改样式后不用重启浏览器：下次打开标签管理页时会自动切换布局。
 #   - 横向样式捕获缩略图时使用更高倍率；默认样式继续沿用 0038 的清晰度设置。
 
@@ -254,13 +255,29 @@ public final class AliceTabStackHelper {
 
     /** @return 列表可视区高度（去掉 padding）。 */
     private static int getContentHeight(RecyclerView recyclerView) {
+        return getContentHeight(recyclerView, /* reserveToolbar= */ true);
+    }
+
+    private static int getContentHeight(
+            RecyclerView recyclerView, boolean reserveToolbar) {
         int contentBottom =
                 recyclerView.getHeight() - recyclerView.getPaddingBottom();
+        @Nullable Activity activity =
+                org.chromium.base.ContextUtils.activityFromContext(
+                        recyclerView.getContext());
+        if (reserveToolbar && isAliceCompactWindow(activity)) {
+            contentBottom -=
+                    recyclerView
+                            .getResources()
+                            .getDimensionPixelSize(
+                                    org.chromium.chrome.R.dimen.toolbar_height_no_shadow);
+        }
         android.view.View hubToolbar =
                 recyclerView
                         .getRootView()
                         .findViewById(R.id.hub_toolbar);
-        if (hubToolbar != null
+        if (reserveToolbar
+                && hubToolbar != null
                 && hubToolbar.getVisibility() == android.view.View.VISIBLE) {
             int[] recyclerLocation = new int[2];
             int[] toolbarLocation = new int[2];
@@ -276,23 +293,79 @@ public final class AliceTabStackHelper {
                 contentBottom - recyclerView.getPaddingTop());
     }
 
+    /** @return 小窗牌堆需要整体下移的距离：实际扣除工具栏高度的一半。 */
+    private static int getCompactToolbarHalfHeightPx(RecyclerView recyclerView) {
+        @Nullable Activity activity =
+                org.chromium.base.ContextUtils.activityFromContext(
+                        recyclerView.getContext());
+        if (!isAliceCompactWindow(activity)) return 0;
+        final int fullContentHeight =
+                getContentHeight(recyclerView, /* reserveToolbar= */ false);
+        final int cardContentHeight =
+                getContentHeight(recyclerView, /* reserveToolbar= */ true);
+        return Math.max(
+                0,
+                (fullContentHeight - cardContentHeight) / 2);
+    }
+
+    /** @return 当前窗口是否比实际屏幕更窄或更矮；安卓小窗可能只缩短高度。 */
+    @SuppressWarnings("deprecation")
+    private static boolean isAliceCompactWindow(@Nullable Activity activity) {
+        if (activity == null) return false;
+        if (org.chromium.ui.UiUtils.isInMultiWindowOrNarrowWindow(activity)) {
+            return true;
+        }
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+            return false;
+        }
+        android.view.WindowManager windowManager = activity.getWindowManager();
+        android.graphics.Rect currentBounds =
+                windowManager.getCurrentWindowMetrics().getBounds();
+        android.util.DisplayMetrics realMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getRealMetrics(realMetrics);
+        if (realMetrics.widthPixels <= 0 || realMetrics.heightPixels <= 0) {
+            return false;
+        }
+        return (long) currentBounds.width() * 100L
+                        < (long) realMetrics.widthPixels * 90L
+                || (long) currentBounds.height() * 100L
+                        < (long) realMetrics.heightPixels * 90L;
+    }
+
     /**
      * @return 卡片可用高度（px）：标签列表可视区去掉顶部工具栏和底部控制栏后的高度。
      */
     private static int getCardAreaHeight(
             RecyclerView recyclerView, BrowserControlsStateProvider browserControls) {
+        return getCardAreaHeight(
+                recyclerView, browserControls, /* reserveToolbar= */ true);
+    }
+
+    private static int getCardAreaHeight(
+            RecyclerView recyclerView,
+            BrowserControlsStateProvider browserControls,
+            boolean reserveToolbar) {
         return Math.max(
                 0,
-                getContentHeight(recyclerView)
+                getContentHeight(recyclerView, reserveToolbar)
                         - getVisibleBrowserControlsHeight(browserControls));
     }
 
     /** @return 卡片高度（px）：不含顶部工具栏和底部控制栏。 */
     public static int getCardHeightPx(
             RecyclerView recyclerView, BrowserControlsStateProvider browserControls) {
+        return getCardHeightPx(
+                recyclerView, browserControls, /* reserveToolbar= */ true);
+    }
+
+    private static int getCardHeightPx(
+            RecyclerView recyclerView,
+            BrowserControlsStateProvider browserControls,
+            boolean reserveToolbar) {
         return Math.max(
                 1,
-                Math.round(getCardAreaHeight(recyclerView, browserControls)
+                Math.round(getCardAreaHeight(
+                                recyclerView, browserControls, reserveToolbar)
                         * CARD_HEIGHT_FRACTION));
     }
 
@@ -301,6 +374,26 @@ public final class AliceTabStackHelper {
      *         卡片形状和窗口一致。
      */
     public static int getCardWidthPx(
+            Activity activity,
+            int cardHeightPx,
+            BrowserControlsStateProvider browserControls) {
+        return getCardWidthPxFromHeight(activity, cardHeightPx, browserControls);
+    }
+
+    public static int getCardWidthPx(
+            RecyclerView recyclerView, BrowserControlsStateProvider browserControls) {
+        @Nullable Activity activity =
+                org.chromium.base.ContextUtils.activityFromContext(
+                        recyclerView.getContext());
+        if (activity == null) return 1;
+        final int referenceCardHeightPx =
+                getCardHeightPx(
+                        recyclerView, browserControls, /* reserveToolbar= */ false);
+        return getCardWidthPxFromHeight(
+                activity, referenceCardHeightPx, browserControls);
+    }
+
+    private static int getCardWidthPxFromHeight(
             Activity activity,
             int cardHeightPx,
             BrowserControlsStateProvider browserControls) {
@@ -463,12 +556,7 @@ public final class AliceTabStackHelper {
         if (recyclerView.getAdapter() == null) return 0;
         final int itemCount = recyclerView.getAdapter().getItemCount();
         if (itemCount <= 0) return 0;
-        final int cardHeightPx = getCardHeightPx(recyclerView, browserControls);
-        final int cardWidthPx =
-                getCardWidthPx(
-                        (Activity) recyclerView.getContext(),
-                        cardHeightPx,
-                        browserControls);
+        final int cardWidthPx = getCardWidthPx(recyclerView, browserControls);
         return getCurrentCardScreenLeftPx(recyclerView.getWidth(), cardWidthPx);
     }
 
@@ -2018,7 +2106,8 @@ public final class AliceTabStackHelper {
                                     (contentHeight - cardHeightPx) / 2
                                             + Math.round(
                                                     contentHeight
-                                                            * VERTICAL_BIAS_FRACTION));
+                                                            * VERTICAL_BIAS_FRACTION))
+                            + getCompactToolbarHalfHeightPx(mRecyclerView);
 
             for (int position = 0; position < itemCount; position++) {
                 if (position == mDismissingPosition && mSwipeCommitted) continue;
@@ -2141,9 +2230,7 @@ public final class AliceTabStackHelper {
 
         private int getLayoutCardWidthPx() {
             return getCardWidthPx(
-                    (Activity) mRecyclerView.getContext(),
-                    getLayoutCardHeightPx(),
-                    mBrowserControls);
+                    mRecyclerView, mBrowserControls);
         }
 
         private int getLayoutCardHeightPx() {
@@ -2262,7 +2349,7 @@ sed -i '/^    private void updateGridCardLayout(int viewWidth) {$/i\
                         mRecyclerView, mBrowserControlsStateProvider);\
         final int cardWidthPx =\
                 AliceTabStackHelper.getCardWidthPx(\
-                        mActivity, cardHeightPx, mBrowserControlsStateProvider);\
+                        mRecyclerView, mBrowserControlsStateProvider);\
         final Size newDefaultSize = new Size(cardWidthPx, cardHeightPx);\
         if (newDefaultSize.equals(mMediator.getDefaultGridCardSize())) return;\
         mMediator.setDefaultGridCardSize(newDefaultSize);\

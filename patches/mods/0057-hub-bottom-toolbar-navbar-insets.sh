@@ -117,12 +117,11 @@ sed -i '/^        return insets\.left > 0;$/{n;a\
         return (long) currentBounds.width() * 100L\
                 < (long) realMetrics.widthPixels * 90L;\
     }\
-    // Alice patch end 0057\
-\
-' "$path9"
+    // Alice patch end 0057
+}' "$path9"
 
 # 小窗中可见的底置工具栏直接贴住窗口底部，不再继承底部 chin 或导航栏层的抬升。
-sed -i '/^        viewForLayer\\.setTranslationY(layerYOffset);$/i\
+sed -i '/^        viewForLayer\.setTranslationY(layerYOffset);$/i\
         // Alice patch start 0057\
         if (layer == mBottomToolbarLayer\
                 \&\& mCurrentPosition.get() == ControlsPosition.BOTTOM\

@@ -60,7 +60,7 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
             };\
     // Alice patch end 0080' "$path1"
 
-sed -i '/^            updateCurrentPosition(/\* prefStateChanged= \*/ true);$/a\
+sed -i '/^            updateCurrentPosition(\/\* prefStateChanged= \*\/ true);$/a\
             // Alice patch start 0080\
             scheduleAliceNavigationBarLayoutSync();\
             // Alice patch end 0080' "$path1"
