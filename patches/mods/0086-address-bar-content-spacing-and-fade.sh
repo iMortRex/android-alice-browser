@@ -42,9 +42,9 @@ sed -i '/^    protected void onMeasure(int widthMeasureSpec, int heightMeasureSp
 ' "$path1"
 
 # 仅网页地址栏使用 6dp 左侧、12dp 右侧留白；NTP/搜索页恢复 UrlBar 原始 padding。
-sed -i '/^    void updateStartPadding() {$/,/^    }$/c\
+sed -i '/^    \/\* package \*\/ void updateStartPadding() {$/,/^    }$/c\
     // Alice patch start 0086\
-    void updateStartPadding() {\
+    /* package */ void updateStartPadding() {\
         View statusView = findViewById(R.id.location_bar_status);\
         boolean statusVisible = statusView != null && statusView.getVisibility() == VISIBLE;\
         int aliceLayoutStartPadding =\
