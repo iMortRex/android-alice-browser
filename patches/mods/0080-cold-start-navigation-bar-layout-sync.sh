@@ -15,7 +15,7 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
 
 # 系统导航栏不可见时不能继续使用 chin 的缓存高度，否则隐藏后的旧导航栏
 # 区域仍会覆盖底置工具栏。
-sed -i '/^        \/\/ Alice patch end 0057$/a\
+sed -i '/^    private int getNavigationBarHeight() {$/,/^    }$/ s|^        \/\/ Alice patch end 0057$|&\
         // Alice patch start 0080\
         WindowInsetsCompat aliceNavigationBarVisibilityInsets =\
                 androidx.core.view.ViewCompat.getRootWindowInsets(aliceRoot);\
@@ -27,7 +27,7 @@ sed -i '/^        \/\/ Alice patch end 0057$/a\
                         .isExitingFullscreen()) {\
             return 0;\
         }\
-        // Alice patch end 0080' "$path1"
+        // Alice patch end 0080|' "$path1"
 
 sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     // Alice patch start 0080\
