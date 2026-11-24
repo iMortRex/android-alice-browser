@@ -1,13 +1,12 @@
 #!/bin/bash
-# Hub 底栏布局：把工具栏按钮移到底部，并处理移动后产生的搜索框留白偏移。
+# Hub 底栏布局：把工具栏按钮移到底部；动画不再额外叠加搜索框留白。
 
 set -e
 
 path1="chrome/browser/hub/internal/android/res/layout/hub_layout.xml"
 path2="chrome/browser/hub/internal/android/res/layout/hub_toolbar_layout.xml"
 path3="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubManagerImpl.java"
-path4="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
-path5="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
+path4="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarView.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0051' "$path1"; then
@@ -114,20 +113,5 @@ sed -i '/^    public void destroy() {$/a\
         mActivity.unregisterComponentCallbacks(mComponentCallbacks);\
         // Alice patch end 0051' "$path3"
 
-# 底部工具栏移动后，收缩展开动画补上 56dp 搜索框留白。
-sed -i '/^                        - Math\.round(mInitialRect\.top + (1\.0 - scaleY) \* initialRectHeight \/ 2\.0));$/a\
-        // Alice patch start 0051\
-        final float translationY =\
-        (float) rect.top\
-                - Math.round(mInitialRect.top + (1.0 - scaleY) * initialRectHeight / 2.0);\
-        final int searchBoxGap =\
-                Math.round(56 * mView.getResources().getDisplayMetrics().density);\
-        final boolean aliceLandscape =\
-                mView.getRootView().getWidth() > mView.getRootView().getHeight();\
-        final int aliceSearchBoxGap =\
-                mSearchBoxGapEnabled \&\& !aliceLandscape ? searchBoxGap : 0;\
-        mView.setTranslationY(translationY + aliceSearchBoxGap);\
-        // Alice patch end 0051' "$path4"
-
 # 底栏按钮改为从左侧垂直居中排列。
-sed -i 's@^\( *\)params\.gravity = Gravity\.CENTER;$@\1// Alice patch start 0051\n\1params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;\n\1// Alice patch end 0051@' "$path5"
+sed -i 's@^\( *\)params\.gravity = Gravity\.CENTER;$@\1// Alice patch start 0051\n\1params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;\n\1// Alice patch end 0051@' "$path4"

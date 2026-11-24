@@ -393,22 +393,6 @@ sed -i '/^        if (!bottomMarginChanged) return;$/i\
 // Alice patch end 0041\
 ' "$path7"
 
-# Alice: clamp the shrink/expand animation rects' bottom to the top of the bottom
-# buttons so the animated preview occasionally does not lag behind the grid cards.
-sed -i '/^        Rect finalRect = animationData\.getFinalRect();$/a\
-// Alice patch start 0041\
-// Alice: occasionally the animation rects extend behind the bottom toolbar;\
-// clamp their bottom to the top of the bottom buttons so the animated\
-// preview stays in sync with the grid cards.\
-if (toolbarView != null \&\& !animationData.isTopToolbar()) {\
-    int aliceBottomMargin = animationData.getBottomMargin();\
-    int aliceButtonsTop = mHubContainerView.getHeight() - aliceBottomMargin;\
-    initialRect.bottom = Math.min(initialRect.bottom, aliceButtonsTop);\
-    finalRect.bottom = Math.min(finalRect.bottom, aliceButtonsTop);\
-}\
-// Alice patch end 0041\
-' "$path9"
-
 # Alice: restore the edge-to-edge drawing state immediately on fullscreen exit;
 # the inset event that re-enables it arrives a moment late, which briefly left
 # the page un-avoiding the navigation bar.

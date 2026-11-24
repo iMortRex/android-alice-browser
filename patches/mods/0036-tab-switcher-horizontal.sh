@@ -13,6 +13,7 @@
 #   - 向上滑关闭标签；长按水平拖拽调整顺序，普通左右滑仍用来滚动卡片列表。
 #   - 长按排序时所有卡片缩放到 50% 并紧挨展开，松手后还原并吸附落位。
 #   - 上滑关闭时左侧卡片会向右挤压；点击时中心卡和邻卡严格跟随 Hub 预览图动画进度。
+#   - 小窗中的卡片和 Hub 预览图统一使用视图全局变换坐标，并且不使用底部搜索框的额外留白。
 #   - 设置里改样式后不用重启浏览器：下次打开标签管理页时会自动切换布局。
 #   - 横向样式捕获缩略图时使用更高倍率；默认样式继续沿用 0038 的清晰度设置。
 
@@ -253,11 +254,26 @@ public final class AliceTabStackHelper {
 
     /** @return 列表可视区高度（去掉 padding）。 */
     private static int getContentHeight(RecyclerView recyclerView) {
+        int contentBottom =
+                recyclerView.getHeight() - recyclerView.getPaddingBottom();
+        android.view.View hubToolbar =
+                recyclerView
+                        .getRootView()
+                        .findViewById(R.id.hub_toolbar);
+        if (hubToolbar != null
+                && hubToolbar.getVisibility() == android.view.View.VISIBLE) {
+            int[] recyclerLocation = new int[2];
+            int[] toolbarLocation = new int[2];
+            recyclerView.getLocationInWindow(recyclerLocation);
+            hubToolbar.getLocationInWindow(toolbarLocation);
+            contentBottom =
+                    Math.min(
+                            contentBottom,
+                            toolbarLocation[1] - recyclerLocation[1]);
+        }
         return Math.max(
                 0,
-                recyclerView.getHeight()
-                        - recyclerView.getPaddingTop()
-                        - recyclerView.getPaddingBottom());
+                contentBottom - recyclerView.getPaddingTop());
     }
 
     /**
@@ -354,6 +370,9 @@ public final class AliceTabStackHelper {
                                                             .mandatorySystemGestures()
                                                     | WindowInsetsCompat.Type.tappableElement())
                                     .bottom);
+        }
+        if (org.chromium.ui.UiUtils.isInMultiWindowOrNarrowWindow(activity)) {
+            navigationBarHeight = 0;
         }
         return statusBarHeight + toolbarHeight + hairlineHeight + navigationBarHeight;
     }
@@ -2757,6 +2776,24 @@ sed -i 's|^import androidx.recyclerview.widget.GridLayoutManager;$|// Alice patc
 sed -i 's|^                    GridLayoutManager lm =$|                    // Alice patch start 0036\n                    LinearLayoutManager lm =|' "$path4"
 sed -i 's|^                            (GridLayoutManager) tabListRecyclerView.getLayoutManager();$|                            (LinearLayoutManager) tabListRecyclerView.getLayoutManager();\n                    // Alice patch end 0036|' "$path4"
 
+# 小窗中 Hub 和卡片必须使用同一套视图全局变换坐标；自由窗口下
+# getGlobalVisibleRect() 与 transformMatrixToGlobal() 可能混用窗口和屏幕坐标。
+sed -i '/^                    Rect hubRect = new Rect();$/a\
+                    // Alice patch start 0036\
+                    if (AliceTabStackHelper.getEffectiveStyle()\
+                            == AliceTabStackHelper.STYLE_HORIZONTAL) {\
+                        android.graphics.Matrix aliceHubMatrix =\
+                                new android.graphics.Matrix();\
+                        hubContainerView.transformMatrixToGlobal(aliceHubMatrix);\
+                        float[] aliceHubOrigin = {0f, 0f};\
+                        aliceHubMatrix.mapPoints(aliceHubOrigin);\
+                        hubRect.offsetTo(\
+                                Math.round(aliceHubOrigin[0]),\
+                                Math.round(aliceHubOrigin[1]));\
+                    }\
+                    // Alice patch end 0036\
+' "$path4"
+
 # ---------- 8.1) TabGridView：横向牌堆不复用上游选中/悬停缩放动画 ----------
 sed -i '/^    void scaleTabGridCardView(@AnimationStatus int status) {$/a\
         // Alice patch start 0036\
@@ -2917,6 +2954,18 @@ sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/a\
         }\
         // Alice patch end 0036\
 ' "$path14"
+
+# 默认网格同样使用完整变换矩形，小窗中被裁切时仍能跟随卡片。
+sed -i 's|^        if (v != null) v.getGlobalVisibleRect(rect);$|        // Alice patch start 0036\
+        if (v != null) {\
+            Matrix defaultMatrix = new Matrix();\
+            v.transformMatrixToGlobal(defaultMatrix);\
+            RectF defaultBounds =\
+                    new RectF(0f, 0f, v.getWidth(), v.getHeight());\
+            defaultMatrix.mapRect(defaultBounds);\
+            defaultBounds.round(rect);\
+        }\
+        // Alice patch end 0036|' "$path14"
 
 # 预览动画期间提供点击卡片右侧的卡片 View，用于在预览层挖空。
 sed -i '/^    Rect getRectOfTabThumbnail(int tabIndex) {$/i\

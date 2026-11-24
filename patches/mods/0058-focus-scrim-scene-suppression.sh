@@ -275,13 +275,27 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
         View aliceRoot = getRootView();\
         android.view.WindowInsets aliceWindowInsets = aliceRoot.getRootWindowInsets();\
         if (aliceWindowInsets != null) {\
-            int aliceCurrentNavBarInset =\
+            androidx.core.view.WindowInsetsCompat aliceCompatWindowInsets =\
                     androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(\
-                                    aliceWindowInsets, aliceRoot)\
-                            .getInsets(\
+                            aliceWindowInsets, aliceRoot);\
+            int aliceCurrentNavBarInset =\
+                    aliceCompatWindowInsets.isVisible(\
                                     androidx.core.view.WindowInsetsCompat.Type\
                                             .navigationBars())\
-                            .bottom;\
+                            ? aliceCompatWindowInsets\
+                                    .getInsets(\
+                                            androidx.core.view.WindowInsetsCompat.Type\
+                                                    .navigationBars())\
+                                    .bottom\
+                            : 0;\
+            // Alice patch start 0058\
+            boolean aliceNarrowWindow =\
+                    org.chromium.ui.UiUtils\
+                            .isInMultiWindowOrNarrowWindow(mActivity);\
+            if (aliceNarrowWindow) {\
+                aliceCurrentNavBarInset = 0;\
+            }\
+            // Alice patch end 0058\
             boolean alicePreserveNavigationBarInset =\
                     FullscreenManager.FullscreenTransitionState\
                             .isExitingFullscreen()\
@@ -289,7 +303,9 @@ sed -i '/^        int verticalViewportInsets = controlsInsets + webContentsHeigh
                                     \&\& mBrowserControlsManager\
                                             .getFullscreenManager()\
                                             .getPersistentFullscreenMode());\
-            if (!alicePreserveNavigationBarInset || aliceCurrentNavBarInset > 0) {\
+            if (aliceNarrowWindow\
+                    || !alicePreserveNavigationBarInset\
+                    || aliceCurrentNavBarInset > 0) {\
                 mAliceNavigationBarInset = aliceCurrentNavBarInset;\
             }\
         }\

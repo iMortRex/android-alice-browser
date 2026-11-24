@@ -48,18 +48,39 @@ sed -i '/^                                    bottomMargin));$/a\
                     () -> {\
                         Rect aliceLiveRect = coordinator.getTabThumbnailRect(tabId);\
                         if (aliceLiveRect.isEmpty()) return null;\
-                        Rect aliceHubRect = new Rect();\
-                        hubContainerView.getGlobalVisibleRect(aliceHubRect);\
-                        aliceLiveRect.offset(-aliceHubRect.left, -aliceHubRect.top);\
-                        int aliceBottomMargin = 0;\
+                        android.graphics.Matrix aliceHubMatrix =\
+                                new android.graphics.Matrix();\
+                        hubContainerView.transformMatrixToGlobal(aliceHubMatrix);\
+                        float[] aliceHubOrigin = {0f, 0f};\
+                        aliceHubMatrix.mapPoints(aliceHubOrigin);\
+                        aliceLiveRect.offset(\
+                                -Math.round(aliceHubOrigin[0]),\
+                                -Math.round(aliceHubOrigin[1]));\
+                        @Nullable View aliceLiveHubToolbar =\
+                                hubContainerView.findViewById(R.id.hub_toolbar);\
+                        int aliceLiveHubToolbarHeight =\
+                                aliceLiveHubToolbar == null\
+                                        ? 0\
+                                        : aliceLiveHubToolbar.getHeight();\
+                        int aliceLiveToolbarOffset =\
+                                Math.max(mBottomBarHeight, aliceLiveHubToolbarHeight);\
+                        int aliceBottomMargin = aliceLiveToolbarOffset;\
+                        android.app.Activity aliceLiveActivity =\
+                                org.chromium.base.ContextUtils.activityFromContext(\
+                                        hubContainerView.getContext());\
+                        boolean aliceLiveMultiWindow =\
+                                org.chromium.ui.UiUtils\
+                                        .isInMultiWindowOrNarrowWindow(\
+                                                aliceLiveActivity);\
                         if (mIsBottomBarEnabledOnGts) {\
-                            EdgeToEdgeController aliceEdgeToEdge =\
-                                    mEdgeToEdgeSupplier.get();\
-                            if (aliceEdgeToEdge != null) {\
-                                aliceBottomMargin +=\
-                                        aliceEdgeToEdge.getSystemBottomInsetPx();\
+                            if (!aliceLiveMultiWindow) {\
+                                EdgeToEdgeController aliceEdgeToEdge =\
+                                        mEdgeToEdgeSupplier.get();\
+                                if (aliceEdgeToEdge != null) {\
+                                    aliceBottomMargin +=\
+                                            aliceEdgeToEdge.getSystemBottomInsetPx();\
+                                }\
                             }\
-                            aliceBottomMargin += mBottomBarHeight;\
                         }\
                         aliceLiveRect.bottom =\
                                 Math.min(\

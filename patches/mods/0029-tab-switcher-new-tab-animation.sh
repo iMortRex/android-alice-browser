@@ -6,10 +6,8 @@ set -e
 path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 path2="chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProvider.java"
 path3="chrome/android/java/src/org/chromium/chrome/browser/hub/HubLayout.java"
-path4="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimator.java"
-path5="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewTabAnimationLayout.java"
-path6="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewForegroundTabAnimationHostView.java"
-path7="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
+path4="chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/phone/NewTabAnimationLayout.java"
+path5="chrome/browser/hub/android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandAnimationData.java"
 
 # 检测是否已应用
 if grep -q 'Alice patch start 0029' "$path1"; then
@@ -27,34 +25,15 @@ sed -i '/^    public static boolean shouldShowToolbarOnTop(@Nullable Tab tab) {$
 # Hub 布局中的新建标签动画统一从底部居中开始。
 sed -i 's|^\( *\)@RectStart int rectStart = isBottomBarInGts ? RectStart\.BOTTOM_CENTER : RectStart\.TOP;$|\1@RectStart int rectStart = isBottomBarInGts ? RectStart.BOTTOM_CENTER : RectStart.TOP;\n\1// Alice patch start 0029\n\1rectStart = RectStart.BOTTOM_CENTER;\n\1// Alice patch end 0029|' "$path3"
 
-# 新建标签动画不再吃底栏移动补丁增加的 56dp 搜索框留白。
-sed -i '/^    private final int mSearchBoxHeight;$/a\
-    // Alice patch start 0029\
-    private boolean mSearchBoxGapEnabled = true;\
-    // Alice patch end 0029' "$path4"
-
-sed -i '/^    public void setThumbnailSizeForOffset(@Nullable Size thumbnailSize) {$/i\
-    // Alice patch start 0029\
-    public void setSearchBoxGapEnabled(boolean enabled) {\
-        mSearchBoxGapEnabled = enabled;\
-    }\
-    // Alice patch end 0029\
-' "$path4"
-
-sed -i '/^                        mRectView, mInitialRect, finalRect, \/\* searchBoxHeight= \*\/ 0);$/a\
-        // Alice patch start 0029\
-        mExpandAnimator.setSearchBoxGapEnabled(false);\
-        // Alice patch end 0029' "$path6"
-
 # 新建标签动画四个角保持相同圆角。
-sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch start 0029\n                // 所有角保持相同圆角。\n                // Alice patch end 0029|' "$path5"
-sed -i 's|^                    startRadii\[3\] = 0;$|                    // Alice patch start 0029\n                    startRadii[3] = radius;\n                    // Alice patch end 0029|' "$path5"
+sed -i 's|^                startRadii\[2\] = 0;$|                // Alice patch start 0029\n                // 所有角保持相同圆角。\n                // Alice patch end 0029|' "$path4"
+sed -i 's|^                    startRadii\[3\] = 0;$|                    // Alice patch start 0029\n                    startRadii[3] = radius;\n                    // Alice patch end 0029|' "$path4"
 
 sed -i '/^        int\[\] cornerRadii;$/,/^        }$/c\
         // Alice patch start 0029\
         int[] cornerRadii =\
                 new int[] {cornerRadius, cornerRadius, cornerRadius, cornerRadius};\
-        // Alice patch end 0029' "$path7"
+        // Alice patch end 0029' "$path5"
 
 # 标签管理页的新建标签动画起点对准当前 Hub 容器中的新建按钮。
 sed -i '/^        initialRect = new Rect();$/,/^        NewTabAnimationUtils\.updateRects(rectStart, isRtl, initialRect, finalRect);$/c\
@@ -93,7 +72,7 @@ sed -i '/^        NewTabAnimationUtils\.updateRects(rectStart, isRtl, initialRec
         }\
         // Alice patch end 0029\
 \
-' "$path5"
+' "$path4"
 
 # TabSwitcher UI 启动的新标签页从标签管理页按钮位置开始。
 sed -i '/^            initialRect\.offset(0, -heightDifference);$/a\
@@ -112,7 +91,7 @@ sed -i '/^            initialRect\.offset(0, -heightDifference);$/a\
                         aliceAnchorRect.bottom - aliceAnimationHostLocation[1]);\
             }\
         }\
-        // Alice patch end 0029' "$path5"
+        // Alice patch end 0029' "$path4"
 
 # 允许动画 View 越过父容器边界绘制。
 sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/i\
@@ -127,7 +106,7 @@ sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/i\
         }\
         // Alice patch end 0029\
 \
-' "$path5"
+' "$path4"
 
 # 动画 View 放在撤销气泡下方，保证气泡始终显示在动画之上。
 sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/a\
@@ -141,7 +120,7 @@ sed -i '/^        mAnimationHostView\.addView(mForegroundHostView);$/a\
             mAnimationHostView.removeView(mForegroundHostView);\
             mAnimationHostView.addView(mForegroundHostView, aliceSnackbarIndex);\
         }\
-        // Alice patch end 0029' "$path5"
+        // Alice patch end 0029' "$path4"
 
 # Hub 预览图插到 Snackbar 容器之前，避免遮住撤销气泡。
 sed -i '/^        mHubContainerView\.addView(mShrinkExpandImageView);$/c\
@@ -190,7 +169,7 @@ sed -i '/^    private @RectStart int getForegroundRectStart(@Nullable Tab oldTab
         } else {\
             return RectStart.BOTTOM_TOOLBAR;\
         }\
-    }' "$path5"
+    }' "$path4"
 
 # 新增标签管理页按钮锚点方法。
 sed -i '/^    private int getBottomControlsHeightForTab($/i\
@@ -207,4 +186,4 @@ sed -i '/^    private int getBottomControlsHeightForTab($/i\
     }\
     // Alice patch end 0029\
 \
-' "$path5"
+' "$path4"

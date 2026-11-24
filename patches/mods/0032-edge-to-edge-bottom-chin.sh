@@ -38,7 +38,8 @@ sed -i '/^        \/\/ Exit early if there is a tappable navbar (3-button) as bo
 sed -i '/^        boolean shouldDrawToBottomEdge =$/,/^                        pageOptedIntoBottomEdgeToEdge, currentLayoutType, mSystemInsets.bottom);$/c\
         // Alice patch start 0032\
         boolean shouldDrawToBottomEdge =\
-                !mActivity.isInMultiWindowMode()\
+                !org.chromium.ui.UiUtils\
+                        .isInMultiWindowOrNarrowWindow(mActivity)\
                         \&\& EdgeToEdgeUtils.shouldDrawToBottomEdge(\
                                 pageOptedIntoBottomEdgeToEdge,\
                                 currentLayoutType,\
