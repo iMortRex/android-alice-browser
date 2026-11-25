@@ -115,9 +115,6 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 mAliceImeViewportLiftFrozen = false;\
                                 mAliceImeAnimationActive =\
                                         shouldManageImeInVisualViewport();\
-                                android.util.Log.i(\
-                                        "AliceIme",\
-                                        "TabView prepare active=" + mAliceImeAnimationActive);\
                                 if (!mAliceImeAnimationActive) return;\
                                 WindowInsetsCompat insets =\
                                         ViewCompat.getRootWindowInsets(getContentView());\
@@ -150,9 +147,6 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 return;\
                             }\
                             if (!mAliceImeAnimationActive) return;\
-                            android.util.Log.i(\
-                                    "AliceIme",\
-                                    "TabView end active=true frozen=" + mAliceImeViewportLiftFrozen);\
                             mAliceImeAnimationActive = false;\
                             WindowInsetsCompat insets =\
                                     ViewCompat.getRootWindowInsets(getContentView());\
@@ -255,7 +249,9 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                 previewSupplier == null ? null : previewSupplier.get();\
         if (preview != null \&\& preview.isOpened()) return false;\
         Activity activity = window.getActivity().get();\
-        if (activity == null || !window.isTopResumedActivity()) return false;\
+        // The cached top-resumed state can lag behind the Activity lifecycle.\
+        // The focused activity window is the actual IME target.\
+        if (activity == null || !activity.hasWindowFocus()) return false;\
         int adjustMode =\
                 activity.getWindow().getAttributes().softInputMode\
                         \& WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST;\
@@ -318,8 +314,6 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         webContents.setImeViewportFocusCallback(\
                 () -> {\
                     if (isDestroyed()) return;\
-                    // Focus can move while the IME stays visible without a new animation.\
-                    mAliceImeViewportLiftFrozen = false;\
                     updateVisualViewportBottomInset();\
                 });\
         mAliceWebContentsObserver =\
@@ -376,13 +370,6 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
     }\
 \
     private void syncAliceImeViewportLift(int imeHeightPx) {\
-        android.util.Log.i(\
-                "AliceIme",\
-                "TabView sync ime=" + imeHeightPx\
-                        + " bottom=" + getAliceBottomChromeHeightPx()\
-                        + " active=" + mAliceImeAnimationActive\
-                        + " frozen=" + mAliceImeViewportLiftFrozen\
-                        + " last=" + mAliceLastImeHeightPx);\
         applyAliceImeViewportState(imeHeightPx);\
     }\
 \

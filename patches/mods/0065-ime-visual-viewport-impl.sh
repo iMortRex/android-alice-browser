@@ -43,10 +43,6 @@ sed -i '/^    public void scrollFocusedEditableNodeIntoView() {$/,/^    }$/{/^  
     public void syncImeViewportLift(\
             float imeHeight, float bottomChromeHeight) {\
         checkNotDestroyed();\
-        Log.i(\
-                "AliceIme",\
-                "WebContentsImpl sync ime=" + imeHeight\
-                        + " bottom=" + bottomChromeHeight);\
         WebContentsImplJni.get()\
                 .syncImeViewportLift(\
                         mNativeWebContentsAndroid,\
@@ -96,11 +92,8 @@ sed -i '/^void WebContentsAndroid::ScrollFocusedEditableNodeIntoView(JNIEnv\* en
 void WebContentsAndroid::SyncImeViewportLift(JNIEnv* env,\
                                              jfloat ime_height,\
                                              jfloat bottom_chrome_height) {\
-  LOG(WARNING) << "[AliceIme] WebContentsAndroid sync ime=" << ime_height\
-               << " bottom=" << bottom_chrome_height;\
   RenderFrameHost* focused_frame = web_contents_->GetFocusedFrame();\
   if (!focused_frame) {\
-    LOG(WARNING) << "[AliceIme] WebContentsAndroid no focused frame";\
     return;\
   }\
   auto* render_widget_host =\
@@ -108,15 +101,9 @@ void WebContentsAndroid::SyncImeViewportLift(JNIEnv* env,\
   if (render_widget_host) {\
     auto\& frame_widget = render_widget_host->GetAssociatedFrameWidget();\
     if (frame_widget) {\
-      LOG(WARNING) << "[AliceIme] WebContentsAndroid forwarding rwh="\
-                   << render_widget_host;\
       frame_widget->SyncImeViewportLift(\
           ime_height, bottom_chrome_height);\
-    } else {\
-      LOG(WARNING) << "[AliceIme] WebContentsAndroid no frame widget";\
     }\
-  } else {\
-    LOG(WARNING) << "[AliceIme] WebContentsAndroid no render widget host";\
   }\
 }\
 // Alice patch end 0065
