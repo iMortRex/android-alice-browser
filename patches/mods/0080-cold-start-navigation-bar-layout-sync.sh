@@ -55,6 +55,20 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
                         int oldTop,\
                         int oldRight,\
                         int oldBottom) {\
+                    if (mAliceDestroyed || mAliceNavigationBarLayoutSyncPosted) return;\
+                    int aliceNavigationBarHeight = getNavigationBarHeight();\
+                    ViewGroup aliceBackgroundContainer = mNavigationBarBackgroundContainer;\
+                    if (aliceBackgroundContainer == null) {\
+                        if (aliceNavigationBarHeight <= 0) return;\
+                    } else {\
+                        ViewGroup.LayoutParams aliceBackgroundParams =\
+                                aliceBackgroundContainer.getLayoutParams();\
+                        if (aliceBackgroundParams != null\
+                                \&\& aliceBackgroundParams.height\
+                                        == aliceNavigationBarHeight) {\
+                            return;\
+                        }\
+                    }\
                     scheduleAliceNavigationBarLayoutSync();\
                 }\
             };\

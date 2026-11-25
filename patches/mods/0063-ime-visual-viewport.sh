@@ -115,6 +115,9 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 mAliceImeViewportLiftFrozen = false;\
                                 mAliceImeAnimationActive =\
                                         shouldManageImeInVisualViewport();\
+                                android.util.Log.i(\
+                                        "AliceIme",\
+                                        "TabView prepare active=" + mAliceImeAnimationActive);\
                                 if (!mAliceImeAnimationActive) return;\
                                 WindowInsetsCompat insets =\
                                         ViewCompat.getRootWindowInsets(getContentView());\
@@ -147,6 +150,9 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
                                 return;\
                             }\
                             if (!mAliceImeAnimationActive) return;\
+                            android.util.Log.i(\
+                                    "AliceIme",\
+                                    "TabView end active=true frozen=" + mAliceImeViewportLiftFrozen);\
                             mAliceImeAnimationActive = false;\
                             WindowInsetsCompat insets =\
                                     ViewCompat.getRootWindowInsets(getContentView());\
@@ -311,7 +317,10 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         }\
         webContents.setImeViewportFocusCallback(\
                 () -> {\
-                    if (!isDestroyed()) updateVisualViewportBottomInset();\
+                    if (isDestroyed()) return;\
+                    // Focus can move while the IME stays visible without a new animation.\
+                    mAliceImeViewportLiftFrozen = false;\
+                    updateVisualViewportBottomInset();\
                 });\
         mAliceWebContentsObserver =\
                 new WebContentsObserver(webContents) {\
@@ -367,6 +376,13 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
     }\
 \
     private void syncAliceImeViewportLift(int imeHeightPx) {\
+        android.util.Log.i(\
+                "AliceIme",\
+                "TabView sync ime=" + imeHeightPx\
+                        + " bottom=" + getAliceBottomChromeHeightPx()\
+                        + " active=" + mAliceImeAnimationActive\
+                        + " frozen=" + mAliceImeViewportLiftFrozen\
+                        + " last=" + mAliceLastImeHeightPx);\
         applyAliceImeViewportState(imeHeightPx);\
     }\
 \

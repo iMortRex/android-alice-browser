@@ -29,6 +29,11 @@ fi
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../alice-patch-transaction.sh"
 
+sed -i '/^#include "base\/auto_reset.h"$/i\
+// Alice patch start 0064\
+#include "base/logging.h"\
+// Alice patch end 0064' "$path3"
+
 # 在 ADJUST_NOTHING 模式下拦截原有焦点滚动。
 sed -i '/^import android\.content\.Context;$/i\
 // Alice patch start 0064\
@@ -80,11 +85,14 @@ sed -i '/^void WebFrameWidgetImpl::ScrollFocusedEditableNodeIntoView() {$/,/^}$/
 // Alice patch start 0064\
 void WebFrameWidgetImpl::SyncImeViewportLift(float ime_height,\
                                              float bottom_chrome_height) {\
+  LOG(WARNING) << "[AliceIme] WebFrameWidget begin main=" << ForMainFrame()\
+               << " ime=" << ime_height << " bottom=" << bottom_chrome_height;\
   if (!ForMainFrame())\
     return;\
 \
   float lift_height = 0.f;\
   Element* focused_element = FocusedElement();\
+  LOG(WARNING) << "[AliceIme] WebFrameWidget focused=" << !!focused_element;\
   if (focused_element \&\& ime_height > 0.f) {\
     float current_lift = GetPage()->GetVisualViewport().ImeViewportLift();\
     gfx::Rect focused_bounds = focused_element->BoundsInWidget();\
@@ -152,9 +160,19 @@ void WebFrameWidgetImpl::SyncImeViewportLift(float ime_height,\
             0.f,\
             focused_bottom_px - (viewport_height_px - effective_ime_height));\
     lift_height = std::min(required_lift_px, effective_ime_height);\
+    LOG(WARNING) << "[AliceIme] WebFrameWidget geometry container="\
+                 << use_container_bounds << " bounds="\
+                 << bounds_in_widget.ToString() << " viewport_dip="\
+                 << viewport_height << " focused_bottom_px="\
+                 << focused_bottom_px << " viewport_height_px="\
+                 << viewport_height_px << " effective_ime="\
+                 << effective_ime_height << " required="\
+                 << required_lift_px << " lift=" << lift_height;\
   }\
   VisualViewport\& visual_viewport = GetPage()->GetVisualViewport();\
   float previous_lift = visual_viewport.ImeViewportLift();\
+  LOG(WARNING) << "[AliceIme] WebFrameWidget apply previous=" << previous_lift\
+               << " target=" << lift_height;\
   visual_viewport.SyncImeViewportLift(lift_height);\
   if (auto* input_handler_manager =\
           widget_base_->widget_input_handler_manager()) {\
@@ -173,6 +191,7 @@ sed -i '/^#include <memory>$/a\
 // Alice patch start 0064\
 #include <algorithm>\
 #include <cmath>\
+#include "base/logging.h"\
 // Alice patch end 0064' "$path5"
 
 sed -i '/^  void Move(const ScrollOffset&);$/a\
@@ -286,8 +305,14 @@ sed -i '/^void VisualViewport::Move(const ScrollOffset& delta) {$/,/^}$/{/^}$/a\
 // Alice patch start 0064\
 bool VisualViewport::SyncImeViewportLift(float lift_height) {\
   float target_lift = std::max(0.f, lift_height);\
-  if (std::abs(target_lift - ime_viewport_lift_height_) < 0.01f)\
+  LOG(WARNING) << "[AliceIme] VisualViewport enter target=" << target_lift\
+               << " current=" << ime_viewport_lift_height_ << " node="\
+               << !!ime_viewport_transform_node_;\
+  if (std::abs(target_lift - ime_viewport_lift_height_) < 0.01f) {\
+    LOG(WARNING) << "[AliceIme] VisualViewport unchanged node="\
+                 << !!ime_viewport_transform_node_;\
     return ime_viewport_transform_node_ != nullptr;\
+  }\
   ime_viewport_lift_height_ = target_lift;\
 \
   if (ime_viewport_transform_node_) {\
@@ -303,11 +328,15 @@ bool VisualViewport::SyncImeViewportLift(float lift_height) {\
       state.compositor_element_id = ime_viewport_element_id_;\
       auto change =\
           ime_viewport_transform_node_->Update(*parent, std::move(state));\
+      LOG(WARNING) << "[AliceIme] VisualViewport node update="\
+                   << static_cast<int>(change);\
       if (change == PaintPropertyChangeType::kChangedOnlySimpleValues) {\
         if (auto* paint_artifact_compositor = GetPaintArtifactCompositor()) {\
           bool updated_directly =\
               paint_artifact_compositor->DirectlyUpdateImeViewportTransform(\
                   *ime_viewport_transform_node_);\
+          LOG(WARNING) << "[AliceIme] VisualViewport direct="\
+                       << updated_directly;\
           if (updated_directly) {\
             ime_viewport_transform_node_->CompositorSimpleValuesUpdated();\
             return true;\
@@ -320,6 +349,7 @@ bool VisualViewport::SyncImeViewportLift(float lift_height) {\
   needs_paint_property_update_ = true;\
   LocalMainFrame().View()->SetVisualViewportOrOverlayNeedsRepaint();\
   ScheduleAnimation();\
+  LOG(WARNING) << "[AliceIme] VisualViewport scheduled";\
   return false;\
 }\
 \
@@ -393,12 +423,16 @@ bool PropertyTreeManager::DirectlyUpdateImeViewportTransform(\
   auto* property_trees = host.property_trees();\
   int cc_transform_id = transform.CcNodeId(property_trees->sequence_number());\
   if (cc_transform_id == cc::kInvalidPropertyNodeId) {\
+    LOG(WARNING) << "[AliceIme] DirectlyUpdate invalid sequence="\
+                 << property_trees->sequence_number();\
     return false;\
   }\
 \
   auto\& cc_transform =\
       property_trees->transform_tree_mutable().MutableNode(cc_transform_id);\
   UpdateCcTransformLocalMatrix(cc_transform, transform);\
+  LOG(WARNING) << "[AliceIme] DirectlyUpdate node=" << cc_transform_id\
+               << " matrix=" << transform.Matrix().ToString();\
   cc_transform.is_currently_animating = false;\
   cc_transform.SetTransformChanged(cc::DamageReason::kUntracked);\
   property_trees->transform_tree_mutable().set_needs_update(true);\
@@ -406,6 +440,11 @@ bool PropertyTreeManager::DirectlyUpdateImeViewportTransform(\
 }\
 // Alice patch end 0064
 ' "$path10"
+
+sed -i '/^#include "base\/numerics\/safe_conversions.h"$/i\
+// Alice patch start 0064\
+#include "base/logging.h"\
+// Alice patch end 0064' "$path10"
 
 sed -i '/^  MainThreadEventQueue\* input_event_queue()/i\
   // Alice patch start 0064\
