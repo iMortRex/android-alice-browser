@@ -6,6 +6,7 @@ set -e
 
 path1="chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java"
 path2="chrome/android/java/src/org/chromium/chrome/browser/compositor/CompositorViewHolder.java"
+path3="chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java"
 
 if grep -q 'Alice patch start 0080' "$path1"; then
     exit 100
@@ -35,6 +36,8 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
     private boolean mAliceDestroyed;\
     private int mAliceLastObservedNavigationBarInset = Integer.MIN_VALUE;\
     private boolean mAliceLastNavigationBarsVisible;\
+    private boolean mAliceLayoutAnimationActive;\
+    private boolean mAliceNavigationBarLayoutSyncDeferred;\
     private final InsetObserver.WindowInsetObserver mAliceNavigationBarInsetObserver =\
             new InsetObserver.WindowInsetObserver() {\
                 @Override\
@@ -55,6 +58,10 @@ sed -i '/^    private int mNavigationBarBackgroundColor = Integer.MIN_VALUE;$/a\
                         int oldTop,\
                         int oldRight,\
                         int oldBottom) {\
+                    if (mAliceLayoutAnimationActive) {\
+                        mAliceNavigationBarLayoutSyncDeferred = true;\
+                        return;\
+                    }\
                     if (mAliceDestroyed || mAliceNavigationBarLayoutSyncPosted) return;\
                     int aliceNavigationBarHeight = getNavigationBarHeight();\
                     ViewGroup aliceBackgroundContainer = mNavigationBarBackgroundContainer;\
@@ -114,6 +121,10 @@ sed -i '/^    private void updateNavigationBarBackground() {$/i\
                 androidx.core.view.ViewCompat.getRootWindowInsets(\
                         mControlContainer.getView());\
         if (aliceInsets == null) return;\
+        if (mAliceLayoutAnimationActive) {\
+            mAliceNavigationBarLayoutSyncDeferred = true;\
+            return;\
+        }\
         int aliceNavigationBarInset =\
                 aliceInsets\
                         .getInsets(\
@@ -138,6 +149,10 @@ sed -i '/^    private void updateNavigationBarBackground() {$/i\
     }\
 \
     private void scheduleAliceNavigationBarLayoutSync() {\
+        if (mAliceLayoutAnimationActive) {\
+            mAliceNavigationBarLayoutSyncDeferred = true;\
+            return;\
+        }\
         if (mAliceDestroyed || mAliceNavigationBarLayoutSyncPosted) return;\
         View aliceToolbarView = mControlContainer.getView();\
         mAliceNavigationBarLayoutSyncPosted = true;\
@@ -145,10 +160,28 @@ sed -i '/^    private void updateNavigationBarBackground() {$/i\
                 () -> {\
                     mAliceNavigationBarLayoutSyncPosted = false;\
                     if (mAliceDestroyed) return;\
+                    if (mAliceLayoutAnimationActive) {\
+                        mAliceNavigationBarLayoutSyncDeferred = true;\
+                        return;\
+                    }\
                     updateNavigationBarBackground();\
                     mBottomControlsStacker.requestLayerUpdate(false);\
                     updateImeLayerOffsets();\
                 });\
+    }\
+    \
+    public void setAliceLayoutAnimationActive(boolean active) {\
+        if (mAliceLayoutAnimationActive == active) return;\
+        mAliceLayoutAnimationActive = active;\
+        if (!active \&\& mAliceNavigationBarLayoutSyncDeferred) {\
+            mControlContainer\
+                    .getView()\
+                    .postOnAnimation(\
+                            () -> {\
+                                mAliceNavigationBarLayoutSyncDeferred = false;\
+                                scheduleAliceNavigationBarLayoutSync();\
+                            });\
+        }\
     }\
     // Alice patch end 0080\
 \
@@ -166,6 +199,8 @@ sed -i '/^    private boolean mControlsResizeView;$/a\
     private boolean mAliceLastNavigationBarsVisible;\
     private boolean mAliceNavigationBarViewportSyncPosted;\
     private boolean mAliceShutDown;\
+    private boolean mAliceLayoutAnimationActive;\
+    private boolean mAliceNavigationBarViewportSyncDeferred;\
     private final InsetObserver.WindowInsetObserver mAliceViewportInsetObserverCallback =\
             new InsetObserver.WindowInsetObserver() {\
                 @Override\
@@ -181,6 +216,10 @@ sed -i '/^    private void handleWindowInsetChanged() {$/i\
         WindowInsetsCompat aliceInsets =\
                 ViewCompat.getRootWindowInsets(getRootView());\
         if (aliceInsets == null) return;\
+        if (mAliceLayoutAnimationActive) {\
+            mAliceNavigationBarViewportSyncDeferred = true;\
+            return;\
+        }\
         int aliceNavigationBarInset =\
                 aliceInsets\
                         .getInsets(\
@@ -205,11 +244,24 @@ sed -i '/^    private void handleWindowInsetChanged() {$/i\
                 () -> {\
                     mAliceNavigationBarViewportSyncPosted = false;\
                     if (mAliceShutDown) return;\
+                    if (mAliceLayoutAnimationActive) {\
+                        mAliceNavigationBarViewportSyncDeferred = true;\
+                        return;\
+                    }\
                     onViewportChanged();\
                     tryUpdateControlsAndWebContentsSizing();\
                     updateWebContentsSize(getCurrentTab());\
                     requestRender();\
                 });\
+    }\
+    \
+    public void setAliceLayoutAnimationActive(boolean active) {\
+        if (mAliceLayoutAnimationActive == active) return;\
+        mAliceLayoutAnimationActive = active;\
+        if (!active \&\& mAliceNavigationBarViewportSyncDeferred) {\
+            mAliceNavigationBarViewportSyncDeferred = false;\
+            postOnAnimation(this::onAliceViewportWindowInsetsChanged);\
+        }\
     }\
     // Alice patch end 0080\
 \
@@ -234,3 +286,35 @@ sed -i '/^        mCompositorView\.shutDown();$/i\
             mAliceViewportInsetObserver = null;\
         }\
         // Alice patch end 0080' "$path2"
+
+sed -i '/^                    public void onStartedShowing(@LayoutType int layoutType) {$/a\
+                        // Alice patch start 0080\
+                        mCompositorViewHolder.setAliceLayoutAnimationActive(true);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceLayoutAnimationActive(true);\
+                        }\
+                        // Alice patch end 0080' "$path3"
+
+sed -i '/^                    public void onFinishedShowing(int layoutType) {$/a\
+                        // Alice patch start 0080\
+                        mCompositorViewHolder.setAliceLayoutAnimationActive(false);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceLayoutAnimationActive(false);\
+                        }\
+                        // Alice patch end 0080' "$path3"
+
+sed -i '/^                    public void onStartedHiding(@LayoutType int layoutType) {$/a\
+                        // Alice patch start 0080\
+                        mCompositorViewHolder.setAliceLayoutAnimationActive(true);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceLayoutAnimationActive(true);\
+                        }\
+                        // Alice patch end 0080' "$path3"
+
+sed -i '/^                    public void onFinishedHiding(@LayoutType int layoutType) {$/a\
+                        // Alice patch start 0080\
+                        mCompositorViewHolder.setAliceLayoutAnimationActive(false);\
+                        if (mToolbarPositionController != null) {\
+                            mToolbarPositionController.setAliceLayoutAnimationActive(false);\
+                        }\
+                        // Alice patch end 0080' "$path3"

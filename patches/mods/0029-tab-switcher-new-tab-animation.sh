@@ -35,21 +35,58 @@ sed -i '/^        int\[\] cornerRadii;$/,/^        }$/c\
                 new int[] {cornerRadius, cornerRadius, cornerRadius, cornerRadius};\
         // Alice patch end 0029' "$path5"
 
-# 标签管理页的新建标签动画起点对准当前 Hub 容器中的新建按钮。
+# 标签管理页的新建标签动画起点对准当前 Hub 容器中实际可见的新建按钮。
 sed -i '/^        initialRect = new Rect();$/,/^        NewTabAnimationUtils\.updateRects(rectStart, isRtl, initialRect, finalRect);$/c\
         // Alice patch start 0029\
-        View aliceNewTabButton = containerView.findViewById(R.id.toolbar_action_button);\
+        View aliceBottomBar =\
+                containerView.getRootView().findViewById(\
+                        org.chromium.chrome.browser.ui.bottombar.R.id.bottom_bar_container);\
+        View aliceNewTabButton =\
+                aliceBottomBar == null\
+                        ? null\
+                        : aliceBottomBar.findViewById(\
+                                org.chromium.chrome.browser.ui.bottombar.R.id.new_tab_button);\
+        if (aliceNewTabButton == null || !aliceNewTabButton.isShown()) {\
+            aliceNewTabButton = containerView.findViewById(R.id.toolbar_action_button);\
+        }\
+        int[] aliceNewTabButtonLocation = new int[2];\
+        int[] aliceHubContainerLocation = new int[2];\
+        int[] aliceRootLocation = new int[2];\
+        View aliceRoot = containerView.getRootView();\
         Rect aliceNewTabButtonRect = new Rect();\
         Rect aliceHubContainerRect = new Rect();\
         boolean aliceHasButtonOrigin =\
                 aliceNewTabButton != null\
-                        \&\& aliceNewTabButton.getGlobalVisibleRect(aliceNewTabButtonRect)\
-                        \&\& containerView.getGlobalVisibleRect(aliceHubContainerRect);\
+                        \&\& aliceNewTabButton.isShown()\
+                        \&\& aliceNewTabButton.getWidth() > 0\
+                        \&\& aliceNewTabButton.getHeight() > 0;\
         if (aliceHasButtonOrigin) {\
+            aliceNewTabButton.getLocationOnScreen(aliceNewTabButtonLocation);\
+            containerView.getLocationOnScreen(aliceHubContainerLocation);\
+            aliceRoot.getLocationOnScreen(aliceRootLocation);\
+            aliceNewTabButtonRect.set(\
+                    aliceNewTabButtonLocation[0],\
+                    aliceNewTabButtonLocation[1],\
+                    aliceNewTabButtonLocation[0] + aliceNewTabButton.getWidth(),\
+                    aliceNewTabButtonLocation[1] + aliceNewTabButton.getHeight());\
+            aliceHubContainerRect.set(\
+                    aliceHubContainerLocation[0],\
+                    aliceHubContainerLocation[1],\
+                    aliceHubContainerLocation[0] + containerView.getWidth(),\
+                    aliceHubContainerLocation[1] + containerView.getHeight());\
             aliceNewTabButtonRect.offset(\
-                    -aliceHubContainerRect.left, -aliceHubContainerRect.top);\
+                    -aliceHubContainerLocation[0], -aliceHubContainerLocation[1]);\
             initialRect = aliceNewTabButtonRect;\
-            finalRect = new Rect(0, 0, aliceHubContainerRect.width(), aliceHubContainerRect.height());\
+            int aliceVisibleBottom =\
+                    Math.min(\
+                            containerView.getHeight(),\
+                            Math.max(\
+                                    0,\
+                                    aliceRootLocation[1]\
+                                            + aliceRoot.getHeight()\
+                                            - aliceHubContainerLocation[1]));\
+            finalRect =\
+                    new Rect(0, 0, containerView.getWidth(), aliceVisibleBottom);\
         } else {\
             initialRect = new Rect();\
             NewTabAnimationUtils.updateRects(rectStart, isRtl, initialRect, finalRect);\
@@ -63,11 +100,7 @@ sed -i '/^        NewTabAnimationUtils\.updateRects(rectStart, isRtl, initialRec
             int[] aliceAnimationHostLocation = new int[2];\
             mAnimationHostView.getLocationOnScreen(aliceAnimationHostLocation);\
             int aliceDisplayBottom =\
-                    mToolbarManager\
-                            .getWindowAndroid()\
-                            .getDisplay()\
-                            .getDisplayHeight()\
-                            - aliceAnimationHostLocation[1];\
+                    hostViewRect.bottom - aliceAnimationHostLocation[1];\
             finalRect.bottom = Math.max(finalRect.bottom, aliceDisplayBottom);\
         }\
         // Alice patch end 0029\
@@ -80,7 +113,7 @@ sed -i '/^            initialRect\.offset(0, -heightDifference);$/a\
         if (rectStart == RectStart.BOTTOM_CENTER\
                 \&\& newTab.getLaunchType() == TabLaunchType.FROM_TAB_SWITCHER_UI) {\
             Rect aliceAnchorRect = new Rect();\
-            View aliceAnchor = getAliceTabSwitcherAnchor(aliceAnchorRect);\
+            View aliceAnchor = getAliceNewTabAnchor(aliceAnchorRect);\
             if (aliceAnchor != null) {\
                 int[] aliceAnimationHostLocation = new int[2];\
                 mAnimationHostView.getLocationOnScreen(aliceAnimationHostLocation);\
@@ -171,18 +204,38 @@ sed -i '/^    private @RectStart int getForegroundRectStart(@Nullable Tab oldTab
         }\
     }' "$path4"
 
-# 新增标签管理页按钮锚点方法。
+# 新增标签管理页新建按钮锚点方法。
 sed -i '/^    private int getBottomControlsHeightForTab($/i\
     // Alice patch start 0029\
-    private @Nullable View getAliceTabSwitcherAnchor(Rect aliceAnchorRect) {\
+    private @Nullable View getAliceNewTabAnchor(Rect aliceAnchorRect) {\
+        View aliceHubToolbar = mAnimationHostView.findViewById(R.id.hub_toolbar);\
+        if (aliceHubToolbar != null) {\
+            View aliceNewTabButton =\
+                    aliceHubToolbar.findViewById(R.id.toolbar_action_button);\
+            if (aliceNewTabButton != null\
+                    \&\& aliceNewTabButton.getGlobalVisibleRect(aliceAnchorRect)) {\
+                return aliceNewTabButton;\
+            }\
+        }\
+        View aliceBottomBar =\
+                mAnimationHostView.findViewById(\
+                        org.chromium.chrome.browser.ui.bottombar.R.id.bottom_bar_container);\
+        if (aliceBottomBar != null) {\
+            View aliceNewTabButton =\
+                    aliceBottomBar.findViewById(\
+                            org.chromium.chrome.browser.ui.bottombar.R.id.new_tab_button);\
+            if (aliceNewTabButton != null\
+                    \&\& aliceNewTabButton.getGlobalVisibleRect(aliceAnchorRect)) {\
+                return aliceNewTabButton;\
+            }\
+        }\
         View aliceToolbar = mAnimationHostView.findViewById(R.id.toolbar);\
         if (aliceToolbar == null) return null;\
         View aliceSwitcherButton =\
                 aliceToolbar.findViewById(R.id.tab_switcher_button);\
-        return aliceSwitcherButton != null\
-                        \&\& aliceSwitcherButton.getGlobalVisibleRect(aliceAnchorRect)\
-                ? aliceSwitcherButton\
-                : null;\
+        boolean aliceFoundSwitcher = aliceSwitcherButton != null\
+                \&\& aliceSwitcherButton.getGlobalVisibleRect(aliceAnchorRect);\
+        return aliceFoundSwitcher ? aliceSwitcherButton : null;\
     }\
     // Alice patch end 0029\
 \
