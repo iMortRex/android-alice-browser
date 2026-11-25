@@ -93,13 +93,13 @@ sed -i '/^    private final Callback<ViewportInsets> mInsetObserver = _ -> updat
             new WindowAndroid.ActivityStateObserver() {\
                 @Override\
                 public void onActivityPaused() {\
-                    pauseAliceImeViewportAnimation();\
+                    resetAliceImeViewportTranslation();\
                 }\
 \
                 @Override\
                 public void onActivityTopResumedChanged(boolean isTopResumedActivity) {\
                     if (!isTopResumedActivity) {\
-                        pauseAliceImeViewportAnimation();\
+                        resetAliceImeViewportTranslation();\
                     } else {\
                         restoreAliceImeViewportTranslation();\
                     }\
@@ -273,22 +273,20 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
         resetAliceImeViewportTranslation();\
     }\
 \
-    private void pauseAliceImeViewportAnimation() {\
-        mAliceImeAnimationActive = false;\
-    }\
-\
     private void restoreAliceImeViewportTranslation() {\
         if (isDestroyed()) return;\
-        if (mAliceImeViewportLiftFrozen) return;\
         WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getContentView());\
         int imeHeightPx =\
                 insets == null\
                         ? 0\
                         : getAliceKeyboardHeight(insets);\
-        if (imeHeightPx <= 0) {\
+        boolean imeVisible =\
+                insets != null \&\& insets.isVisible(WindowInsetsCompat.Type.ime());\
+        if (imeHeightPx <= 0 || !imeVisible) {\
             resetAliceImeViewportTranslation();\
             return;\
         }\
+        if (mAliceImeViewportLiftFrozen) return;\
         mAliceImeAnimationActive = shouldManageImeInVisualViewport();\
         if (!mAliceImeAnimationActive) return;\
         mAliceLastImeHeightPx = imeHeightPx;\
@@ -321,9 +319,7 @@ sed -i '/^    \/\*\* Sets the Visual Viewport bottom inset\. \*\/$/i\
                     @Override\
                     public void onWebContentsLostFocus() {\
                         if (isDestroyed()) return;\
-                        if (!mAliceImeAnimationActive && mAliceLastImeHeightPx <= 0) {\
-                            applyAliceImeViewportState(0);\
-                        }\
+                        resetAliceImeViewportTranslation();\
                     }\
 \
                     @Override\
